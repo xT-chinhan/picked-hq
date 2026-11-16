@@ -16,6 +16,7 @@ import { watchEdge } from './edge'
 import { Workspace } from './Workspace'
 import { BrowserPanel } from './BrowserPanel'
 import { Apps } from './Apps'
+import { Council, Story } from './Story'
 import { Dock, EdgeNotice, Info, Presenter, ScoreBoard, Stamp, Team, Wake } from './Stage'
 
 
@@ -334,7 +335,7 @@ function Stage() {
     <div className="flex h-full flex-col">
       <TopBar />
       <div className="relative min-h-0 flex-1">
-        <div className="ambient"><i style={{ ['--c' as any]: '#6366f11c', left: '-12vw', top: '-22vw' }} /><i style={{ ['--c' as any]: '#0ea5e916', right: '-10vw', bottom: '-30vw', animationDelay: '-9s' }} /><i style={{ ['--c' as any]: '#f9731612', left: '28vw', bottom: '-38vw', animationDelay: '-16s' }} /></div>
+        <div className="ambient" style={{ background: 'radial-gradient(circle 31vw at 19vw 9vw, #6366f11c, transparent), radial-gradient(circle 31vw at 79vw calc(100% - 1vw), #0ea5e916, transparent), radial-gradient(circle 31vw at 59vw calc(100% + 7vw), #f9731612, transparent)' }} />
         <ReactFlow
           nodes={nodes} edges={edges} nodeTypes={types} edgeTypes={edgeTypes}
           onlyRenderVisibleElements
@@ -357,7 +358,7 @@ function Stage() {
         <Feed />
         <Caption />
         <Inspector />
-        <ScoreBoard /><Stamp /><Team /><Workspace /><BrowserPanel /><Apps /><Presenter /><SystemOne /><Info /><Dock /><EdgeNotice /><Wake />
+        <ScoreBoard /><Council /><Stamp /><Team /><Workspace /><BrowserPanel /><Apps /><Story /><Presenter /><SystemOne /><Info /><Dock /><EdgeNotice /><Wake />
         <div className="pointer-events-none absolute bottom-[62px] right-5 z-10 text-[10px] font-semibold uppercase tracking-[.16em] text-slate-400">AI for Business Innovation 2026</div>
       </div>
     </div>

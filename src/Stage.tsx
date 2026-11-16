@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Bot, Check, Sparkles, X } from 'lucide-react'
+import { Bot, Check, MoreHorizontal, Sparkles, X } from 'lucide-react'
 import { DEPT_ICON } from './nodes'
 import { LIVE_ORDER, ORDER, usePhase, useSim, type Phase } from './sim'
 import { useLive } from './live'
@@ -9,6 +9,7 @@ import { OFFLINE_MSG, useEdge } from './edge'
 import { useNeeds, useWork, useWorkPoll } from './Workspace'
 import { useBrowser } from './BrowserPanel'
 import { useApps } from './Apps'
+import { useStory } from './Story'
 import { shortEngine, useCompany, useCompanyPoll, type AgentInfo } from './company'
 
 /* Stage overlays: the opening, the scoreboard, the approval stamp, the agent team, presenter notes and the Q&A sheet. */
@@ -225,21 +226,23 @@ export function Team() {
 }
 
 /* ───────────── presenter mode ───────────── */
-const NOTES: Record<Phase, [number, string]> = {
-  intake: [1, 'Mở: người mua giờ hỏi AI thay vì tìm Google. Shop nhỏ không biết AI có nhắc mình không.'],
-  mining: [1, 'Agent chuẩn bị 40 câu hỏi mà người mua thật hay hỏi cho ngành hàng này.'],
-  research: [1, 'Phần THẬT: nhiều tab Gemini ẩn danh, hỏi song song. 40 câu trong khoảng 3 phút. Chỉ bảng điểm góc phải.'],
-  analysis: [1, 'Đọc số: thương hiệu được nhắc bao nhiêu trên 40, đối thủ nào dẫn, nguồn nào Gemini trích.'],
-  sync: [2, 'Agent đọc website của shop, rút dữ kiện kèm trang nguồn. Mọi câu viết sau đều phải bám vào đây.'],
-  content: [2, 'Viết FAQ, trang giới thiệu, thư gửi trang đánh giá: trả lời đúng các câu Gemini chưa nhắc shop.'],
-  citations: [2, 'Nhắm đúng nguồn Gemini đang trích. Thư mới ở dạng nháp, chưa gửi (nói thật).'],
-  qa: [2, 'Từng câu được đối chiếu với dữ kiện. Câu không có nguồn bị đánh dấu.'],
-  risk: [2, 'Cổng rủi ro: chặn lời quảng cáo quá đà và dữ liệu cá nhân trước khi tới chủ shop.'],
-  approve: [3, 'Con người quyết định: chủ shop quét QR, duyệt trên điện thoại. Mời giám khảo quét thử.'],
-  publish: [3, 'Chỉ đăng phần được duyệt: trang shop, llms.txt, JSON-LD để AI đọc được.'],
-  track: [3, 'Lưu mốc hôm nay, 7 ngày sau hỏi lại đúng 40 câu để đo thay đổi.'],
-  impact: [3, 'Chốt: đo thật, sửa thật, người duyệt. Kêu gọi hành động.'],
+/** [speaker, target minute, note]. The 20-minute plan: problem 0-2, wake 2-4, measure 4-8, company 8-12, human decision 12-15, result 15-17, business and next 17-20. */
+const NOTES: Record<Phase, [number, number, string]> = {
+  intake: [1, 0, 'Vấn đề: người mua giờ hỏi AI thay vì Google. Shop nhỏ không biết AI có nhắc mình không. Mở màn: công ty agent thức dậy.'],
+  mining: [1, 2, 'Agent chuẩn bị 40 câu hỏi mà người mua thật hay hỏi cho ngành hàng này.'],
+  research: [2, 4, 'PHẦN THẬT: nhiều tab Gemini ẩn danh hỏi song song. Chỉ vào bảng điểm góc phải: 40 ô xanh/đỏ.'],
+  analysis: [2, 7, 'Đọc số: Elmich được nhắc 19/40, Lock&Lock dẫn đầu. Nguồn Gemini trích nhiều nhất là chỗ cần có mặt.'],
+  sync: [2, 9, 'Agent đọc website của shop, rút dữ kiện kèm trang nguồn. Mọi câu viết sau đều phải bám vào đây.'],
+  content: [2, 10, 'Viết FAQ, trang giới thiệu, thư gửi trang đánh giá, đúng các câu Gemini chưa nhắc shop. Mỗi đoạn ghi dữ kiện đã dùng.'],
+  citations: [2, 11, 'Nhắm đúng nguồn Gemini đang trích. Thư mới ở dạng nháp, chưa gửi (nói thật).'],
+  qa: [2, 11.5, 'HỘI ĐỒNG: ba model khác họ cùng chấm từng câu. Đa số quyết định, hòa thì chặn. Chỉ vào ba dấu tích.'],
+  risk: [2, 12, 'Cổng rủi ro: chặn lời quảng cáo quá đà và dữ liệu cá nhân trước khi tới chủ shop.'],
+  approve: [3, 12.5, 'Con người quyết định: chủ shop quét QR, duyệt trên điện thoại. Mời giám khảo quét thử.'],
+  publish: [3, 14, 'Chỉ đăng phần được duyệt: trang shop, llms.txt, JSON-LD để AI đọc được.'],
+  track: [3, 15, 'Lưu mốc hôm nay, 7 ngày sau hỏi lại đúng 40 câu để đo thay đổi (routine thật).'],
+  impact: [3, 16, 'Chốt kết quả. Sau đó bấm V: định vị so với RoMes và Muse, bài toán chi phí 15 triệu so với dưới 1 triệu, và bước tiếp theo.'],
 }
+const mmss = (sec: number) => `${String(Math.floor(Math.abs(sec) / 60)).padStart(2, '0')}:${String(Math.floor(Math.abs(sec) % 60)).padStart(2, '0')}`
 export function Presenter() {
   const on = useOne((s) => s.presenter)
   const phase = usePhase(), order = useOrder()
@@ -247,16 +250,18 @@ export function Presenter() {
   const [t0, setT0] = useState(0)
   useEffect(() => { if (on) setT0(Math.floor(Date.now() / 1000)) }, [on])
   if (!on) return null
-  const sec = Math.max(0, now - t0), i = order.indexOf(phase), next = order[(i + 1) % order.length], [sp, note] = NOTES[phase]
+  const sec = Math.max(0, now - t0), i = order.indexOf(phase), next = order[(i + 1) % order.length], [sp, target, note] = NOTES[phase]
+  const late = sec - target * 60
   return (
-    <div className="absolute left-5 top-5 z-30 w-[380px] rounded-[18px] border border-slate-800 bg-slate-900/95 p-4 text-white shadow-[0_30px_80px_-30px_rgba(15,23,42,.8)]">
+    <div className="absolute left-5 top-5 z-30 w-[390px] rounded-[18px] border border-slate-800 bg-slate-900/95 p-4 text-white shadow-[0_30px_80px_-30px_rgba(15,23,42,.8)]">
       <div className="flex items-center gap-3">
-        <button title="Reset the timer" onClick={() => setT0(Math.floor(Date.now() / 1000))} className="tnum text-[28px] font-semibold leading-none tracking-tight" style={{ color: sec > 300 ? '#fb7185' : sec > 240 ? '#fbbf24' : '#fff' }}>{String(Math.floor(sec / 60)).padStart(2, '0')}:{String(sec % 60).padStart(2, '0')}</button>
+        <button title="Reset the timer" onClick={() => setT0(Math.floor(Date.now() / 1000))} className="tnum text-[28px] font-semibold leading-none tracking-tight" style={{ color: sec > 1200 ? '#fb7185' : sec > 1080 ? '#fbbf24' : '#fff' }}>{mmss(sec)}</button>
         <div className="text-[11px] leading-tight text-slate-400">Step {i + 1}/{order.length}<br /><b className="text-[13px] text-white">{NAME[phase]}</b></div>
         <span className="ml-auto rounded-full bg-indigo-500 px-2.5 py-1 text-[11.5px] font-semibold">Speaker {sp}</span>
       </div>
-      <div className="mt-3 text-[13.5px] leading-snug text-slate-100">{note}</div>
-      <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400"><span>Next: <b className="text-slate-200">{NAME[next]}</b> · Speaker {NOTES[next][0]}</span><span>← → step · P hide · / chat · T team · I Q&amp;A</span></div>
+      <div className="mt-2.5 flex items-center gap-2 text-[11px]"><span className="text-slate-400">Target {mmss(target * 60)}</span><span className="rounded-full px-2 py-px font-semibold" style={{ background: Math.abs(late) < 45 ? '#065f46' : late > 0 ? '#9a3412' : '#1e3a8a', color: '#fff' }}>{Math.abs(late) < 45 ? 'on time' : late > 0 ? `${mmss(late)} behind` : `${mmss(late)} ahead`}</span><span className="ml-auto text-slate-500">20:00 total</span></div>
+      <div className="mt-2.5 text-[13.5px] leading-snug text-slate-100">{note}</div>
+      <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400"><span>Next: <b className="text-slate-200">{NAME[next]}</b> · Speaker {NOTES[next][0]}</span><span>← → step · P hide · V story · / NaN</span></div>
     </div>
   )
 }
@@ -290,23 +295,31 @@ export function Info() {
 
 /* ───────────── dock ───────────── */
 export function Dock() {
-  const o = useOne()
-  const w = useWork((s) => s.open), need = useNeeds(), br = useBrowser((s) => s.open), ap = useApps((s) => s.open)
+  const o = useOne(), [more, setMore] = useState(false)
+  const w = useWork((s) => s.open), need = useNeeds(), br = useBrowser((s) => s.open), ap = useApps((s) => s.open), st = useStory((s) => s.open)
   useWorkPoll()
-  const B = ({ k, label, on, go, main }: { k: string; label: string; on: boolean; go: () => void; main?: boolean }) => (
-    <button onClick={go} className={`flex h-9 items-center gap-1.5 rounded-full px-3 text-[12.5px] font-semibold shadow-[0_10px_26px_-14px_rgba(15,23,42,.5)] transition-colors ${main ? 'bg-gradient-to-br from-indigo-500 to-violet-600 text-white' : on ? 'bg-slate-900 text-white' : 'border border-slate-200 bg-white text-slate-600 hover:text-slate-900'}`}>
+  const Btn = ({ k, label, on, go, main, badge }: { k: string; label: string; on: boolean; go: () => void; main?: boolean; badge?: number }) => (
+    <button onClick={() => { go(); setMore(false) }} className={`relative flex h-9 items-center gap-1.5 rounded-full px-3 text-[12.5px] font-semibold shadow-[0_10px_26px_-14px_rgba(15,23,42,.5)] transition-colors ${main ? 'bg-gradient-to-br from-indigo-500 to-violet-600 text-white' : on ? 'bg-slate-900 text-white' : 'border border-slate-200 bg-white text-slate-600 hover:text-slate-900'}`}>
       {main && <Bot size={15} />}{label}<kbd className={`rounded px-1 text-[10px] font-bold ${main || on ? 'bg-white/20' : 'bg-slate-100 text-slate-400'}`}>{k}</kbd>
+      {!!badge && <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white">{badge}</span>}
     </button>
   )
+  const items: [string, string, boolean, () => void, number?][] = [
+    ['V', 'Story', st, () => useStory.setState({ open: !st, slide: 0 })], ['T', 'Agents', o.team, () => useOne.setState({ team: !o.team })], ['W', 'Inbox', w, () => useWork.setState({ open: !w }), need],
+    ['B', 'Browser', br, () => useBrowser.setState({ open: !br, control: false })], ['A', 'Apps', ap, () => useApps.setState({ open: !ap })], ['I', 'Q&A', o.info, () => useOne.setState({ info: !o.info })],
+  ]
   return (
     <div className="absolute bottom-5 right-5 z-30 flex items-center gap-1.5">
-      <button onClick={() => useWork.setState({ open: !w })} className={`relative flex h-9 items-center gap-1.5 rounded-full px-3 text-[12.5px] font-semibold shadow-[0_10px_26px_-14px_rgba(15,23,42,.5)] transition-colors ${w ? 'bg-slate-900 text-white' : 'border border-slate-200 bg-white text-slate-600 hover:text-slate-900'}`}>Inbox<kbd className={`rounded px-1 text-[10px] font-bold ${w ? 'bg-white/20' : 'bg-slate-100 text-slate-400'}`}>W</kbd>{need > 0 && <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white">{need}</span>}</button>
-      <B k="A" label="Apps" on={ap} go={() => useApps.setState({ open: !ap })} />
-      <B k="B" label="Browser" on={br} go={() => useBrowser.setState({ open: !br, control: false })} />
-      <B k="T" label="Team" on={o.team} go={() => useOne.setState({ team: !o.team })} />
-      <B k="I" label="Q&A" on={o.info} go={() => useOne.setState({ info: !o.info })} />
-      <B k="P" label="Presenter" on={o.presenter} go={() => useOne.setState({ presenter: !o.presenter })} />
-      <B k="/" label="NaN" on={o.open} main go={() => useOne.setState({ open: !o.open })} />
+      <AnimatePresence>
+        {more && (
+          <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 16 }} transition={{ type: 'spring', stiffness: 380, damping: 30 }} className="flex items-center gap-1.5">
+            {items.map(([k, l, on, go, badge]) => <Btn key={k} k={k} label={l} on={on} go={go} badge={badge} />)}
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <button onClick={() => setMore((m) => !m)} title="More" className="relative grid h-9 w-9 place-items-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-[0_10px_26px_-14px_rgba(15,23,42,.5)] hover:text-slate-900"><MoreHorizontal size={16} />{need > 0 && !more && <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-amber-500" />}</button>
+      <Btn k="P" label="Presenter" on={o.presenter} go={() => useOne.setState({ presenter: !o.presenter })} />
+      <Btn k="/" label="NaN" on={o.open} main go={() => useOne.setState({ open: !o.open })} />
     </div>
   )
 }

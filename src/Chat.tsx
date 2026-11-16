@@ -1,4 +1,6 @@
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import { ArrowUp, Check, Plus, X } from 'lucide-react'
+import { tick } from './ticker'
 import openai from '@lobehub/icons-static-svg/icons/openai.svg'
 import claude from '@lobehub/icons-static-svg/icons/claude-color.svg'
 import gemini from '@lobehub/icons-static-svg/icons/gemini-color.svg'
@@ -8,35 +10,57 @@ import { RIVALS, URLS, type Answer, type Provider, type Session } from './sim'
 export const BRAND: Record<Provider, { name: string; logo: string; model: string; ph: string; hello: string }> = {
   gpt: { name: 'ChatGPT', logo: openai, model: '', ph: 'Ask anything', hello: 'What can I help with?' },
   claude: { name: 'Claude', logo: claude, model: '', ph: 'Reply to Claude…', hello: 'How can I help you today?' },
-  gemini: { name: 'Gemini', logo: gemini, model: '', ph: 'Ask Gemini', hello: 'Hello, xT' },
+  gemini: { name: 'Gemini', logo: gemini, model: '', ph: 'Ask Gemini', hello: 'Hello' },
   pplx: { name: 'Perplexity', logo: pplx, model: '', ph: 'Ask a follow-up', hello: 'Where knowledge begins' },
 }
 export const Logo = ({ p, size = 16 }: { p: Provider; size?: number }) => (
   <img src={BRAND[p].logo} alt={BRAND[p].name} width={size} height={size} draggable={false} style={{ width: size, height: size }} />
 )
 
-/** reveal the first n characters of a structured answer */
-function Reveal({ a, n, live }: { a: Answer; n: number; live: boolean }) {
-  let left = n
-  const take = (s: string) => { const out = s.slice(0, Math.max(0, left)); left -= s.length; return out }
-  const intro = take(a.intro)
-  const rows = a.items.map((it) => ({ it, name: take(it.name), reason: take(it.reason ? ' · ' + it.reason : '') }))
-  const last = rows.findLastIndex((r) => r.name.length > 0)
+/** Reveals an answer character by character. The text is written straight into the DOM on a shared timer, so typing never re-renders React. */
+function Reveal({ a, n0, live, get }: { a: Answer; n0: number; live: boolean; get?: () => number }) {
+  const intro = useRef<HTMLDivElement>(null)
+  const rows = useRef<(HTMLDivElement | null)[]>([]), names = useRef<(HTMLElement | null)[]>([]), reasons = useRef<(HTMLElement | null)[]>([])
+  const paint = useCallback((n: number) => {
+    let left = n
+    const take = (s: string) => { const o = s.slice(0, Math.max(0, left)); left -= s.length; return o }
+    const head = take(a.intro)
+    const parts = a.items.map((it) => [take(it.name), take(it.reason ? ' · ' + it.reason : '')] as const)
+    const last = parts.findLastIndex((p) => p[0].length > 0)
+    if (intro.current) { intro.current.textContent = head; intro.current.classList.toggle('caret', live && last < 0) }
+    a.items.forEach((it, k) => {
+      const row = rows.current[k]; if (!row) return
+      row.style.display = parts[k][0] ? '' : 'none'
+      row.classList.toggle('me', !!it.me && parts[k][0].length === it.name.length)
+      row.children[1].classList.toggle('caret', live && k === last)
+      names.current[k]!.textContent = parts[k][0]; reasons.current[k]!.textContent = parts[k][1]
+    })
+  }, [a, live])
+  useLayoutEffect(() => paint(n0), [paint, n0])
+  useEffect(() => (get ? tick(() => paint(get())) : undefined), [get, paint])
   return (
     <>
-      <div className={live && last < 0 ? 'caret' : ''}>{intro}</div>
-      {rows.map((r, k) => r.name && (
-        <div key={k} className={`it ${r.it.me && r.name.length === r.it.name.length ? 'me' : ''}`}>
+      <div ref={intro} />
+      {a.items.map((it, k) => (
+        <div key={k} ref={(el) => { rows.current[k] = el }} className="it" style={{ display: 'none' }}>
           <span>{k + 1}.</span>
-          <span className={live && k === last ? 'caret' : ''}><b>{r.name}</b>{r.reason}</span>
+          <span><b ref={(el) => { names.current[k] = el }} /><span ref={(el) => { reasons.current[k] = el }} /></span>
         </div>
       ))}
     </>
   )
 }
+/** The question being typed into the composer, written imperatively like the answer. */
+function Typed({ q, n0, get }: { q: string; n0: number; get?: () => number }) {
+  const el = useRef<HTMLSpanElement>(null)
+  useLayoutEffect(() => { if (el.current) el.current.textContent = q.slice(0, n0) }, [q, n0])
+  useEffect(() => (get ? tick(() => { if (el.current) el.current.textContent = q.slice(0, get()) }) : undefined), [q, get])
+  return <span ref={el} />
+}
 
 /** A faithful miniature of each assistant's web chat. Scales with `fs` (font-size, px). */
-export default function Chat({ s, fs = 9 }: { s: Session; fs?: number }) {
+export default function Chat({ s, fs = 9, get }: { s: Session; fs?: number; get?: () => Session }) {
+  const shown = useCallback(() => get!().shown, [get]), typed = useCallback(() => get!().typed, [get])
   const b = BRAND[s.provider]
   const p = s.provider
   const sent = s.stage === 'think' || s.stage === 'answer' || s.stage === 'done'
@@ -85,7 +109,7 @@ export default function Chat({ s, fs = 9 }: { s: Session; fs?: number }) {
                     {p === 'pplx' && <div className="lbl"><img src={b.logo} alt="" />Answer</div>}
                     <div className="arow">
                       {p === 'gemini' && <img className={live ? 'busy' : ''} src={b.logo} alt="" />}
-                      <div className="a"><Reveal a={s.ans} n={s.shown} live={live} /></div>
+                      <div className="a"><Reveal a={s.ans} n0={s.shown} live={live} get={get ? shown : undefined} /></div>
                     </div>
                     {p === 'claude' && <img className={live ? 'spark' : ''} src={b.logo} alt="" style={{ width: '1.6em', height: '1.6em' }} />}
                   </>
@@ -95,7 +119,7 @@ export default function Chat({ s, fs = 9 }: { s: Session; fs?: number }) {
           </div>
           <div className="comp">
             {p !== 'pplx' && <span className="plus"><Plus /></span>}
-            <span className={`txt ${s.stage === 'type' ? 'on caret' : ''}`}>{s.stage === 'type' ? s.q.slice(0, s.typed) : b.ph}</span>
+            <span className={`txt ${s.stage === 'type' ? 'on caret' : ''}`}>{s.stage === 'type' ? <Typed q={s.q} n0={s.typed} get={get ? typed : undefined} /> : b.ph}</span>
             <span className={`send ${s.stage === 'type' ? '' : 'idle'}`}><ArrowUp strokeWidth={2.6} /></span>
           </div>
         </>

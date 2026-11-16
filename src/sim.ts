@@ -152,7 +152,8 @@ export type Session = ReturnType<typeof session>
 /** the scripted session, or the real one when a live/replayed audit is on the canvas */
 export const sessionAny = (t: number, i: number, force = false, now = Date.now()): Session => (i < 12 && isLive() ? liveSession(i, now) : session(t, i, force))
 export const useSession = (i: number, force = false): Session => {
-  useSim((s) => { const x = sessionAny(s.t, i, force, s.now); return `${x.qi}|${x.stage}|${x.typed}|${x.shown}` })
+  // re-render only when the question or the stage changes; typed and shown characters are painted imperatively by Chat
+  useSim((s) => { const x = sessionAny(s.t, i, force, s.now); return `${x.qi}|${x.stage}|${x.mentioned}` })
   const st = useSim.getState()
   return sessionAny(st.t, i, force, st.now)
 }

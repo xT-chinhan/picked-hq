@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import {
   Bot, Check, FileText, Globe, ListChecks, Loader2, Lock, Mail, MessageCircleQuestion, Minus, MousePointer2,
@@ -12,7 +13,7 @@ import { ChartColumn, Inbox, Quote, ShieldX } from 'lucide-react'
 import { useLive } from './live'
 import {
   CHECKS, DIAG, DOCS, PH, QUESTIONS, RIVALS, SCORES, TOTAL_Q, ct, cyc, prog, scoreAt, scoutName, stagger,
-  ranPhase, useP, usePhase, useSession, useSim, week, type Phase,
+  clock, ranPhase, sessionAny, useP, usePhase, useSession, useSim, week, type Phase,
 } from './sim'
 
 export const Ports = () => (
@@ -137,6 +138,7 @@ export function PlannerNode() {
 const STATUS = { boot: 'opening', type: 'typing', think: 'waiting', answer: 'reading', done: 'logged' }
 export function SessionFrame({ i, force, fs, name }: { i: number; force?: boolean; fs?: number; name?: string }) {
   const s = useSession(i, force)
+  const get = useCallback(() => sessionAny(clock.t, i, force, Date.now()), [i, force])
   const done = s.stage === 'done'
   const lq = useLive((x) => (x.mode !== 'script' && i < 12 ? x.qs[s.qi] : undefined)), lTotal = useLive((x) => x.total)
   const tone = done ? (s.mentioned ? '#22c55e' : '#f87171') : '#e6e8ef'
@@ -147,7 +149,7 @@ export function SessionFrame({ i, force, fs, name }: { i: number; force?: boolea
         <span className="font-semibold text-slate-700">{name ?? scoutName(i)}</span>
         <span className="ml-auto flex items-center gap-1.5">{!done && <span className="mini-dot" style={{ background: '#6366f1' }} />}{STATUS[s.stage]}</span>
       </div>
-      <div className="min-h-0 flex-1 border-t border-slate-100"><Chat s={s} fs={fs} /></div>
+      <div className="min-h-0 flex-1 border-t border-slate-100"><Chat s={s} fs={fs} get={get} /></div>
       {lq && lq.stage === 'done' && (
         <div className="flex flex-none items-center gap-1.5 border-t border-slate-100 bg-slate-50/70 px-2.5 py-[3px] text-slate-500" style={{ fontSize: (fs ?? 9) * 0.92 }}>
           <span className="tnum font-semibold text-slate-700">Q{lq.qi + 1}/{lTotal}</span><span>· {(lq.ms / 1000).toFixed(1)} s</span><span>· {lq.brands.length} brands</span>{lq.domains.length > 0 && <span className="truncate">· {lq.domains[0]}</span>}

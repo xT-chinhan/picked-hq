@@ -154,7 +154,7 @@ export async function checkContent({ content, facts }, llm) {
     }
     if (!why && personal.length) why = 'personal information detected';
     if (!why && claims.length) why = 'risky claim detected';
-    const item = { doc: row.doc, sentence: row.sentence, refs: row.refs, supported: false, why };
+    const item = { id: row.id, doc: row.doc, sentence: row.sentence, refs: row.refs, supported: false, why };
     if (!why) eligible.push({ row, item });
     return item;
   });

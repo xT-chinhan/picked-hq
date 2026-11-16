@@ -9,6 +9,7 @@ import { OFFLINE_MSG, probe } from './edge'
 import { useWork } from './Workspace'
 import { openPage, reviewTab, useBrowser } from './BrowserPanel'
 import { useApps } from './Apps'
+import { SLIDES, useStory } from './Story'
 
 /* NaN: the operator chat. Familiar commands are matched by rules in the browser (instant);
    anything else goes to the local LLM, which answers with a reply plus a list of real actions. */
@@ -342,14 +343,16 @@ export function useKeys() {
       if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || e.metaKey || e.ctrlKey || e.altKey) return
       const o = useOne.getState(), k = e.key.toLowerCase()
       if (e.key === '/') { e.preventDefault(); useOne.setState({ open: true }) }
-      else if (e.key === 'Escape') useOne.setState({ open: false, info: false })
+      else if (e.key === 'Escape') { useOne.setState({ open: false, info: false }); useStory.setState({ open: false }) }
       else if (k === 't') useOne.setState({ team: !o.team })
       else if (k === 'w') useWork.setState((x) => ({ open: !x.open }))
       else if (k === 'a') useApps.setState((x) => ({ open: !x.open }))
+      else if (k === 'v') useStory.setState((x) => ({ open: !x.open, slide: 0 }))
       else if (k === 'b') useBrowser.setState((x) => ({ open: !x.open, control: false }))
       else if (k === 'p') useOne.setState({ presenter: !o.presenter })
       else if (k === 'i' || e.key === '?') useOne.setState({ info: !o.info })
       else if (k === 'o') nav.overview()
+      else if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && useStory.getState().open) useStory.setState((x) => ({ slide: (x.slide + (e.key === 'ArrowRight' ? 1 : -1) + SLIDES) % SLIDES }))
       else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
         const order = lget().mode === 'script' ? ORDER : LIVE_ORDER, i = order.indexOf(phaseOf(clock.t)), d = e.key === 'ArrowRight' ? 1 : -1
         jump(order[(i + d + order.length) % order.length])

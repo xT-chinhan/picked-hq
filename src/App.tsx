@@ -12,7 +12,8 @@ import { dropTrack, setTrack } from './fx'
 import LiveControl from './LiveControl'
 import { useLive } from './live'
 import SystemOne, { setNav, useKeys } from './SystemOne'
-import { Dock, Info, Presenter, ScoreBoard, Stamp, Team, Wake } from './Stage'
+import { watchEdge } from './edge'
+import { Dock, EdgeNotice, Info, Presenter, ScoreBoard, Stamp, Team, Wake } from './Stage'
 
 
 const N = (id: string, type: string, [x, y, w, h]: number[], data: any = {}, parentId?: string): Node => ({ id, type, position: { x, y }, width: w, height: h, data, parentId, draggable: false, selectable: false })
@@ -321,6 +322,7 @@ function Inspector() {
 function Stage() {
   const rf = useReactFlow()
   useKeys()
+  useEffect(() => { watchEdge() }, [])
   useEffect(() => setNav({
     goto: (k) => { if (useLive.getState().mode !== 'script') holdCam(20000); rf.fitBounds(VIEW[k], { duration: 900, padding: 0.04 }).then(sharpen) },
     overview: () => { holdCam(); rf.fitBounds(ALL, { duration: 900, padding: 0.04 }).then(sharpen) },
@@ -352,7 +354,7 @@ function Stage() {
         <Feed />
         <Caption />
         <Inspector />
-        <ScoreBoard /><Stamp /><Team /><Presenter /><SystemOne /><Info /><Dock /><Wake />
+        <ScoreBoard /><Stamp /><Team /><Presenter /><SystemOne /><Info /><Dock /><EdgeNotice /><Wake />
         <div className="pointer-events-none absolute bottom-[62px] right-5 z-10 text-[10px] font-semibold uppercase tracking-[.16em] text-slate-400">AI for Business Innovation 2026</div>
       </div>
     </div>

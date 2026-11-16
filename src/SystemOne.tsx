@@ -5,6 +5,7 @@ import { ArrowUp, Bot, Check, Sparkles, X } from 'lucide-react'
 import { parseAnswer, summarize } from '../server/parse.mjs'
 import { CYCLE, LIVE_ORDER, ORDER, PH, clock, cyc, phaseOf, type Phase } from './sim'
 import { lget, leaveLive, replayRun, startLive } from './live'
+import { OFFLINE_MSG, probe } from './edge'
 
 /* System One: the operator chat. Familiar commands are matched by rules in the browser (instant);
    anything else goes to the local LLM, which answers with a reply plus a list of real actions. */
@@ -37,6 +38,7 @@ export const plain = (s: string) => s.toLowerCase().normalize('NFD').replace(/[�
 const post = async (url: string, body: any, ms = 70000) => {
   const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(ms) })
   const j = await r.json().catch(() => ({}))
+  if (j.offline) { probe(); throw new Error('offline') }
   if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`)
   return j
 }
@@ -208,8 +210,8 @@ export async function submit(raw: string) {
     for (const a of (j.actions ?? []).filter((x: Act) => x.type && x.type !== 'none').slice(0, 3)) { step(bot, `Action: ${a.type}`); const r = await exec(a, vi, bot).catch((e) => ({ text: String(e.message || e), card: undefined })); if (r.card) cards.push(r.card); else if (['audit', 'replay', 'approve', 'reject', 'ask'].includes(a.type) && r.text) outs.push(r.text) }
     finish(bot, [j.reply, ...outs].filter(Boolean).join(' '), cards[0])
   } catch (e: any) {
-    const off = /Failed to fetch|unavailable|HTTP 50|HTTP 404/.test(String(e.message))
-    finish(bot, off ? (vi ? 'Câu hỏi tự do cần máy chủ cục bộ (pnpm live). Các lệnh như "replay Elmich", "hồ sơ Sunhouse", "đến phòng phân tích" vẫn chạy được.' : 'Free-form questions need the local server (pnpm live). Commands such as "replay Elmich", "profile Sunhouse" or "go to analysis" still work.') : `${vi ? 'Lỗi' : 'Error'}: ${e.message || e}`)
+    const off = /Failed to fetch|unavailable|offline|HTTP 50|HTTP 404/.test(String(e.message))
+    finish(bot, off ? `${OFFLINE_MSG}. ${vi ? 'Các lệnh như "replay Elmich", "hồ sơ Sunhouse", "đến phòng phân tích" vẫn chạy được.' : 'Commands such as "replay Elmich", "profile Sunhouse" or "go to analysis" still work.'}` : `${vi ? 'Lỗi' : 'Error'}: ${e.message || e}`)
   }
 }
 

@@ -40,7 +40,7 @@ function pageText(document, limit) {
 export async function fetchSiteText(website, opts = {}) {
   const {
     maxPages = 5, maxChars = 14000,
-    userAgent = 'PickedBot/1.0 (+https://pickedhq.vercel.app)',
+    userAgent = 'PickedBot/1.0 (+https://pickedhq.pages.dev)',
     fetchImpl = globalThis.fetch, delayMs = 300,
   } = opts;
   const home = normalizeUrl(website);

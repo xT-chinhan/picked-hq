@@ -6,7 +6,7 @@ Customers now ask AI "where should I buy this?". AI names only a few big brands,
 
 [![Watch the product demo](docs/demo-poster.jpg)](https://drive.google.com/file/d/108ArtN2uJnFCOYWFm_qmGGYi6Qu62IH-/view?usp=drive_link)
 
-**[▶ Watch the product demo](https://drive.google.com/file/d/108ArtN2uJnFCOYWFm_qmGGYi6Qu62IH-/view?usp=drive_link)** · **[Live app](https://pickedhq.vercel.app)** · **[Idea video](https://drive.google.com/file/d/1JJtVlpsb54upyW6h2eL2--gJNIoD28x6/view?usp=drive_link)**
+**[▶ Watch the product demo](https://drive.google.com/file/d/108ArtN2uJnFCOYWFm_qmGGYi6Qu62IH-/view?usp=drive_link)** · **[Live app](https://pickedhq.pages.dev)** · **[Idea video](https://drive.google.com/file/d/1JJtVlpsb54upyW6h2eL2--gJNIoD28x6/view?usp=drive_link)**
 
 ---
 
@@ -56,6 +56,14 @@ Press `/` to open **System One**, the operator chat. Type in any language: the r
 | `P` | Presenter notes and timer |
 | `I` | Q&A sheet (cost, data, responsibility, what is real) |
 | `O` | Whole company |
+
+## Hosting: Cloudflare Pages + this machine as the backend
+
+The UI is on **Cloudflare Pages** (`pickedhq.pages.dev`) and stays up when the backend is off. The backend (`pnpm live`) runs on the team's own machine: it starts a Cloudflare quick tunnel and announces its address to a Pages Function (`functions/`), which proxies `/api`, `/shop` and `/approve` to it. Only that function holds the shared secret, so the tunnel address cannot be used directly; visitors are rate limited per IP.
+
+- Backend on: System One, live audits and approval QR codes work from the public address.
+- Backend off: the UI shows **"NaN-Team đang tạm khóa để phát triển dự án"**; the scripted demo, saved replays and rule commands keep working.
+- Publish the UI: `pnpm deploy:edge`. Machine setup: `~/.config/picked/cloudflare.env` (API token) and `edge.env` (shared secret and address); without `edge.env` the server runs local-only.
 
 ## Run locally
 

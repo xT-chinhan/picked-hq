@@ -4,11 +4,20 @@ import path from 'node:path'
 import { runPipeline, lanIp } from './pipeline.mjs'
 import { handleApprovalRequest } from './approve.mjs'
 import { handleSystemOne } from './systemone.mjs'
+import { edgeConfig, startEdge } from './edge.mjs'
 
 const PORT = +process.env.PICKED_PORT || 5198
 const DIR = path.join(import.meta.dirname, 'data', 'runs')
 const SHOPS = path.join(import.meta.dirname, '..', 'public', 'shops')
 fs.mkdirSync(DIR, { recursive: true })
+const EDGE = edgeConfig()
+// requests that arrive through the hosted UI: only the edge function holds the secret, and visitors are rate limited per IP
+const hits = new Map()
+const limited = (ip, key, max, windowMs) => {
+  const k = key + '|' + ip, now = Date.now(), list = (hits.get(k) || []).filter((t) => now - t < windowMs)
+  list.push(now); hits.set(k, list)
+  return list.length > max
+}
 const live = new Map(), pending = new Map() // run id -> run state; approval id -> resolver
 const json = (res, code, body) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)) }
 const body = (req) => new Promise((r) => { let b = ''; req.on('data', (c) => (b += c)); req.on('end', () => { try { r(JSON.parse(b || '{}')) } catch { r({}) } }) })
@@ -29,10 +38,20 @@ function start(o) {
 
 http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://x'), p = u.pathname
-  const local = /^(::1|127\.|::ffff:127\.)/.test(req.socket.remoteAddress || '')
+  const viaTunnel = !!(req.headers['cf-ray'] || req.headers['cf-connecting-ip'])
+  const local = !viaTunnel && /^(::1|127\.|::ffff:127\.)/.test(req.socket.remoteAddress || '')
+  res.setHeader('x-picked', '1')
   try {
+    if (viaTunnel) {
+      if (!EDGE || req.headers['x-picked-edge'] !== EDGE.secret) return json(res, 403, { error: 'forbidden' })
+      const ip = String(req.headers['x-picked-ip'] || 'unknown')
+      if (req.method === 'POST' && p.startsWith('/api/audit/') && p.endsWith('/stop')) return json(res, 403, { error: 'local only' })
+      if (req.method === 'POST' && limited(ip, 'post', 30, 60000)) return json(res, 429, { error: 'Too many requests, slow down.' })
+      if (req.method === 'POST' && p === '/api/audit' && limited(ip, 'audit', 4, 600000)) return json(res, 429, { error: 'Too many audits, try again later.' })
+    }
+    if (p === '/api/health') return json(res, 200, { ok: true, edge: !!EDGE })
     // phones on the LAN may only reach the approval page and published shop pages
-    if (!local && !/^\/(approve\/|api\/approve\/|shop\/)/.test(p)) return json(res, 403, { error: 'local only' })
+    if (!local && !viaTunnel && !/^\/(approve\/|api\/approve\/|shop\/)/.test(p)) return json(res, 403, { error: 'local only' })
     if (await handleApprovalRequest(req, res, { onDecision: (a) => pending.get(a.id)?.(a) })) return
     if (await handleSystemOne(req, res)) return
     let m
@@ -63,4 +82,8 @@ http.createServer(async (req, res) => {
     }
     json(res, 404, { error: 'not found' })
   } catch (e) { json(res, 500, { error: String(e.message || e) }) }
-}).listen(PORT, '0.0.0.0', () => console.log(`audit server on http://127.0.0.1:${PORT} (LAN ${lanIp()}: approval and shop pages only)`))
+}).listen(PORT, '0.0.0.0', () => {
+  console.log(`audit server on http://127.0.0.1:${PORT} (LAN ${lanIp()}: approval and shop pages only)`)
+  if (EDGE) startEdge(PORT, EDGE)
+  else console.log('edge: not configured (no ~/.config/picked/edge.env), the hosted UI will show the maintenance notice')
+})

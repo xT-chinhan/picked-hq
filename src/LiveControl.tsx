@@ -74,7 +74,7 @@ export default function LiveControl() {
               <button onClick={replay} disabled={!pick} className="h-9 rounded-lg bg-slate-900 px-3 text-[12.5px] font-semibold text-white disabled:opacity-40">Replay</button>
             </div>
             <div className="mt-2 text-[11px] leading-snug text-slate-400">Replay re-scores the saved answers for the brand typed above.</div>
-            {status === 'error' && <div className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-[11.5px] text-rose-700">{err}</div>}
+            {status === 'error' && <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-[11.5px] text-amber-800">{err}</div>}
           </motion.div>
         )}
       </AnimatePresence>

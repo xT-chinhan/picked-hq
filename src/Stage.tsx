@@ -5,6 +5,7 @@ import { DEPT_ICON } from './nodes'
 import { LIVE_ORDER, ORDER, usePhase, useSim, type Phase } from './sim'
 import { useLive } from './live'
 import { jump, snap, useOne } from './SystemOne'
+import { OFFLINE_MSG, useEdge } from './edge'
 
 /* Stage overlays: the opening, the scoreboard, the approval stamp, the agent team, presenter notes and the Q&A sheet. */
 
@@ -248,5 +249,19 @@ export function Dock() {
       <B k="P" label="Presenter" on={o.presenter} go={() => useOne.setState({ presenter: !o.presenter })} />
       <B k="/" label="System One" on={o.open} main go={() => useOne.setState({ open: !o.open })} />
     </div>
+  )
+}
+
+/* ───────────── backend status: shown only while the team's machine is switched off ───────────── */
+export function EdgeNotice() {
+  const online = useEdge((s) => s.online)
+  return (
+    <AnimatePresence>
+      {online === false && (
+        <motion.div initial={{ opacity: 0, y: -14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -14 }} transition={{ type: 'spring', stiffness: 320, damping: 30 }} className="pointer-events-none absolute left-1/2 top-4 z-40 -translate-x-1/2">
+          <div className="flex items-center gap-2 whitespace-nowrap rounded-full border border-amber-200 bg-amber-50 py-1.5 pl-3 pr-4 text-[13px] font-medium text-amber-900 shadow-[0_14px_36px_-18px_rgba(180,83,9,.5)]"><span className="h-2 w-2 rounded-full bg-amber-500" />{OFFLINE_MSG}</div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }

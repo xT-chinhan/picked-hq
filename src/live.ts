@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { Answer, Session } from './sim'
 // the same parser the audit server uses, so a saved run can be re-scored for any brand right in the browser
 import { parseAnswer, summarize } from '../server/parse.mjs'
+import { OFFLINE_MSG, probe } from './edge'
 
 /* Real audit data: events from the local audit server (or a saved run replayed), shaped for the canvas. */
 export type LQ = { qi: number; q: string; stage: 'queued' | 'run' | 'done' | 'error'; t0: number; tDone: number; text: string; brands: string[]; mentioned: boolean; rank: number | null; domains: string[]; ms: number }
@@ -73,8 +74,8 @@ export async function startLive(o: { brand: string; category: string; website: s
   try {
     r = await fetch('/api/audit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(o) })
     j = await r.json()
-  } catch { useLive.setState({ mode: 'script', status: 'error', err: 'Live audit needs the local audit server. Start it with: pnpm live' }); return }
-  if (!r.ok) { useLive.setState({ status: 'error', err: j.error || 'could not start' }); return }
+  } catch { probe(); useLive.setState({ mode: 'script', status: 'error', err: OFFLINE_MSG }); return }
+  if (!r.ok) { useLive.setState({ status: 'error', err: j.offline ? OFFLINE_MSG : j.error || 'could not start' }); return }
   useLive.setState({ mode: 'live', runId: j.id, status: 'running', ...FRESH }); phaseHook('mining')
   es = new EventSource(`/api/audit/${j.id}/events`)
   es.onmessage = (m) => { const ev = JSON.parse(m.data); apply(ev); if (ev.type === 'run.done' || ev.type === 'run.error') stopAll() }

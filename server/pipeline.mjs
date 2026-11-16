@@ -11,6 +11,7 @@ import { renderShopPage, slugify } from './shop.mjs'
 import { checkContent } from './risk.mjs'
 import { createApproval, decideApproval, qrDataUrl } from './approve.mjs'
 import { llm, MODELS } from './llm.mjs'
+import { edgeConfig } from './edge.mjs'
 
 const ROOT = path.join(import.meta.dirname, '..')
 const RUNS = [path.join(import.meta.dirname, 'data', 'runs'), path.join(ROOT, 'public', 'runs')]
@@ -57,7 +58,7 @@ const TITLES = { faq: 'FAQ page', overview: 'About page', pitch: 'Review pitch e
 export async function runPipeline(opts, emit, ctx) {
   const { brand, category, website, total = 40, tabs = 4, headed = false, reuse, autoApprove = false, signal } = opts
   const t0 = Date.now(), slug = slugify(brand)
-  const publicBase = (process.env.PUBLIC_BASE || 'https://pickedhq.vercel.app').replace(/\/$/, '') + `/shops/${slug}/`
+  const publicBase = (process.env.PUBLIC_BASE || 'https://pickedhq.pages.dev').replace(/\/$/, '') + `/shops/${slug}/`
   const phase = async (name, work, minMs = 3200) => {
     emit({ type: 'phase', phase: name })
     const s = Date.now(); const r = await work?.()
@@ -69,7 +70,7 @@ export async function runPipeline(opts, emit, ctx) {
   // website checks run in the background while Gemini answers (they do not depend on each other)
   const siteTask = website ? (async () => {
     const audit = await safe('site-audit', async () => {
-      const r = await auditSites({ website, userAgent: 'PickedBot/1.0 (+https://pickedhq.vercel.app)', budget: { pages: 4, requests: 24, delayMs: 300 } })
+      const r = await auditSites({ website, userAgent: 'PickedBot/1.0 (+https://pickedhq.pages.dev)', budget: { pages: 4, requests: 24, delayMs: 300 } })
       const s = r.sites[0]
       const out = { score: r.score, blocked: !!s?.blockedAudit, summary: s?.summary, pages: s?.pages ?? [], checks: (s?.checks ?? []).map((c) => ({ id: c.id, group: c.group, title: c.title, status: c.status, evidence: c.evidence, fix: c.fix })) }
       emit({ type: 'site.done', audit: out }); return out
@@ -127,7 +128,9 @@ export async function runPipeline(opts, emit, ctx) {
     return { key, title: TITLES[key], summary: docText[key](content).slice(0, 1800), confidence: Math.round((conf <= 1 ? conf * 100 : conf)), flags }
   })
   emit({ type: 'phase', phase: 'approve' })
-  const baseUrl = `http://${lanIp()}:${ctx.port}`
+  const edge = edgeConfig()
+  // with the edge on, the QR points at the hosted address so a phone anywhere can approve; otherwise the LAN address
+  const baseUrl = edge ? edge.url : `http://${lanIp()}:${ctx.port}`
   const approval = createApproval({ runId: ctx.runId, brand, docs, baseUrl })
   emit({ type: 'approval.requested', approval: { id: approval.id, url: approval.url, qr: await qrDataUrl(approval.url), docs } })
   const pending = ctx.awaitDecision(approval.id)

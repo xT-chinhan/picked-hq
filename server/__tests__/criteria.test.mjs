@@ -55,3 +55,13 @@ test('the saved benchmark is consistent: every audited brand has 39 checks and t
   for (const x of audited) { assert.equal(x.audit.checks.length, 39, x.name); assert.ok(x.mentioned <= x.total) }
   assert.ok(b.brands.some((x) => x.name === 'Elmich')); assert.ok(b.published?.audit?.checks.length === 39)
 })
+
+test('permutation p: a perfect ranking is rare, a shuffled one is not, and the result is reproducible', async () => {
+  const { permutationP } = await import('../criteria.mjs')
+  const x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], y = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+  assert.ok(permutationP(x, y, { iter: 5000 }) < 0.01)
+  const noise = [40, 10, 90, 30, 70, 20, 100, 60, 50, 80]
+  assert.ok(permutationP(x, noise, { iter: 5000 }) > 0.1)
+  assert.equal(permutationP(x, noise, { iter: 2000 }), permutationP(x, noise, { iter: 2000 }))
+  assert.equal(permutationP([1, 2, 3], [1, 2, 3]), null)
+})

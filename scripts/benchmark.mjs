@@ -7,8 +7,13 @@ import { BRANDS } from '../server/directory.mjs'
 const run = JSON.parse(fs.readFileSync('public/runs/20261116070613-2h9.json', 'utf8'))
 const { parseAnswer, summarize } = await import('../server/parse.mjs')
 const answers = run.events.filter((e) => e.type === 'q.done')
-const extra = [{ name: 'Thermos', website: 'https://thermos.com.vn' }, { name: 'Tiger', website: 'https://www.tiger-corporation.com.vn' }]
-const out = { generatedAt: new Date().toISOString(), runId: run.id, category: run.category, brands: [] }
+const extra = [
+  { name: 'Thermos', website: 'https://thermos.com.vn' }, { name: 'Tiger', website: 'https://www.tiger-corporation.com/vi/vnm/' }, { name: 'Inochi', website: 'https://inochi.vn' },
+  { name: 'Hakawa', website: 'https://hakawa.vn' }, { name: 'Pigeon', website: 'https://pigeon.com.vn' }, { name: 'Stanley', website: 'https://www.stanley1913.com' },
+  { name: 'Skater', website: 'https://skater.co.jp' }, { name: 'Hario', website: 'https://hario.com' }, { name: 'Kangaroo', website: 'https://kangaroo.vn' },
+]
+const prev = fs.existsSync('public/data/benchmark.json') ? JSON.parse(fs.readFileSync('public/data/benchmark.json', 'utf8')) : {}
+const out = { published: prev.published, generatedAt: new Date().toISOString(), runId: run.id, category: run.category, brands: [] }
 for (const b of [...BRANDS, ...extra]) {
   const results = answers.map((e) => ({ qi: e.qi, q: e.q, text: e.text, ...parseAnswer({ text: e.text, heads: [], cells: [], chips: e.domains }, b.name) }))
   const s = summarize(results, b.name, results.length)

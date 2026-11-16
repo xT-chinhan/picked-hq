@@ -10,6 +10,8 @@ import { useNeeds, useWork, useWorkPoll } from './Workspace'
 import { useBrowser } from './BrowserPanel'
 import { useApps } from './Apps'
 import { useStory } from './Story'
+import { useOffice } from './Office'
+import { Face, PEOPLE } from './avatars'
 import { shortEngine, useCompany, useCompanyPoll, type AgentInfo } from './company'
 
 /* Stage overlays: the opening, the scoreboard, the approval stamp, the agent team, presenter notes and the Q&A sheet. */
@@ -195,7 +197,7 @@ export function Team() {
               return (
                 <div key={a.id}>
                   <button onClick={() => (a.soul ? setOpenId(on ? '' : a.id) : jump(a.phase as Phase))} className={`flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-slate-50 ${st === 'working' ? 'bg-indigo-50/70' : ''}`}>
-                    <div className={`grid h-8 w-8 flex-none place-items-center rounded-[10px] ${st === 'standby' ? 'bg-slate-100 text-slate-400' : 'bg-slate-900 text-white'}`}>{I && <I size={15} />}</div>
+                    <span style={{ opacity: st === 'standby' ? 0.6 : 1 }}><Face av={(PEOPLE.find((x) => x.id === a.id) ?? PEOPLE.find((x) => x.phase === a.phase))?.av ?? 'a01'} size={38} ring={st === 'working' ? '#4f46e5' : undefined} /></span>
                     <div className="min-w-0 flex-1"><div className="flex items-center gap-1.5"><span className="text-[12.5px] font-semibold text-slate-800">{a.name}</span><span className="truncate text-[10.5px] text-slate-400">{a.role}</span><span className="ml-auto flex-none"><EngineChip e={a.engine} /></span></div><div className="truncate text-[11.5px] text-slate-500">{work(a.phase as Phase)}</div></div>
                     {st === 'working' ? <span className="live-dot" style={{ ['--c' as any]: '#4f46e5' }} /> : st === 'done' ? <Check size={13} strokeWidth={3} className="text-emerald-500" /> : <span className="h-1.5 w-1.5 rounded-full bg-slate-200" />}
                   </button>
@@ -228,7 +230,7 @@ export function Team() {
 /* ───────────── presenter mode ───────────── */
 /** [speaker, target minute, note]. The 20-minute plan: problem 0-2, wake 2-4, measure 4-8, company 8-12, human decision 12-15, result 15-17, business and next 17-20. */
 const NOTES: Record<Phase, [number, number, string]> = {
-  intake: [1, 0, 'Vấn đề: người mua giờ hỏi AI thay vì Google. Shop nhỏ không biết AI có nhắc mình không. Mở màn: công ty agent thức dậy.'],
+  intake: [1, 0, 'Vấn đề: người mua giờ hỏi AI thay vì Google. Shop nhỏ không biết AI có nhắc mình không. Mở màn ở Văn phòng (phím C): bấm vài bạn để gọi, rồi "Call everyone", rồi "Start the demo".'],
   mining: [1, 2, 'Agent chuẩn bị 40 câu hỏi mà người mua thật hay hỏi cho ngành hàng này.'],
   research: [2, 4, 'PHẦN THẬT: nhiều tab Gemini ẩn danh hỏi song song. Chỉ vào bảng điểm góc phải: 40 ô xanh/đỏ.'],
   analysis: [2, 7, 'Đọc số: Elmich được nhắc 19/40, Lock&Lock dẫn đầu. Nguồn Gemini trích nhiều nhất là chỗ cần có mặt.'],
@@ -261,7 +263,7 @@ export function Presenter() {
       </div>
       <div className="mt-2.5 flex items-center gap-2 text-[11px]"><span className="text-slate-400">Target {mmss(target * 60)}</span><span className="rounded-full px-2 py-px font-semibold" style={{ background: Math.abs(late) < 45 ? '#065f46' : late > 0 ? '#9a3412' : '#1e3a8a', color: '#fff' }}>{Math.abs(late) < 45 ? 'on time' : late > 0 ? `${mmss(late)} behind` : `${mmss(late)} ahead`}</span><span className="ml-auto text-slate-500">20:00 total</span></div>
       <div className="mt-2.5 text-[13.5px] leading-snug text-slate-100">{note}</div>
-      <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400"><span>Next: <b className="text-slate-200">{NAME[next]}</b> · Speaker {NOTES[next][0]}</span><span>← → step · P hide · V story · / NaN</span></div>
+      <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400"><span>Next: <b className="text-slate-200">{NAME[next]}</b> · Speaker {NOTES[next][0]}</span><span>← → step · C office · V story · / NaN</span></div>
     </div>
   )
 }
@@ -305,7 +307,7 @@ export function Dock() {
     </button>
   )
   const items: [string, string, boolean, () => void, number?][] = [
-    ['V', 'Story', st, () => useStory.setState({ open: !st, slide: 0 })], ['T', 'Agents', o.team, () => useOne.setState({ team: !o.team })], ['W', 'Inbox', w, () => useWork.setState({ open: !w }), need],
+    ['C', 'Office', false, () => useOffice.setState({ open: true })], ['V', 'Story', st, () => useStory.setState({ open: !st, slide: 0 })], ['T', 'Agents', o.team, () => useOne.setState({ team: !o.team })], ['W', 'Inbox', w, () => useWork.setState({ open: !w }), need],
     ['B', 'Browser', br, () => useBrowser.setState({ open: !br, control: false })], ['A', 'Apps', ap, () => useApps.setState({ open: !ap })], ['I', 'Q&A', o.info, () => useOne.setState({ info: !o.info })],
   ]
   return (

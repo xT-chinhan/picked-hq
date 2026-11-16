@@ -10,6 +10,8 @@ import { useWork } from './Workspace'
 import { openPage, reviewTab, useBrowser } from './BrowserPanel'
 import { useApps } from './Apps'
 import { SLIDES, useStory } from './Story'
+import { useOffice } from './Office'
+import { Face } from './avatars'
 
 /* NaN: the operator chat. Familiar commands are matched by rules in the browser (instant);
    anything else goes to the local LLM, which answers with a reply plus a list of real actions. */
@@ -299,8 +301,8 @@ export default function SystemOne() {
       {open && (
         <motion.div initial={{ opacity: 0, y: 24, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 24, scale: 0.97 }} transition={{ type: 'spring', stiffness: 340, damping: 30 }} className="absolute bottom-[68px] right-5 z-40 flex h-[min(640px,calc(100%-90px))] w-[430px] flex-col overflow-hidden rounded-[22px] border border-slate-200 bg-white/95 shadow-[0_40px_100px_-30px_rgba(15,23,42,.5)] backdrop-blur-xl">
           <div className="flex items-center gap-2.5 border-b border-slate-100 px-4 py-3">
-            <div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white"><Bot size={18} /></div>
-            <div><div className="text-[14.5px] font-semibold tracking-tight">NaN</div><div className="flex items-center gap-1.5 text-[11px] text-slate-500"><span className="live-dot" />Operator console · runs real actions</div></div>
+            <Face av="a21" size={44} />
+            <div><div className="text-[18px] font-semibold leading-none tracking-tight">NaN</div><div className="flex items-center gap-1.5 text-[11px] text-slate-500"><span className="live-dot" />Operator console · runs real actions</div></div>
             <button onClick={() => { (document.activeElement as HTMLElement)?.blur(); useOne.setState({ open: false }) }} className="ml-auto grid h-8 w-8 place-items-center rounded-full text-slate-400 hover:bg-slate-100"><X size={16} /></button>
           </div>
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
@@ -347,6 +349,7 @@ export function useKeys() {
       else if (k === 't') useOne.setState({ team: !o.team })
       else if (k === 'w') useWork.setState((x) => ({ open: !x.open }))
       else if (k === 'a') useApps.setState((x) => ({ open: !x.open }))
+      else if (k === 'c') useOffice.setState((x) => ({ open: !x.open }))
       else if (k === 'v') useStory.setState((x) => ({ open: !x.open, slide: 0 }))
       else if (k === 'b') useBrowser.setState((x) => ({ open: !x.open, control: false }))
       else if (k === 'p') useOne.setState({ presenter: !o.presenter })

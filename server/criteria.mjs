@@ -80,3 +80,18 @@ export function fisherExact(a, an, b, bn) {
 }
 /** "p = 0.002", "p < 0.001" */
 export const fmtP = (p) => (p < 0.001 ? 'p < 0.001' : `p = ${p.toFixed(p < 0.01 ? 3 : 2)}`)
+
+/**
+ * Two-sided permutation p-value for a Spearman correlation: how often a random pairing of the same values correlates at least as strongly.
+ * Seeded, so the number shown on stage is the same every time.
+ */
+export function permutationP(x, y, { iter = 20000, seed = 7 } = {}) {
+  const obs = spearman(x, y); if (obs == null) return null
+  let s = seed >>> 0; const rnd = () => ((s = (Math.imul(s ^ (s >>> 15), 2246822519) + 0x9e3779b9) >>> 0) / 4294967296)
+  let hit = 0
+  for (let i = 0; i < iter; i++) {
+    const z = [...y]; for (let j = z.length - 1; j > 0; j--) { const k = Math.floor(rnd() * (j + 1)); [z[j], z[k]] = [z[k], z[j]] }
+    const r = spearman(x, z); if (r != null && Math.abs(r) >= Math.abs(obs) - 1e-12) hit++
+  }
+  return (hit + 1) / (iter + 1)
+}

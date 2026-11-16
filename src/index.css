@@ -117,3 +117,16 @@ body { margin: 0; background: #f6f7fb; color: #0f172a; font-family: var(--font-s
 .laser::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 90px; background: linear-gradient(180deg, transparent, #d9770622 70%, #d97706cc 97%, #fff 100%); box-shadow: 0 6px 22px #d9770666; animation: laser 2.6s cubic-bezier(.45, 0, .55, 1) infinite alternate; }
 @keyframes laser { from { transform: translateY(-90px); } to { transform: translateY(640px); } }
 .spinner { display: inline-block; width: 10px; height: 10px; flex: none; border-radius: 50%; border: 2px solid #c7d2fe; border-top-color: #4f46e5; animation: spin .8s linear infinite; }
+
+/* avatars: slow breathing on idle, a pop and glow when called. Transform only, so they stay on the GPU. */
+.av-breathe { transform-origin: 50% 100%; animation: av-breathe 3.6s ease-in-out infinite; }
+@keyframes av-breathe { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.015, 1.035) translateY(-1px); } }
+.av-called { transform-origin: 50% 100%; animation: av-called .7s cubic-bezier(.2, 1.5, .4, 1) both, av-breathe 2.4s ease-in-out .7s infinite; }
+@keyframes av-called { 0% { transform: translateY(0) scale(1, 1); } 35% { transform: translateY(-14%) scale(.96, 1.06); } 70% { transform: translateY(0) scale(1.05, .94); } 100% { transform: translateY(0) scale(1, 1); } }
+.av-ring { animation: av-ring 1.8s ease-out infinite; }
+@keyframes av-ring { 0% { transform: scale(.6); opacity: .9; } 100% { transform: scale(1.25); opacity: 0; } }
+
+/* canvas chat windows: no model name row, no composer placeholder; the question, who is named and the verdict carry the message */
+.chat.calm .top { display: none; }
+.chat.calm .comp .txt:not(.on) { visibility: hidden; }
+.chat.calm .url { opacity: .7; }

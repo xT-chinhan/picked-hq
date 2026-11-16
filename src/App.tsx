@@ -17,7 +17,8 @@ import { Workspace } from './Workspace'
 import { BrowserPanel } from './BrowserPanel'
 import { Apps } from './Apps'
 import { Council, Story } from './Story'
-import { Dock, EdgeNotice, Info, Presenter, ScoreBoard, Stamp, Team, Wake } from './Stage'
+import { Dock, EdgeNotice, Info, Presenter, ScoreBoard, Stamp, Team } from './Stage'
+import { Office } from './Office'
 
 
 const N = (id: string, type: string, [x, y, w, h]: number[], data: any = {}, parentId?: string): Node => ({ id, type, position: { x, y }, width: w, height: h, data, parentId, draggable: false, selectable: false })
@@ -199,33 +200,27 @@ function TopBar() {
     <header className="relative z-20 grid h-14 flex-none grid-cols-[1fr_auto_1fr] items-center gap-4 whitespace-nowrap border-b border-slate-200/70 bg-white px-4">
       <div className="flex min-w-0 items-center gap-2.5">
         <div className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-gradient-to-br from-indigo-500 to-violet-600 text-white"><Check size={17} strokeWidth={3.2} /></div>
-        <span className="text-[16px] font-semibold tracking-tight">Picked</span>
+        <span className="text-[19px] font-semibold tracking-tight">Picked</span>
         <span className="h-4 w-px bg-slate-200" />
-        <span className="truncate text-[13px] font-medium text-slate-500">{liveBrand || 'xT Store'}</span>
+        <span className="truncate text-[15px] font-medium text-slate-500">{liveBrand || 'xT Store'}</span>
       </div>
 
-      <nav className="flex items-center gap-0.5 rounded-full bg-slate-100/80 p-1">
+      <nav className="flex items-center gap-2.5">
         {STEPS.map((s) => {
-          const I = DEPT_ICON[s.k]
-          const on = phase === s.k
+          const on = phase === s.k, past = ORDER.indexOf(phase) > ORDER.indexOf(s.k)
           return (
-            <button key={s.k} title={s.label} onClick={() => { holdCam(); rf.fitBounds(s.view, { duration: 900, padding: 0.04 }).then(sharpen) }} className="relative flex h-8 items-center gap-1.5 rounded-full px-2.5 text-[12.5px] font-medium text-slate-400 transition-colors hover:text-slate-700">
-              {on && <motion.span layoutId="step" className="absolute inset-0 rounded-full bg-white shadow-[0_1px_3px_rgba(15,23,42,.12)]" transition={{ type: 'spring', stiffness: 380, damping: 32 }} />}
-              <I size={15} className="relative" color={on ? '#0f172a' : undefined} />
-              {on && <span className="relative text-slate-900">{s.label}</span>}
+            <button key={s.k} title={s.label} onClick={() => { holdCam(); rf.fitBounds(s.view, { duration: 900, padding: 0.04 }).then(sharpen) }} className="group relative flex h-8 items-center">
+              {on ? <motion.span layoutId="step" transition={{ type: 'spring', stiffness: 380, damping: 32 }} className="flex h-8 items-center rounded-full bg-slate-900 px-4 text-[15px] font-semibold text-white">{s.label}</motion.span>
+                : <span className="block h-3 w-3 rounded-full transition-all group-hover:scale-125" style={{ background: past ? '#4f46e5' : '#d5d9e4' }} />}
             </button>
           )
         })}
       </nav>
 
       <div className="flex min-w-0 items-center justify-end gap-3">
-        <div className="hidden items-center gap-2 text-[12.5px] text-slate-500 xl:flex">
-          <div className="flex -space-x-1">{PROVS.map((p) => <span key={p} className="grid h-5 w-5 place-items-center rounded-full bg-white ring-1 ring-slate-200"><Logo p={p} size={11} /></span>)}</div>
-          <span><b className="tnum font-semibold text-slate-800">{AGENTS}</b> agents</span>
-        </div>
         <div className="flex items-center gap-2 rounded-full bg-slate-100/80 py-1 pl-3 pr-1">
-          <span className="text-[11px] font-medium text-slate-500">{lv ? `${lv.brand} · live` : `Visibility · W${wk}`}</span>
-          <span key={sc} className="pop tnum rounded-full bg-white px-2.5 py-0.5 text-[15px] font-semibold shadow-[0_1px_3px_rgba(15,23,42,.12)]" style={{ color: (lv ? sc / (lv.answered || 1) >= 0.25 : sc >= 7) ? '#16a34a' : '#e11d48' }}>{sc}<span className="text-slate-300">/{denom}</span></span>
+          <span className="text-[13px] font-medium text-slate-500">{lv ? lv.brand : `Week ${wk}`}</span>
+          <span key={sc} className="pop tnum rounded-full bg-white px-3 py-0.5 text-[19px] font-semibold shadow-[0_1px_3px_rgba(15,23,42,.12)]" style={{ color: (lv ? sc / (lv.answered || 1) >= 0.25 : sc >= 7) ? '#16a34a' : '#e11d48' }}>{sc}<span className="text-slate-300">/{denom}</span></span>
         </div>
         <LiveControl />
         <button title={auto ? 'Auto camera on' : 'Auto camera off'} onClick={() => useSim.setState({ auto: !auto, hold: 0 })} className="grid h-8 w-8 place-items-center rounded-full text-slate-500 hover:bg-slate-100">{auto ? <Pause size={15} /> : <Play size={15} />}</button>
@@ -265,9 +260,9 @@ function Caption() {
   return (
     <div className="pointer-events-none absolute bottom-6 left-1/2 z-10 -translate-x-1/2">
       <AnimatePresence mode="wait">
-        <motion.div key={phase} initial={{ opacity: 0, y: 16, filter: 'blur(6px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, y: -10, filter: 'blur(6px)' }} transition={{ duration: 0.45, ease: [0.2, 0.8, 0.2, 1] }} className="flex items-center gap-3 rounded-full border border-slate-200/80 bg-white py-2 pl-2 pr-5 shadow-[0_18px_44px_-20px_rgba(15,23,42,.45)]">
-          <span className="tnum grid h-7 w-7 place-items-center rounded-full bg-slate-900 text-[12.5px] font-semibold text-white">{ORDER.indexOf(phase) + 1}</span>
-          <span className="whitespace-nowrap text-[15px] font-medium tracking-tight text-slate-800">{(live && LIVE_CAP[phase]) || CAP[phase]}</span>
+        <motion.div key={phase} initial={{ opacity: 0, y: 16, filter: 'blur(6px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, y: -10, filter: 'blur(6px)' }} transition={{ duration: 0.45, ease: [0.2, 0.8, 0.2, 1] }} className="flex items-center gap-3.5 rounded-full border border-slate-200/80 bg-white py-2.5 pl-2.5 pr-7 shadow-[0_18px_44px_-20px_rgba(15,23,42,.45)]">
+          <span className="tnum grid h-9 w-9 place-items-center rounded-full bg-slate-900 text-[15px] font-semibold text-white">{ORDER.indexOf(phase) + 1}</span>
+          <span className="whitespace-nowrap text-[21px] font-medium tracking-tight text-slate-800">{(live && LIVE_CAP[phase]) || CAP[phase]}</span>
         </motion.div>
       </AnimatePresence>
     </div>
@@ -275,6 +270,10 @@ function Caption() {
 }
 
 /* ───────────── live feed + inspector ───────────── */
+function Legend() {
+  const live = useLive((s) => s.mode !== 'script')
+  return <div className="pointer-events-none absolute bottom-6 left-6 z-10 flex items-center gap-4 text-[14px] font-medium text-slate-500"><span className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-emerald-600" />Real</span><span className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-slate-300" />Simulated</span>{!live && <span className="text-slate-400">· scripted loop</span>}</div>
+}
 function Feed() {
   const k = useSim((s) => Math.floor(s.t / 1.6))
   const logs = useLive((s) => (s.mode !== 'script' ? s.log : null))
@@ -355,11 +354,9 @@ function Stage() {
           {!DBG.has('nocam') && <Director />}
         </ReactFlow>
         {!DBG.has('noswarm') && <Swarm />}
-        <Feed />
         <Caption />
         <Inspector />
-        <ScoreBoard /><Council /><Stamp /><Team /><Workspace /><BrowserPanel /><Apps /><Story /><Presenter /><SystemOne /><Info /><Dock /><EdgeNotice /><Wake />
-        <div className="pointer-events-none absolute bottom-[62px] right-5 z-10 text-[10px] font-semibold uppercase tracking-[.16em] text-slate-400">AI for Business Innovation 2026</div>
+        <ScoreBoard /><Council /><Legend /><Stamp /><Team /><Workspace /><BrowserPanel /><Apps /><Story /><Presenter /><SystemOne /><Info /><Dock /><EdgeNotice /><Office />
       </div>
     </div>
   )

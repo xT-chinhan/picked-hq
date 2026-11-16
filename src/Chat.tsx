@@ -18,24 +18,25 @@ export const Logo = ({ p, size = 16 }: { p: Provider; size?: number }) => (
 )
 
 /** Reveals an answer character by character. The text is written straight into the DOM on a shared timer, so typing never re-renders React. */
-function Reveal({ a, n0, live, get }: { a: Answer; n0: number; live: boolean; get?: () => number }) {
+function Reveal({ a, n0, live, get, calm }: { a: Answer; n0: number; live: boolean; get?: () => number; calm?: boolean }) {
   const intro = useRef<HTMLDivElement>(null)
   const rows = useRef<(HTMLDivElement | null)[]>([]), names = useRef<(HTMLElement | null)[]>([]), reasons = useRef<(HTMLElement | null)[]>([])
   const paint = useCallback((n: number) => {
     let left = n
     const take = (s: string) => { const o = s.slice(0, Math.max(0, left)); left -= s.length; return o }
-    const head = take(a.intro)
-    const parts = a.items.map((it) => [take(it.name), take(it.reason ? ' · ' + it.reason : '')] as const)
+    const head = calm ? (take(a.intro), '') : take(a.intro)
+    const parts = a.items.slice(0, calm ? 3 : 99).map((it) => [take(it.name), calm ? (take(it.reason ? ' · ' + it.reason : ''), '') : take(it.reason ? ' · ' + it.reason : '')] as const)
     const last = parts.findLastIndex((p) => p[0].length > 0)
     if (intro.current) { intro.current.textContent = head; intro.current.classList.toggle('caret', live && last < 0) }
     a.items.forEach((it, k) => {
       const row = rows.current[k]; if (!row) return
+      if (!parts[k]) { row.style.display = 'none'; return }
       row.style.display = parts[k][0] ? '' : 'none'
       row.classList.toggle('me', !!it.me && parts[k][0].length === it.name.length)
       row.children[1].classList.toggle('caret', live && k === last)
       names.current[k]!.textContent = parts[k][0]; reasons.current[k]!.textContent = parts[k][1]
     })
-  }, [a, live])
+  }, [a, live, calm])
   useLayoutEffect(() => paint(n0), [paint, n0])
   useEffect(() => (get ? tick(() => paint(get())) : undefined), [get, paint])
   return (
@@ -59,14 +60,15 @@ function Typed({ q, n0, get }: { q: string; n0: number; get?: () => number }) {
 }
 
 /** A faithful miniature of each assistant's web chat. Scales with `fs` (font-size, px). */
-export default function Chat({ s, fs = 9, get }: { s: Session; fs?: number; get?: () => Session }) {
+export default function Chat({ s, fs = 12.5, get, calm = false }: { s: Session; fs?: number; get?: () => Session; calm?: boolean }) {
+  // calm: canvas windows show just the question and who is named, big enough to read; the inspector keeps the full answer
   const shown = useCallback(() => get!().shown, [get]), typed = useCallback(() => get!().typed, [get])
   const b = BRAND[s.provider]
   const p = s.provider
   const sent = s.stage === 'think' || s.stage === 'answer' || s.stage === 'done'
   const live = s.stage === 'answer'
   return (
-    <div className={`chat ${p}`} style={{ fontSize: fs }}>
+    <div className={`chat ${p}${calm ? ' calm' : ''}`} style={{ fontSize: fs }}>
       <div className="chrome">
         <i /><i /><i />
         <div className="url"><img src={b.logo} alt="" />{URLS[p]}</div>
@@ -109,7 +111,7 @@ export default function Chat({ s, fs = 9, get }: { s: Session; fs?: number; get?
                     {p === 'pplx' && <div className="lbl"><img src={b.logo} alt="" />Answer</div>}
                     <div className="arow">
                       {p === 'gemini' && <img className={live ? 'busy' : ''} src={b.logo} alt="" />}
-                      <div className="a"><Reveal a={s.ans} n0={s.shown} live={live} get={get ? shown : undefined} /></div>
+                      <div className="a"><Reveal a={s.ans} n0={calm ? s.total : s.shown} live={live} get={get && !calm ? shown : undefined} calm={calm} /></div>
                     </div>
                     {p === 'claude' && <img className={live ? 'spark' : ''} src={b.logo} alt="" style={{ width: '1.6em', height: '1.6em' }} />}
                   </>

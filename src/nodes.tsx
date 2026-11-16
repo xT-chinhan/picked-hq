@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import { Face, crew } from './avatars'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import {
   Bot, Check, FileText, Globe, ListChecks, Loader2, Lock, Mail, MessageCircleQuestion, Minus, MousePointer2,
@@ -36,7 +37,8 @@ const REAL: Record<string, string> = { research: 'Real', analysis: 'Real', sync:
 export function Truth({ k, className = '' }: { k: string; className?: string }) {
   const mode = useLive((s) => s.mode)
   const real = mode !== 'script' && REAL[k]
-  return <span className={`rounded-full px-2 py-[3px] text-[9.5px] font-bold uppercase leading-none tracking-[.12em] ${real ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'} ${className}`}>{real ? (mode === 'replay' ? `${real} · recorded` : real) : 'Simulated'}</span>
+  // one coloured dot instead of a word on every card: green = real data, grey = simulated (legend in the corner)
+  return <span title={real ? (mode === 'replay' ? `${real} · recorded` : real) : 'Simulated'} className={`inline-block h-3 w-3 flex-none rounded-full ${className}`} style={{ background: real ? '#16a34a' : '#cbd5e1', boxShadow: real ? '0 0 0 4px #16a34a22' : 'none' }} />
 }
 export function DeptNode({ data }: NodeProps<any>) {
   const active = usePhase() === data.phase
@@ -53,21 +55,18 @@ export function DeptNode({ data }: NodeProps<any>) {
       <div className="flex h-[76px] items-center gap-3.5 px-6">
         <div className="grid h-11 w-11 place-items-center rounded-[14px] text-white" style={{ background: data.color }}><Icon size={22} strokeWidth={2.2} /></div>
         <div>
-          <div className="text-[21px] font-semibold tracking-tight">{data.title}</div>
-          <div className="text-[12.5px] text-slate-500">{data.sub}</div>
+          <div className="text-[26px] font-semibold leading-none tracking-tight">{data.title}</div>
+          <div className="mt-1 text-[14.5px] text-slate-500">{data.sub}</div>
         </div>
-        <div className="ml-auto flex items-center gap-3">
-          <div className="flex -space-x-2">
-            {Array.from({ length: Math.min(5, data.agents) }).map((_, k) => (
-              <div key={k} className={`grid h-7 w-7 place-items-center rounded-full border-2 border-white`} style={{ background: `color-mix(in srgb, ${data.color} 14%, #fff)`, color: data.color, animationDelay: `${k * 0.14}s` }}><Bot size={14} /></div>
-            ))}
+        <div className="ml-auto flex items-center gap-3.5">
+          <div className="flex -space-x-2.5">
+            {crew(data.phase as Phase).slice(0, 4).map((p) => <Face key={p.id} av={p.av} size={active ? 44 : 38} ring={active ? data.color : undefined} className="border-2 border-white transition-all duration-500" />)}
           </div>
-          <Truth k={data.phase} />
-          <span className="tnum text-[13px] font-medium text-slate-500">{data.agents} agents</span>
-          <span className="flex items-center gap-2 rounded-full px-3 py-1 text-[12.5px] font-semibold" style={{ background: active ? `${data.color}14` : '#f1f5f9', color: active ? data.color : '#94a3b8' }}>
-            {active ? <span className="live-dot" style={{ ['--c' as any]: data.color }} /> : <Check size={13} strokeWidth={3} />}
-            {active ? 'Working' : 'Standby'}
+          <span className="flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[14px] font-semibold" style={{ background: active ? `${data.color}14` : '#f1f5f9', color: active ? data.color : '#94a3b8' }}>
+            {active ? <span className="live-dot" style={{ ['--c' as any]: data.color }} /> : <Check size={14} strokeWidth={3} />}
+            {active ? 'Working' : 'Ready'}
           </span>
+          <Truth k={data.phase} />
         </div>
       </div>
       {active && data.phase === 'risk' && <div className="laser" />}
@@ -108,24 +107,24 @@ export function PlannerNode() {
     <div className="card lyr flex h-full w-full flex-col p-4">
       <div className="flex items-center gap-2.5">
         <div className="grid h-9 w-9 place-items-center rounded-xl bg-indigo-50 text-indigo-600"><ListChecks size={18} /></div>
-        <div><div className="text-[14px] font-semibold">Planner</div><div className="text-[11px] text-slate-500">Asks like real buyers</div></div>
+        <div><div className="text-[20px] font-semibold leading-none">Planner</div></div>
       </div>
-      <div className="relative mx-auto mt-5 grid h-[132px] w-[132px] place-items-center">
+      <div className="relative mx-auto mt-4 grid h-[170px] w-[170px] place-items-center">
         <svg viewBox="0 0 100 100" className="absolute inset-0 -rotate-90">
           <circle cx="50" cy="50" r="44" fill="none" stroke="#eef0f6" strokeWidth="7" />
           <circle cx="50" cy="50" r="44" fill="none" stroke="#4f46e5" strokeWidth="7" strokeLinecap="round" strokeDasharray={276.5} strokeDashoffset={276.5 * (1 - p)} style={{ transition: 'stroke-dashoffset .4s linear' }} />
         </svg>
-        <div className="text-center"><div className="tnum text-[34px] font-semibold leading-none tracking-tight">{n}<span className="text-slate-300">/{denom}</span></div><div className="mt-1 text-[10.5px] font-medium uppercase tracking-[.12em] text-slate-400">questions</div></div>
+        <div className="text-center"><div className="tnum text-[46px] font-semibold leading-none tracking-tight">{n}<span className="text-slate-300">/{denom}</span></div><div className="mt-1 text-[10.5px] font-medium uppercase tracking-[.12em] text-slate-400">questions</div></div>
       </div>
       <div className="mt-5 flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden">
-        {Array.from({ length: 11 }).map((_, k) => {
-          const lx = live ? lq[from + k] : null
+        {Array.from({ length: 5 }).map((_, k) => {
+          const lx = live ? lq[Math.max(0, Math.min(doneN - 2, lq.length - 5)) + k] : null
           const q = live ? lx?.q : QUESTIONS[(top + k) % QUESTIONS.length]
           if (!q) return null
           const fin = lx && (lx.stage === 'done' || lx.stage === 'error')
           return (
-            <div key={k} className="flex items-center gap-2 rounded-xl border border-slate-100 bg-slate-50/70 px-2.5 py-[7px] text-[11px] text-slate-600" style={{ opacity: live ? (fin ? 0.65 : 1) : 1 - k * 0.075 }}>
-              {fin ? <Check size={13} strokeWidth={3} className="shrink-0 text-emerald-500" /> : lx?.stage === 'run' ? <Spin size={13} color="#4f46e5" /> : <MessageCircleQuestion size={13} className="shrink-0 text-indigo-500" />}<span className="truncate">{q}</span>
+            <div key={k} className="flex items-center gap-2 rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2.5 text-[14.5px] text-slate-700" style={{ opacity: live ? (fin ? 0.65 : 1) : 1 - k * 0.1 }}>
+              {fin ? <Check size={13} strokeWidth={3} className="shrink-0 text-emerald-500" /> : lx?.stage === 'run' ? <Spin size={13} color="#4f46e5" /> : <MessageCircleQuestion size={13} className="shrink-0 text-indigo-500" />}<span className="line-clamp-2 leading-snug">{q}</span>
             </div>
           )
         })}
@@ -144,14 +143,14 @@ export function SessionFrame({ i, force, fs, name }: { i: number; force?: boolea
   const tone = done ? (s.mentioned ? '#22c55e' : '#f87171') : '#e6e8ef'
   return (
     <div className="flex h-full w-full flex-col overflow-hidden rounded-[14px] bg-white transition-[box-shadow,border-color] duration-500" style={{ border: `1px solid ${tone}`, boxShadow: done ? `0 0 0 3px ${tone}2e` : 'none' }}>
-      <div className="flex flex-none items-center gap-1.5 px-2.5 py-[5px] text-slate-500" style={{ fontSize: (fs ?? 9) * 1.08 }}>
-        <Bot size={(fs ?? 9) * 1.4} className="text-indigo-500" />
+      <div className="flex flex-none items-center gap-1.5 px-2.5 py-[5px] text-slate-500" style={{ fontSize: (fs ?? 12.5) * 1.08 }}>
+        <Bot size={(fs ?? 12.5) * 1.4} className="text-indigo-500" />
         <span className="font-semibold text-slate-700">{name ?? scoutName(i)}</span>
         <span className="ml-auto flex items-center gap-1.5">{!done && <span className="mini-dot" style={{ background: '#6366f1' }} />}{STATUS[s.stage]}</span>
       </div>
-      <div className="min-h-0 flex-1 border-t border-slate-100"><Chat s={s} fs={fs} get={get} /></div>
+      <div className="min-h-0 flex-1 border-t border-slate-100"><Chat s={s} fs={fs ?? 12.5} get={get} calm={fs === undefined} /></div>
       {lq && lq.stage === 'done' && (
-        <div className="flex flex-none items-center gap-1.5 border-t border-slate-100 bg-slate-50/70 px-2.5 py-[3px] text-slate-500" style={{ fontSize: (fs ?? 9) * 0.92 }}>
+        <div className="flex flex-none items-center gap-1.5 border-t border-slate-100 bg-slate-50/70 px-2.5 py-[3px] text-slate-500" style={{ fontSize: (fs ?? 12.5) * 0.92 }}>
           <span className="tnum font-semibold text-slate-700">Q{lq.qi + 1}/{lTotal}</span><span>· {(lq.ms / 1000).toFixed(1)} s</span><span>· {lq.brands.length} brands</span>{lq.domains.length > 0 && <span className="truncate">· {lq.domains[0]}</span>}
           <span className="ml-auto font-bold uppercase tracking-[.1em] text-emerald-600">Real answer</span>
         </div>
@@ -250,12 +249,14 @@ export function ShareNode() {
 
 /* ───────────── content ───────────── */
 const DOC_ICON = { info: FileText, faq: MessageCircleQuestion, pitch: Mail, review: Star }
-export function WriterBody({ k, fs = 11.5 }: { k: number; fs?: number }) {
+export function WriterBody({ k, fs: fsProp }: { k: number; fs?: number }) {
   const d = DOCS[k]
+  const fs = fsProp ?? 16, short = fsProp === undefined // canvas: opening lines only, large enough to read
   const p = useP('content', 400)
   const ran = useRan('content')
   const lp = stagger(p, k, 4, 0.55)
-  const n = Math.floor(d.text.length * lp)
+  const full = short ? d.text.split('\n').filter(Boolean).slice(0, 3).join('\n').slice(0, 150) : d.text
+  const n = Math.floor(full.length * lp)
   const I = DOC_ICON[d.key]
   const writing = lp > 0 && lp < 1
   return (
@@ -271,7 +272,7 @@ export function WriterBody({ k, fs = 11.5 }: { k: number; fs?: number }) {
         </span>
       </div>
       <div className="min-h-0 flex-1 overflow-hidden px-[1.3em] py-[1.1em]">
-        {!ran || lp === 0 ? <Skel n={6} /> : <div className={`whitespace-pre-wrap leading-[1.6] text-slate-700 ${writing ? 'caret' : ''}`}>{d.text.slice(0, n)}</div>}
+        {!ran || lp === 0 ? <Skel n={short ? 3 : 6} /> : <div className={`whitespace-pre-wrap leading-[1.6] text-slate-700 ${writing ? 'caret' : ''}`}>{full.slice(0, n)}{short && lp >= 1 ? '…' : ''}</div>}
       </div>
     </div>
   )

@@ -604,25 +604,34 @@ function CostTime({ g }: { g: number }) {
   )
 }
 
+/** One huge before → after number: this is what the room should remember. */
+function BigStat({ t, g }: { t: (typeof TILES)[number]; g: number }) {
+  const I = t.icon, v = t.b + (t.a - t.b) * g
+  return (
+    <div className="flex flex-1 flex-col justify-center rounded-3xl border border-slate-100 bg-white px-7">
+      <div className="flex items-center gap-2.5 text-[20px] font-medium text-slate-500"><I size={22} className="text-slate-400" />{t.label}</div>
+      <div className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+        <span className="tnum whitespace-nowrap text-[64px] font-semibold leading-none tracking-tight" style={{ color: INK }}>{t.fmt(v)}</span>
+        <span className="tnum whitespace-nowrap text-[24px] font-medium text-slate-300 line-through">{t.fmt(t.b)}</span>
+        <span style={{ opacity: g > 0.95 ? 1 : 0, transition: 'opacity .4s', fontSize: 22 }}><Delta>{t.delta}</Delta></span>
+      </div>
+    </div>
+  )
+}
 export function ImpactNode() {
   const p = useP('impact', 100), ran = useRan('impact')
   const g = ran ? ease(seg(p, 0.04, 0.6)) : 0
   const gs = ran ? seg(p, 0.02, 0.86) : 0 // the hero line streams in at a steady pace
   return (
     <div className="card lyr flex h-full w-full flex-col overflow-hidden bg-slate-50/70">
-      <div className="flex items-center gap-3 px-6 pb-3 pt-5">
-        <div className="grid h-11 w-11 place-items-center rounded-[14px] bg-indigo-600 text-white"><ChartColumn size={21} /></div>
-        <div><div className="text-[21px] font-semibold tracking-tight">Impact</div><div className="text-[12.5px] text-slate-500">xT Store · 6-week pilot · 1 owner, 0 new software</div></div>
-        <div className="ml-auto flex items-center gap-3"><Legend /><span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[10.5px] font-semibold uppercase tracking-[.12em] text-slate-400">Illustrative projection</span></div>
+      <div className="flex items-center gap-4 px-8 pb-4 pt-6">
+        <div className="grid h-14 w-14 place-items-center rounded-[18px] bg-indigo-600 text-white"><ChartColumn size={28} /></div>
+        <div className="text-[34px] font-semibold leading-none tracking-tight">Six weeks later</div>
+        <div className="ml-auto flex items-center gap-3"><Legend /><span className="rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-[13px] font-semibold uppercase tracking-[.12em] text-slate-400">Illustrative pilot</span></div>
       </div>
-      <div className="grid min-h-0 flex-1 grid-cols-[560px_1fr] gap-3 px-6">
+      <div className="grid min-h-0 flex-1 grid-cols-[1fr_520px] gap-4 px-8 pb-8">
         <HeroVisibility g={gs} />
-        <div className="grid min-h-0 grid-cols-2 grid-rows-2 gap-3">{TILES.map((t) => <Tile key={t.label} t={t} g={g} />)}</div>
-      </div>
-      <div className="grid h-[380px] shrink-0 grid-cols-3 gap-3 px-6 pb-6 pt-3">
-        <Dumbbells g={g} />
-        <WhyItWorked g={g} />
-        <CostTime g={g} />
+        <div className="flex min-h-0 flex-col gap-4">{[TILES[0], TILES[1], TILES[2]].map((t) => <BigStat key={t.label} t={t} g={g} />)}</div>
       </div>
       <Ports />
     </div>

@@ -6,7 +6,7 @@ import openai from '@lobehub/icons-static-svg/icons/openai.svg'
 import gemini from '@lobehub/icons-static-svg/icons/gemini-color.svg'
 import { usePhase } from './sim'
 import { useLive } from './live'
-import { LAYERS, analyzeBenchmark, fisherExact, fmtP, layerScores, outcome } from '../server/criteria.mjs'
+import { LAYERS, analyzeBenchmark, fisherExact, fmtP, layerScores, outcome, permutationP } from '../server/criteria.mjs'
 
 /* The story sheets (positioning, business case, what is next) and the council scene. Everything here is presentation: no backend needed. */
 export const useStory = create<{ open: boolean; slide: number }>(() => ({ open: false, slide: 0 }))
@@ -106,6 +106,34 @@ function Criteria() {
   )
 }
 
+/* ───────────── scatter: website score (x) against times named (y), one dot per brand ───────────── */
+function Scatter({ rows, rho, p }: { rows: { name: string; site: number; mentioned: number; total: number }[]; rho: number | null; p: number | null }) {
+  const W = 520, H = 330, L = 44, R = 18, T = 14, B = 40
+  const xs = rows.map((r) => r.site), x0 = Math.floor((Math.min(...xs) - 3) / 5) * 5, x1 = Math.ceil((Math.max(...xs) + 3) / 5) * 5
+  const X = (v: number) => L + ((v - x0) / (x1 - x0)) * (W - L - R), Y = (v: number) => T + (1 - v / 40) * (H - T - B)
+  return (
+    <div className="relative mt-2">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
+        {[0, 10, 20, 30, 40].map((v) => <g key={v}><line x1={L} x2={W - R} y1={Y(v)} y2={Y(v)} stroke="#eef0f5" /><text x={L - 10} y={Y(v) + 5} textAnchor="end" fontSize="13" fill="#94a3b8">{v}</text></g>)}
+        {Array.from({ length: (x1 - x0) / 5 + 1 }, (_, i) => x0 + i * 5).map((v) => <text key={v} x={X(v)} y={H - B + 22} textAnchor="middle" fontSize="13" fill="#94a3b8">{v}</text>)}
+        <text x={(L + W - R) / 2} y={H - 4} textAnchor="middle" fontSize="13" fill="#64748b">Website score (39 checks)</text>
+        <text x={14} y={(T + H - B) / 2} textAnchor="middle" fontSize="13" fill="#64748b" transform={`rotate(-90 14 ${(T + H - B) / 2})`}>Named in 40 answers</text>
+        {rows.map((r, i) => {
+          const me = r.name === 'Elmich', cx = X(r.site), cy = Y(r.mentioned), right = cx < W - 120, labelled = me || r.mentioned >= 3
+          return (
+            <motion.g key={r.name} initial={{ opacity: 0, scale: 0.4 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.2 + i * 0.07, type: 'spring', stiffness: 300, damping: 18 }} style={{ transformOrigin: `${cx}px ${cy}px` }}>
+              <circle cx={cx} cy={cy} r={me ? 9 : 6.5} fill={me ? '#4f46e5' : '#94a3b8'} stroke="#fff" strokeWidth="2" />
+              {labelled && <text x={right ? cx + 12 : cx - 12} y={cy + 4.5} textAnchor={right ? 'start' : 'end'} fontSize={me ? 15 : 13} fontWeight={me ? 700 : 500} fill={me ? '#4338ca' : '#475569'}>{r.name}</text>}
+            </motion.g>
+          )
+        })}
+      </svg>
+      <div className="mt-1.5 text-[13px] text-slate-500">Named 0–1 times despite strong sites: <b className="text-slate-700">{rows.filter((r) => r.mentioned < 3 && r.name !== 'Elmich').sort((a, b) => b.site - a.site).map((r) => `${r.name} (${r.site})`).join(', ')}</b></div>
+      {rho != null && p != null && <div className="mt-1.5 text-[14px] text-slate-600">Rank correlation <b className="text-slate-900">ρ = {rho.toFixed(2)}</b>, {fmtP(p)} across {rows.length} brands: <b className="text-slate-900">no relationship</b>.</div>}
+    </div>
+  )
+}
+
 /* ───────────── 4 · what the real data says ───────────── */
 function Proof() {
   const d = useProof()
@@ -120,22 +148,8 @@ function Proof() {
   return (
     <div className="grid grid-cols-[1.15fr_1fr] gap-6">
       <div>
-        <div className="text-[12.5px] font-semibold text-slate-800">Website readiness does not decide who gets named</div>
-        <div className="mt-2.5 space-y-3">
-          {rows.map((r, i) => (
-            <div key={r.name}>
-              <div className={`text-[12px] font-semibold ${r.name === 'Elmich' ? 'text-indigo-600' : 'text-slate-700'}`}>{r.name}</div>
-              {[['Named in answers', r.mentioned, r.total, `${r.mentioned}/${r.total}`, r.name === 'Elmich' ? '#4f46e5' : '#94a3b8'], ['Website score', r.site, 100, `${r.site}/100`, '#10b981']].map(([label, v, of, text, c], k) => (
-                <div key={label as string} className="mt-1 flex items-center gap-2">
-                  <span className="w-[98px] flex-none text-[10.5px] text-slate-400">{label}</span>
-                  <div className={`${k ? 'h-2' : 'h-3.5'} flex-1 overflow-hidden rounded-full bg-slate-100`}><motion.div initial={{ width: 0 }} animate={{ width: `${((v as number) / (of as number)) * 100}%` }} transition={{ delay: 0.2 + i * 0.12 + k * 0.1, duration: 0.8, ease: [0.2, 0.8, 0.2, 1] }} className="h-full rounded-full" style={{ background: c as string }} /></div>
-                  <span className="tnum w-[44px] flex-none text-right text-[11.5px] font-semibold text-slate-800">{text}</span>
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-        <div className="mt-3 rounded-xl bg-slate-50 px-3.5 py-2.5 text-[12px] leading-snug text-slate-600">{a.bestSite && el ? <>Best-prepared site: <b>{a.bestSite}</b>. <b>Elmich</b> scores {el.site}, second highest, yet is named in only {el.mentioned} of {el.total} answers. So the gap is mostly <b>not</b> on the shop's own site.</> : null}</div>
+        <div className="text-[17px] font-semibold tracking-tight text-slate-900">A better website does not get you named</div>
+        <Scatter rows={a.rows} rho={a.correlation.site} p={permutationP(a.rows.map((r) => r.site), a.rows.map((r) => r.mentioned))} />
       </div>
       <div className="space-y-2.5">
         {[
@@ -146,7 +160,7 @@ function Proof() {
         ].map((x, i) => (
           <motion.div key={x.k} initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 + i * 0.16 }} className="rounded-xl border border-slate-200 px-3.5 py-2.5" style={{ borderLeft: `4px solid ${x.c}` }}>
             <div className="text-[10px] font-semibold uppercase tracking-[.12em]" style={{ color: x.c }}>{x.k}</div>
-            <div className="text-[13px] font-semibold leading-snug text-slate-800">{x.t}</div><div className="text-[11.5px] leading-snug text-slate-500">{x.d}</div>
+            <div className="text-[15px] font-semibold leading-snug text-slate-800">{x.t}</div><div className="text-[13px] leading-snug text-slate-500">{x.d}</div>
           </motion.div>
         ))}
         <div className="text-[10.5px] leading-snug text-slate-400">{a.note} Measured {new Date(d.bench.generatedAt).toLocaleDateString()} on {a.n} sites ({d.bench.brands.filter((b) => b.audit?.blocked).map((b) => b.name).join(', ') || 'none'} blocks audits and is left out) and 40 real Gemini answers. Gemini only; other assistants are not measured.</div>

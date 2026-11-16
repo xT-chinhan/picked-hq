@@ -42,6 +42,22 @@ async function agyCall(prompt, model, schemaPath, timeoutMs) {
   return String(d.response ?? '')
 }
 
+/** Parses a model reply as JSON: the whole text first, else the first balanced {...} or [...] (string aware), so extra prose around it is ignored. */
+export function parseLoose(text) {
+  try { return JSON.parse(text) } catch { /* fall through to scanning */ }
+  for (let i = 0; i < text.length; i++) {
+    const open = text[i]; if (open !== '{' && open !== '[') continue
+    const close = open === '{' ? '}' : ']'
+    let depth = 0, inStr = false, esc = false
+    for (let j = i; j < text.length; j++) {
+      const c = text[j]
+      if (inStr) { if (esc) esc = false; else if (c === '\\') esc = true; else if (c === '"') inStr = false; continue }
+      if (c === '"') inStr = true; else if (c === open) depth++; else if (c === close && --depth === 0) { try { return JSON.parse(text.slice(i, j + 1)) } catch { break } }
+    }
+  }
+  throw new Error('no JSON found in the reply')
+}
+
 /** Structured output: the reply is parsed JSON matching `schema`. Cached by (model, prompt, schema). */
 export async function agyJson({ prompt, schema, model = MODELS.fast, timeoutMs = 150000, retries = 1 }) {
   const key = sha(model, prompt, JSON.stringify(schema)), file = path.join(CACHE, key + '.json')
@@ -53,8 +69,7 @@ export async function agyJson({ prompt, schema, model = MODELS.fast, timeoutMs =
     for (let i = 0; i <= retries; i++) {
       try {
         const text = await agyCall(i ? prompt + '\n\nReturn ONLY valid JSON that matches the schema.' : prompt, model, sp, timeoutMs)
-        const m = text.match(/[{[][\s\S]*[}\]]/)
-        const obj = JSON.parse(m ? m[0] : text)
+        const obj = parseLoose(text)
         fs.writeFileSync(file, JSON.stringify(obj))
         return obj
       } catch (e) { lastErr = e }

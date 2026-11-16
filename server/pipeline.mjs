@@ -10,13 +10,13 @@ import { generateContent } from './content.mjs'
 import { renderShopPage, slugify } from './shop.mjs'
 import { checkContent } from './risk.mjs'
 import { createApproval, decideApproval, qrDataUrl } from './approve.mjs'
-import { llm, MODELS } from './llm.mjs'
 import { edgeConfig } from './edge.mjs'
+import { agentLlm } from './agents.mjs'
+import { tally } from './council.mjs'
 
 const ROOT = path.join(import.meta.dirname, '..')
 const RUNS = [path.join(import.meta.dirname, 'data', 'runs'), path.join(ROOT, 'public', 'runs')]
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
-const using = (model) => ({ agyJson: (o) => llm.agyJson({ model, ...o }), agyText: (o) => llm.agyText({ model, ...o }) })
 export const lanIp = () => { for (const l of Object.values(os.networkInterfaces())) for (const i of l || []) if (i.family === 'IPv4' && !i.internal) return i.address; return '127.0.0.1' }
 
 /** Saved research answers (a previous real Gemini run) replayed quickly, re-scored for this brand. */
@@ -78,7 +78,7 @@ export async function runPipeline(opts, emit, ctx) {
     const facts = await safe('facts', async () => {
       const site = await fetchSiteText(website, { maxPages: 5 })
       if (site.blocked || !site.pages.length) { emit({ type: 'facts.done', facts: null, note: site.blocked ? 'website blocks automated reading' : 'no readable pages' }); return null }
-      const f = await extractFacts({ brand, website, site }, using(MODELS.fast))
+      const f = await extractFacts({ brand, website, site }, agentLlm('sy'))
       emit({ type: 'facts.done', facts: f, pages: site.pages.map((p) => ({ url: p.url, title: p.title })) }); return f
     })
     return { audit, facts }
@@ -106,7 +106,7 @@ export async function runPipeline(opts, emit, ctx) {
 
   // 5 content
   const content = await phase('content', async () => {
-    const c = await safe('content', () => generateContent({ brand, category, facts, missed, sources }, using(MODELS.write)))
+    const c = await safe('content', () => generateContent({ brand, category, facts, missed, sources }, agentLlm('mira')))
     if (c) {
       let preview = {}
       try { const f = renderShopPage({ brand, slug, website, category, facts, content: c, baseUrl: publicBase, publishedAt: new Date().toISOString() }); preview = { llms: f['llms.txt'].slice(0, 1100) } } catch {}
@@ -119,7 +119,9 @@ export async function runPipeline(opts, emit, ctx) {
 
   // 6 risk gate
   emit({ type: 'phase', phase: 'qa' })
-  const risk = await safe('risk', () => checkContent({ content, facts }, using(MODELS.fast)))
+  let council = null
+  const risk = await safe('risk', () => checkContent({ content, facts }, agentLlm('quinn', { onVotes: (votes, answers, asked) => { council = { votes, answers, asked } } })))
+  if (council) emit({ type: 'risk.council', engines: council.answers, asked: council.asked, ...tally(council.votes), votes: council.votes })
   if (risk) emit({ type: 'risk.done', risk })
   await phase('risk', async () => {}, 6000)
 

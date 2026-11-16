@@ -19,7 +19,7 @@ export function startEdge(port, cfg, log = console.log) {
     try {
       const r = await fetch(`${cfg.url}/api/_beat`, { method, headers: { 'x-edge-secret': cfg.secret, 'content-type': 'application/json' }, body: method === 'POST' ? JSON.stringify({ url: tunnel }) : undefined, signal: AbortSignal.timeout(8000) })
       if (!r.ok) log(`edge: heartbeat ${r.status}`)
-    } catch (e) { log(`edge: heartbeat failed (${e.message})`) }
+    } catch (e) { log(`edge: heartbeat failed (${e.cause?.code || e.message})`) }
   }
   const spawnTunnel = () => {
     tunnel = ''

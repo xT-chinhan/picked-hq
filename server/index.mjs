@@ -7,6 +7,8 @@ import { handleSystemOne } from './systemone.mjs'
 import { edgeConfig, startEdge } from './edge.mjs'
 import { BRANDS, CATEGORY, findBrand } from './directory.mjs'
 import { createRoutines } from './routines.mjs'
+import { roster, lockSouls } from './agents.mjs'
+import { ledger } from './engines.mjs'
 
 const PORT = +process.env.PICKED_PORT || 5198
 const DATA = process.env.PICKED_DATA_DIR || path.join(import.meta.dirname, 'data')
@@ -120,6 +122,9 @@ http.createServer(async (req, res) => {
       run.clients.add(res); req.on('close', () => run.clients.delete(res)); return
     }
     if ((m = p.match(/^\/api\/audit\/([\w-]+)\/stop$/)) && req.method === 'POST') { const r = live.get(m[1]); if (r) stopRun(r); return json(res, 200, { ok: true }) }
+    if (p === '/api/agents' && req.method === 'GET') return json(res, 200, { agents: roster() })
+    if (p === '/api/agents/lock' && req.method === 'POST') { if (viaTunnel) return json(res, 403, { error: 'local only' }); lockSouls(); return json(res, 200, { agents: roster() }) }
+    if (p === '/api/engines' && req.method === 'GET') return json(res, 200, ledger())
     if (p === '/api/inbox') {
       // everything that is waiting for a person: an owner decision on the running audit, and routine results nobody has looked at yet
       const cur = running(), ap = cur && [...cur.events].reverse().find((e) => e.type === 'approval.requested' || e.type === 'approval.done')

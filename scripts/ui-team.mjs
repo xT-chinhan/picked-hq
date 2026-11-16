@@ -1,0 +1,12 @@
+import { chromium } from 'playwright-core'
+const b = await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--no-sandbox'] })
+const p = await b.newPage({ viewport: { width: 1600, height: 900 } })
+const errs = []; p.on('pageerror', (e) => errs.push(e.message))
+await p.goto('http://localhost:5197/?nowake'); await p.waitForTimeout(2000)
+await p.keyboard.press('t'); await p.waitForTimeout(1800)
+await p.click('text=Quinn'); await p.waitForTimeout(500)
+await p.screenshot({ path: '/tmp/team-agents.png', clip: { x: 0, y: 40, width: 420, height: 860 } })
+await p.click('button:has-text("AI engines")'); await p.waitForTimeout(1500)
+await p.screenshot({ path: '/tmp/team-engines.png', clip: { x: 0, y: 40, width: 420, height: 860 } })
+console.log('errors', JSON.stringify(errs))
+await b.close()

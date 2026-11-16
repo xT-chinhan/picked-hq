@@ -14,9 +14,9 @@ type L = {
   mode: 'script' | 'live' | 'replay'; status: 'idle' | 'running' | 'done' | 'error'; runId: string; brand: string; category: string; website: string; total: number
   qs: LQ[]; summary: Summary | null; log: { id: number; text: string }[]; freeze: boolean; err: string
   site: any; facts: any; factsNote: string; factsPages: number; analysis: { missed: string[]; sources: { domain: string; count: number }[] } | null
-  content: any; contentPreview: string; risk: any; approval: any; publish: any; track: any; at: Record<string, number>; phased: boolean
+  content: any; contentPreview: string; risk: any; council: any; approval: any; publish: any; track: any; at: Record<string, number>; phased: boolean
 }
-const FRESH = { qs: [], summary: null, log: [], err: '', website: '', site: null, facts: null, factsNote: '', factsPages: 0, analysis: null, content: null, contentPreview: '', risk: null, approval: null, publish: null, track: null, at: {}, phased: false }
+const FRESH = { qs: [], summary: null, log: [], err: '', website: '', site: null, facts: null, factsNote: '', factsPages: 0, analysis: null, content: null, contentPreview: '', risk: null, council: null, approval: null, publish: null, track: null, at: {}, phased: false }
 export const useLive = create<L>(() => ({ mode: 'script', status: 'idle', runId: '', brand: '', category: '', total: 0, freeze: false, ...FRESH } as L))
 export const lget = () => useLive.getState()
 export const isLive = () => useLive.getState().mode !== 'script'
@@ -51,6 +51,7 @@ export function apply(ev: any) {
     case 'site.done': useLive.setState({ site: ev.audit }); stamp('site'); say(`Website audit: ${ev.audit.score}/100`); break
     case 'facts.done': useLive.setState({ facts: ev.facts, factsNote: ev.note || '', factsPages: ev.pages?.length ?? 0 }); stamp('facts'); say(ev.facts ? `${ev.facts.facts.length} sourced facts from the website` : 'No readable website facts'); break
     case 'content.done': useLive.setState({ content: ev.content, contentPreview: ev.preview?.llms || '' }); stamp('content'); say(`Drafted ${ev.content.faqs.length} FAQs, an about page and a pitch`); break
+    case 'risk.council': useLive.setState({ council: ev }); say(`${ev.engines.length} models voted: ${ev.unanimous}/${ev.sentences} unanimous`); break
     case 'risk.done': useLive.setState({ risk: ev.risk }); stamp('risk'); say('Risk gate checked every sentence'); break
     case 'approval.requested': useLive.setState({ approval: { ...ev.approval, status: 'pending', decisions: null } }); stamp('approval'); say('Waiting for the owner to approve'); break
     case 'approval.done': useLive.setState((s) => ({ approval: s.approval ? { ...s.approval, status: ev.status, decisions: ev.decisions } : s.approval })); stamp('approved'); say(`Owner ${ev.status}`); break

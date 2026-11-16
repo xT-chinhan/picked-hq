@@ -7,6 +7,7 @@ import { useLive } from './live'
 import { jump, snap, useOne } from './SystemOne'
 import { OFFLINE_MSG, useEdge } from './edge'
 import { useNeeds, useWork, useWorkPoll } from './Workspace'
+import { shortEngine, useCompany, useCompanyPoll, type AgentInfo } from './company'
 
 /* Stage overlays: the opening, the scoreboard, the approval stamp, the agent team, presenter notes and the Q&A sheet. */
 
@@ -134,37 +135,87 @@ const SAY: Partial<Record<Phase, (s: ReturnType<typeof snap>) => string>> = {
   publish: (s) => `Owner ${s.approval ?? 'approved'}. Ship what was approved.`,
   track: () => 'Published. Save the baseline and rerun the same questions in 7 days.',
 }
+const ENGINE_NOTE: Record<string, string> = { fast: 'seconds', write: 'drafting', deep: 'judging' }
+function EngineChip({ e }: { e: AgentInfo['engine'] }) {
+  if (e.council) return <span className="rounded-full bg-indigo-100 px-1.5 py-px text-[10px] font-semibold text-indigo-700">council ×{e.council.length}</span>
+  if (e.browser) return <span className="rounded-full bg-sky-100 px-1.5 py-px text-[10px] font-semibold text-sky-700">browser</span>
+  if (e.rules) return <span className="rounded-full bg-slate-100 px-1.5 py-px text-[10px] font-semibold text-slate-500">rules</span>
+  return <span className="rounded-full bg-violet-100 px-1.5 py-px text-[10px] font-semibold text-violet-700">{shortEngine(e.primary)}</span>
+}
+function EngineWall() {
+  const { engines, recent } = useCompany()
+  const now = useSim((s) => s.now), hot = new Set(recent.filter((r) => now - (r.at + r.ms) < 12000 || now - r.at < r.ms + 12000).map((r) => r.engine))
+  const max = Math.max(1, ...engines.map((e) => e.avgMs ?? 0))
+  const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n))
+  return (
+    <div className="space-y-1 px-3 py-2">
+      {engines.map((e) => (
+        <div key={e.id} className={`rounded-xl px-2.5 py-1.5 transition-colors ${hot.has(e.id) ? 'bg-indigo-50' : ''}`}>
+          <div className="flex items-center gap-1.5 text-[12px]">
+            <span className={`h-1.5 w-1.5 flex-none rounded-full ${hot.has(e.id) ? 'bg-indigo-500' : e.calls ? 'bg-emerald-400' : 'bg-slate-200'}`} />
+            <span className="min-w-0 flex-1 truncate font-semibold text-slate-800">{e.label}</span>
+            <span className={`rounded-full px-1.5 py-px text-[9.5px] font-bold uppercase tracking-[.08em] ${e.driver === 'codex' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{e.driver}</span>
+          </div>
+          <div className="mt-1 flex items-center gap-2 text-[10.5px] text-slate-400">
+            <div className="h-1 flex-1 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-indigo-400 transition-[width] duration-700" style={{ width: `${e.avgMs ? Math.max(6, (e.avgMs / max) * 100) : 0}%` }} /></div>
+            <span className="tnum w-12 text-right">{e.avgMs ? `${(e.avgMs / 1000).toFixed(1)} s` : '–'}</span>
+            <span className="tnum w-9 text-right">{e.calls}×</span>
+            <span className="tnum w-10 text-right">{e.tokens ? `${fmt(e.tokens)} tk` : ''}</span>
+          </div>
+        </div>
+      ))}
+      {!engines.length && <div className="px-2 py-8 text-center text-[13px] text-slate-400">Backend is off.</div>}
+      <div className="px-2 pt-2 text-[10.5px] leading-snug text-slate-400">Measured by the engine room on this machine: every call is logged with its time and tokens. Tiers: fast = {ENGINE_NOTE.fast}, write = {ENGINE_NOTE.write}, deep = {ENGINE_NOTE.deep}.</div>
+    </div>
+  )
+}
 export function Team() {
   const open = useOne((s) => s.team)
+  const [tab, setTab] = useState<'agents' | 'engines'>('agents')
+  const [openId, setOpenId] = useState('')
   const phase = usePhase()
   useLive((s) => `${s.status}|${s.summary?.answered}|${Object.keys(s.at).length}`) // re-read live facts when they change
+  useCompanyPoll(open)
+  const roster = useCompany((s) => s.agents)
   const order = useOrder(), cur = order.indexOf(phase), s = snap()
-  const talk = order.slice(1, cur + 1).filter((k) => SAY[k]).slice(-4).map((k) => ({ k, from: TEAM.find((a) => a.k === order[order.indexOf(k) - 1])?.name ?? 'Shop', to: TEAM.find((a) => a.k === k)?.name ?? NAME[k], text: SAY[k]!(s) }))
+  const talk = order.slice(1, cur + 1).filter((k) => SAY[k]).slice(-3).map((k) => ({ k, from: TEAM.find((a) => a.k === order[order.indexOf(k) - 1])?.name ?? 'Shop', to: TEAM.find((a) => a.k === k)?.name ?? NAME[k], text: SAY[k]!(s) }))
+  const rows = roster.length ? roster : TEAM.map((a) => ({ id: a.k, name: a.name, role: a.role, phase: a.k, engine: {} as AgentInfo['engine'], tools: [], soul: '', soulHash: '', drift: false, lastCalls: 0, lastMs: null, lastEngine: null }))
   return (
     <AnimatePresence>
       {open && (
-        <motion.aside initial={{ x: -380, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -380, opacity: 0 }} transition={{ type: 'spring', stiffness: 300, damping: 32 }} className="absolute bottom-4 left-4 top-4 z-30 flex w-[340px] flex-col overflow-hidden rounded-[22px] border border-slate-200 bg-white/95 shadow-[0_40px_100px_-30px_rgba(15,23,42,.45)] backdrop-blur-xl">
-          <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3"><Bot size={17} className="text-indigo-600" /><span className="text-[14.5px] font-semibold tracking-tight">Agent team</span><span className="ml-auto text-[11px] text-slate-400">{s.mode === 'script' ? 'Scripted' : s.mode === 'replay' ? 'Real · recorded' : 'Real · live'}</span><button onClick={() => useOne.setState({ team: false })} className="grid h-7 w-7 place-items-center rounded-full text-slate-400 hover:bg-slate-100"><X size={15} /></button></div>
+        <motion.aside initial={{ x: -380, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -380, opacity: 0 }} transition={{ type: 'spring', stiffness: 300, damping: 32 }} className="absolute bottom-4 left-4 top-4 z-30 flex w-[360px] flex-col overflow-hidden rounded-[22px] border border-slate-200 bg-white/95 shadow-[0_40px_100px_-30px_rgba(15,23,42,.45)] backdrop-blur-xl">
+          <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3"><Bot size={17} className="text-indigo-600" /><span className="text-[14.5px] font-semibold tracking-tight">Agent company</span><span className="ml-auto text-[11px] text-slate-400">{s.mode === 'script' ? 'Scripted' : s.mode === 'replay' ? 'Real · recorded' : 'Real · live'}</span><button onClick={() => useOne.setState({ team: false })} className="grid h-7 w-7 place-items-center rounded-full text-slate-400 hover:bg-slate-100"><X size={15} /></button></div>
+          <div className="mx-3 mt-3 grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 text-[12.5px] font-semibold">{(['agents', 'engines'] as const).map((k) => <button key={k} onClick={() => setTab(k)} className={`rounded-lg py-1.5 ${tab === k ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>{k === 'agents' ? 'Agents' : 'AI engines'}</button>)}</div>
           <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
-            {TEAM.map((a) => {
-              const i = order.indexOf(a.k), st = i === cur ? 'working' : i < cur ? 'done' : 'standby', I = DEPT_ICON[a.k]
+            {tab === 'engines' ? <EngineWall /> : rows.map((a) => {
+              const i = order.indexOf(a.phase as Phase), st = i === cur ? 'working' : i < cur ? 'done' : 'standby', I = DEPT_ICON[a.phase as Phase], on = openId === a.id
               return (
-                <button key={a.k} onClick={() => jump(a.k)} className={`flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-slate-50 ${st === 'working' ? 'bg-indigo-50/70' : ''}`}>
-                  <div className={`grid h-8 w-8 flex-none place-items-center rounded-[10px] ${st === 'standby' ? 'bg-slate-100 text-slate-400' : 'bg-slate-900 text-white'}`}><I size={15} /></div>
-                  <div className="min-w-0 flex-1"><div className="flex items-baseline gap-1.5"><span className="text-[12.5px] font-semibold text-slate-800">{a.name}</span><span className="text-[10.5px] text-slate-400">{a.role}</span></div><div className="truncate text-[11.5px] text-slate-500">{work(a.k)}</div></div>
-                  {st === 'working' ? <span className="live-dot" style={{ ['--c' as any]: '#4f46e5' }} /> : st === 'done' ? <Check size={13} strokeWidth={3} className="text-emerald-500" /> : <span className="h-1.5 w-1.5 rounded-full bg-slate-200" />}
-                </button>
+                <div key={a.id}>
+                  <button onClick={() => (a.soul ? setOpenId(on ? '' : a.id) : jump(a.phase as Phase))} className={`flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-slate-50 ${st === 'working' ? 'bg-indigo-50/70' : ''}`}>
+                    <div className={`grid h-8 w-8 flex-none place-items-center rounded-[10px] ${st === 'standby' ? 'bg-slate-100 text-slate-400' : 'bg-slate-900 text-white'}`}>{I && <I size={15} />}</div>
+                    <div className="min-w-0 flex-1"><div className="flex items-center gap-1.5"><span className="text-[12.5px] font-semibold text-slate-800">{a.name}</span><span className="truncate text-[10.5px] text-slate-400">{a.role}</span><span className="ml-auto flex-none"><EngineChip e={a.engine} /></span></div><div className="truncate text-[11.5px] text-slate-500">{work(a.phase as Phase)}</div></div>
+                    {st === 'working' ? <span className="live-dot" style={{ ['--c' as any]: '#4f46e5' }} /> : st === 'done' ? <Check size={13} strokeWidth={3} className="text-emerald-500" /> : <span className="h-1.5 w-1.5 rounded-full bg-slate-200" />}
+                  </button>
+                  {on && (
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mx-2 mb-1 overflow-hidden rounded-xl bg-slate-50 px-3 py-2 text-[11.5px] leading-snug text-slate-600">
+                      <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[.1em] text-slate-400">Soul <span className="rounded bg-white px-1 font-mono normal-case tracking-normal">{a.soulHash}</span>{a.drift && <span className="rounded-full bg-amber-100 px-1.5 text-amber-700">changed</span>}</div>
+                      {a.soul}
+                      <div className="mt-1.5 flex flex-wrap gap-1">{a.tools.map((t) => <span key={t} className="rounded-full bg-white px-1.5 py-px font-mono text-[10px] text-slate-500">{t}</span>)}</div>
+                      <div className="mt-1.5 text-[10.5px] text-slate-400">{a.engine.council ? `Council: ${a.engine.council.join(' + ')} · majority decides` : a.engine.primary ? `Engine: ${a.engine.primary}${a.engine.fallback?.length ? ` → ${a.engine.fallback.join(' → ')}` : ''}` : ''}{a.lastMs ? ` · last call ${(a.lastMs / 1000).toFixed(1)} s on ${a.lastEngine}` : ''}</div>
+                    </motion.div>
+                  )}
+                </div>
               )
             })}
           </div>
-          <div className="border-t border-slate-100 px-4 py-3">
+          {tab === 'agents' && <div className="border-t border-slate-100 px-4 py-3">
             <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[.14em] text-slate-400">Handoffs</div>
-            <div className="flex min-h-[120px] flex-col justify-end gap-1.5">
+            <div className="flex min-h-[96px] flex-col justify-end gap-1.5">
               <AnimatePresence initial={false} mode="popLayout">
                 {talk.map((m) => <motion.div layout key={m.k} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="rounded-xl bg-slate-50 px-2.5 py-1.5 text-[11.5px] leading-snug text-slate-600"><b className="text-slate-800">{m.from}</b> → <b className="text-slate-800">{m.to}</b>: {m.text}</motion.div>)}
               </AnimatePresence>
             </div>
-          </div>
+          </div>}
         </motion.aside>
       )}
     </AnimatePresence>

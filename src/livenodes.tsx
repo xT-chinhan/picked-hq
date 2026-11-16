@@ -299,12 +299,13 @@ export function RiskPiiLive() {
   )
 }
 export function RiskRouteLive() {
-  const risk = useLive((s) => s.risk)
+  const risk = useLive((s) => s.risk), council = useLive((s) => s.council)
   const conf: Record<string, number> = risk?.confidence ?? {}
   const T: Record<string, string> = { faq: 'FAQ', overview: 'About', pitch: 'Pitch' }
   const lanes = [{ title: 'Auto-pass · 90%+', c: '#16a34a', bg: '#f0fdf4', docs: Object.entries(conf).filter(([, v]) => v >= 0.9) }, { title: 'Owner review · below 90%', c: '#d97706', bg: '#fffbeb', docs: Object.entries(conf).filter(([, v]) => v < 0.9) }]
   return (
-    <div className="card lyr grid h-full w-full grid-cols-2 gap-3 p-3.5">
+    <div className="card lyr relative grid h-full w-full grid-cols-2 gap-3 p-3.5 pt-9">
+      {council && <div className="pop absolute left-3.5 right-3.5 top-2 flex items-center gap-1.5 text-[10.5px] font-semibold text-slate-500"><span className="rounded-full bg-indigo-100 px-1.5 py-px text-indigo-700">{council.engines.length} models</span>{council.engines.map((e: any) => <span key={e.engine} className="rounded-full bg-slate-100 px-1.5 py-px">{e.engine}</span>)}<span className="ml-auto text-emerald-600">{council.unanimous}/{council.sentences} unanimous</span></div>}
       {lanes.map((l) => (
         <div key={l.title} className="flex flex-col gap-1.5 rounded-xl p-2.5" style={{ background: l.bg }}>
           <div className="text-[10.5px] font-semibold uppercase tracking-[.08em]" style={{ color: l.c }}>{l.title}</div>

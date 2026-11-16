@@ -1,5 +1,5 @@
 // NaN: the operator chat. Translation, prompt structuring, free-form intent and a single real Gemini question.
-import { llm, MODELS } from './llm.mjs'
+import { agentLlm } from './agents.mjs'
 import { launch, ask } from './gemini.mjs'
 import { parseAnswer } from './parse.mjs'
 import { handleTranslateRequest, makeAgyRestorer } from './translate.mjs'
@@ -30,7 +30,8 @@ task (one precise instruction), constraints (2-4 short rules), output (the expec
 const read = (req) => new Promise((resolve) => { let b = ''; req.on('data', (c) => { if (b.length < 20000) b += c }); req.on('end', () => { try { resolve(JSON.parse(b || '{}')) } catch { resolve({}) } }) })
 const send = (res, code, body) => { res.writeHead(code, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(body)) }
 const clip = (v, n) => String(v ?? '').slice(0, n)
-const restore = makeAgyRestorer(llm)
+const lia = agentLlm('lia'), nan = agentLlm('nan')
+const restore = makeAgyRestorer(lia)
 let asking = false
 
 /** Handles /api/translate*, /api/one/prompt, /api/one/chat, /api/one/ask. Resolves false for any other route. */
@@ -44,14 +45,14 @@ export async function handleSystemOne(req, res) {
     if (route === '/api/one/prompt') {
       const text = clip(b.text, 1500)
       if (!text.trim()) return send(res, 400, { error: 'empty' }), true
-      const prompt = await llm.agyJson({ model: MODELS.fast, schema: PROMPT, timeoutMs: 60000, prompt: `${ABOUT}\n\n${STRUCT}\n\nScreen state (JSON): ${state}\n\nOperator request: ${text}` })
+      const prompt = await nan.agyJson({ schema: PROMPT, timeoutMs: 60000, prompt: `${ABOUT}\n\n${STRUCT}\n\nScreen state (JSON): ${state}\n\nOperator request: ${text}` })
       return send(res, 200, { prompt, ms: Date.now() - t0 }), true
     }
     if (route === '/api/one/chat') {
       const text = clip(b.text, 1500)
       if (!text.trim()) return send(res, 400, { error: 'empty' }), true
-      const out = await llm.agyJson({
-        model: MODELS.fast, schema: CHAT, timeoutMs: 60000,
+      const out = await nan.agyJson({
+        schema: CHAT, timeoutMs: 60000,
         prompt: `You are NaN, the operator console of Picked.\n${ABOUT}\n\nScreen state (JSON): ${state}\n\nOperator request (English): ${text}\nOriginal wording: ${clip(b.original, 600)}\n
 Return three things.
 1. prompt: ${STRUCT}

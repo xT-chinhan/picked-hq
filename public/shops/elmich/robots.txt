@@ -19,4 +19,4 @@ Allow: /
 User-agent: Google-Extended
 Allow: /
 
-Sitemap: https://pickedhq.vercel.app/shops/elmich/sitemap.xml
+Sitemap: https://pickedhq.pages.dev/shops/elmich/sitemap.xml

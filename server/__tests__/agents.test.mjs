@@ -1,0 +1,51 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
+// each run gets its own data directory, so the real ledger and soul lock are never touched
+process.env.PICKED_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'picked-agents-'))
+const { ENGINES, engine, ledger, call } = await import('../engines.mjs')
+const { AGENTS, agent, agentLlm, roster, lockSouls } = await import('../agents.mjs')
+
+test('engine registry: unique ids, known drivers, no Claude, Codex engines use the api profile', () => {
+  assert.equal(new Set(ENGINES.map((e) => e.id)).size, ENGINES.length)
+  for (const e of ENGINES) { assert.ok(['agy', 'codex'].includes(e.driver)); assert.ok(['fast', 'write', 'deep'].includes(e.tier)); assert.ok(!/claude/i.test(e.model)) }
+  assert.match(engine('astra').home, /codex_profiles\/api$/)
+  assert.equal(engine('nope'), null)
+})
+
+test('calling an unknown engine or a schema on an engine that ignores schemas is refused before any process starts', async () => {
+  await assert.rejects(() => call('nope', { prompt: 'x' }), /unknown engine/)
+  await assert.rejects(() => call('oss', { prompt: 'x', schema: { type: 'object' } }), /does not follow JSON schemas/)
+})
+
+test('ledger lists every engine with zeroed stats on a fresh data directory', () => {
+  const l = ledger()
+  assert.equal(l.engines.length, ENGINES.length); assert.ok(l.engines.every((e) => e.calls === 0 && e.avgMs === null)); assert.deepEqual(l.recent, [])
+})
+
+test('every council member and fallback is a real engine, and souls forbid inventing facts', () => {
+  for (const a of AGENTS) {
+    const ids = [a.engine.primary, ...(a.engine.fallback ?? []), ...(a.engine.council ?? [])].filter(Boolean)
+    for (const id of ids) assert.ok(engine(id), `${a.id} uses unknown engine ${id}`)
+    assert.match(a.soul, /Never invent/)
+  }
+  assert.ok(agent('quinn').engine.council.length >= 3)
+})
+
+test('agentLlm rejects unknown agents and agents that use no model', () => {
+  assert.throws(() => agentLlm('nobody'), /unknown agent/)
+  assert.throws(() => agentLlm('rhea'), /does not use a model/)
+  assert.equal(typeof agentLlm('quinn').agyJson, 'function')
+})
+
+test('a changed soul is flagged until the souls are locked again', () => {
+  assert.ok(roster().every((r) => !r.drift))
+  const a = agent('mira'); const before = a.soul
+  a.soul += ' Extra rule.'
+  assert.equal(roster().find((r) => r.id === 'mira').drift, true)
+  lockSouls(); assert.equal(roster().find((r) => r.id === 'mira').drift, false)
+  a.soul = before
+})

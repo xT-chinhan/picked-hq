@@ -111,3 +111,9 @@ body { margin: 0; background: #f6f7fb; color: #0f172a; font-family: var(--font-s
 .react-flow__viewport, .lyr { will-change: transform; }
 .sharp .react-flow__viewport, .sharp .lyr { will-change: auto; }
 @keyframes zping { 0% { box-shadow: 0 0 0 0 #0068FF88; } 100% { box-shadow: 0 0 0 16px #0068FF00; } }
+
+/* risk gate: one scanning beam sweeps the department while it works */
+.laser { position: absolute; inset: 76px 14px 14px; overflow: hidden; border-radius: 18px; pointer-events: none; }
+.laser::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 90px; background: linear-gradient(180deg, transparent, #d9770622 70%, #d97706cc 97%, #fff 100%); box-shadow: 0 6px 22px #d9770666; animation: laser 2.6s cubic-bezier(.45, 0, .55, 1) infinite alternate; }
+@keyframes laser { from { transform: translateY(-90px); } to { transform: translateY(640px); } }
+.spinner { display: inline-block; width: 10px; height: 10px; flex: none; border-radius: 50%; border: 2px solid #c7d2fe; border-top-color: #4f46e5; animation: spin .8s linear infinite; }

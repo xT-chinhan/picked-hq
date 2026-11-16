@@ -4,7 +4,7 @@ import { useStoreApi } from '@xyflow/react'
 import { FileText, Lightbulb, Mail, MessageCircle, MessageCircleQuestion, RefreshCw, Send, ShieldCheck, ShieldX, Store, TrendingUp, X } from 'lucide-react'
 import { SCORES, clock, hash, phaseOf, scoreAt, scoutName, sessionAny, type Phase } from './sim'
 import * as L from './layout'
-import { rrect, setTrack, tracks, type Track } from './fx'
+import { HANDOFF, packets, rrect, sendPacket, setTrack, tracks, type Track } from './fx'
 
 /* A swarm of agent cursors working the canvas: scouts drive the AI chat windows, runners drag cards
    between departments, inspectors draw selection boxes, the rest flock around the working team.
@@ -166,7 +166,7 @@ function Swarm() {
     const st = CAST.map(() => ({ x: 0, y: 0, vx: 0, vy: 0, init: false, u: 0, key: '', chip: '', ca: 0 }))
     const ripples: { x: number; y: number; c: string; size: number; t0: number }[] = []
     const widths = new Map<string, number>()
-    let raf = 0, last = performance.now(), score = -1, cw = 0, ch = 0
+    let raf = 0, last = performance.now(), score = -1, cw = 0, ch = 0, prevPh = ''
     const ripple = (x: number, y: number, c: string, size = 44, delay = 0) => ripples.push({ x, y, c, size, t0: performance.now() + delay })
 
     const frame = (now: number) => {
@@ -211,6 +211,24 @@ function Swarm() {
         }
       })
       ctx.globalAlpha = 1
+
+      /* 1b ── handoff packets: a labelled capsule rides the edge into the department that just started */
+      if (ph !== prevPh) { const h = prevPh ? HANDOFF[ph] : undefined; prevPh = ph; if (h) h[1].forEach((label, k) => sendPacket(h[0], label, tracks.get(h[0])?.color ?? '#4f46e5', k * 320)) }
+      for (let k = packets.length - 1; k >= 0; k--) {
+        const pk = packets[k], tr = tracks.get(pk.track), u = (now - pk.t0) / 1000 / pk.dur
+        if (!tr || u >= 1) { packets.splice(k, 1); continue }
+        if (u < 0) continue
+        const e = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2, n = tr.pts.length / 2 - 1, g = e * n, i = Math.min(n - 1, Math.floor(g)), q = g - i
+        const x = X(tr.pts[i * 2] + (tr.pts[i * 2 + 2] - tr.pts[i * 2]) * q), y = Y(tr.pts[i * 2 + 1] + (tr.pts[i * 2 + 3] - tr.pts[i * 2 + 1]) * q)
+        if (x < -80 || y < -40 || x > W + 80 || y > H + 40) continue
+        const fs = Math.max(10, Math.min(15, 22 * zoom)), a = Math.min(1, u * 8, (1 - u) * 6)
+        ctx.font = `600 ${fs}px Inter Variable, Inter, system-ui, sans-serif`
+        const tw = ctx.measureText(pk.label).width, w = tw + fs * 1.5, hh = fs * 1.9
+        ctx.globalAlpha = a * 0.22; ctx.fillStyle = pk.color; ctx.beginPath(); ctx.roundRect(x - w / 2 - 5, y - hh / 2 - 5, w + 10, hh + 10, hh); ctx.fill()
+        ctx.globalAlpha = a; ctx.fillStyle = pk.color; ctx.beginPath(); ctx.roundRect(x - w / 2, y - hh / 2, w, hh, hh / 2); ctx.fill()
+        ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(pk.label, x, y + 0.5)
+      }
+      ctx.globalAlpha = 1; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'
 
       /* 2 ── agents */
       const marks: ReturnType<typeof marker>[] = []

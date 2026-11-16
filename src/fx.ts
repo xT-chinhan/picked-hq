@@ -21,3 +21,12 @@ export function setTrack(id: string, d: string, o: { color: string; on: Phase[];
 export const dropTrack = (id: string) => tracks.delete(id)
 export const rrect = (x: number, y: number, w: number, h: number, r: number) =>
   `M${x + r} ${y} H${x + w - r} A${r} ${r} 0 0 1 ${x + w} ${y + r} V${y + h - r} A${r} ${r} 0 0 1 ${x + w - r} ${y + h} H${x + r} A${r} ${r} 0 0 1 ${x} ${y + h - r} V${y + r} A${r} ${r} 0 0 1 ${x + r} ${y} Z`
+
+/* A labelled packet that rides an edge once: what one department hands to the next. */
+export type Packet = { track: string; label: string; color: string; t0: number; dur: number }
+export const packets: Packet[] = []
+export const sendPacket = (track: string, label: string, color: string, delay = 0, dur = 1.9) => packets.push({ track, label, color, t0: performance.now() + delay, dur })
+export const HANDOFF: Partial<Record<Phase, [string, string[]]>> = {
+  research: ['e1', ['40 questions']], analysis: ['e2', ['40 answers']], content: ['e3', ['gaps to fix']], citations: ['ec', ['drafts']], sync: ['ecs', ['one truth']],
+  qa: ['e4', ['FAQ', 'About', 'Pitch']], risk: ['eqr', ['checked drafts']], approve: ['era', ['for approval']], publish: ['ezp', ['index.html', 'llms.txt', 'sitemap.xml']], track: ['e7', ['baseline']], impact: ['eti', ['results']],
+}

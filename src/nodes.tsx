@@ -12,7 +12,7 @@ import { ChartColumn, Inbox, Quote, ShieldX } from 'lucide-react'
 import { useLive } from './live'
 import {
   CHECKS, DIAG, DOCS, PH, QUESTIONS, RIVALS, SCORES, TOTAL_Q, ct, cyc, prog, scoreAt, scoutName, stagger,
-  useP, usePhase, useSession, useSim, week, type Phase,
+  ranPhase, useP, usePhase, useSession, useSim, week, type Phase,
 } from './sim'
 
 export const Ports = () => (
@@ -25,11 +25,18 @@ export const Ports = () => (
     <Handle id="bt" type="target" position={Position.Bottom} />
   </>
 )
-export const useRan = (k: Phase) => useSim((s) => cyc(s.t) > 0 || ct(s.t) >= PH[k][0])
+export const useRan = (k: Phase) => useSim((s) => ranPhase(s.t, k))
 export const Spin = ({ size = 14, color = '#94a3b8' }) => <Loader2 size={size} color={color} style={{ animation: 'spin 1s linear infinite' }} />
 
 /* ───────────── department frame ───────────── */
 export const DEPT_ICON = { research: Search, analysis: ScanSearch, content: PenLine, qa: ShieldCheck, approve: UserCheck, publish: Send, track: TrendingUp, intake: Store, mining: Inbox, citations: Quote, sync: RefreshCw, risk: ShieldX, impact: ChartColumn }
+/** which parts are real in a live or replayed run; everything is scripted otherwise */
+const REAL: Record<string, string> = { research: 'Real', analysis: 'Real', sync: 'Real', content: 'Real', qa: 'Real', risk: 'Real', citations: 'Real draft · not sent', approve: 'Real', publish: 'Real', impact: 'Real', intake: 'Real' }
+export function Truth({ k, className = '' }: { k: string; className?: string }) {
+  const mode = useLive((s) => s.mode)
+  const real = mode !== 'script' && REAL[k]
+  return <span className={`rounded-full px-2 py-[3px] text-[9.5px] font-bold uppercase leading-none tracking-[.12em] ${real ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'} ${className}`}>{real ? (mode === 'replay' ? `${real} · recorded` : real) : 'Simulated'}</span>
+}
 export function DeptNode({ data }: NodeProps<any>) {
   const active = usePhase() === data.phase
   const Icon = DEPT_ICON[data.phase as Phase]
@@ -54,6 +61,7 @@ export function DeptNode({ data }: NodeProps<any>) {
               <div key={k} className={`grid h-7 w-7 place-items-center rounded-full border-2 border-white`} style={{ background: `color-mix(in srgb, ${data.color} 14%, #fff)`, color: data.color, animationDelay: `${k * 0.14}s` }}><Bot size={14} /></div>
             ))}
           </div>
+          <Truth k={data.phase} />
           <span className="tnum text-[13px] font-medium text-slate-500">{data.agents} agents</span>
           <span className="flex items-center gap-2 rounded-full px-3 py-1 text-[12.5px] font-semibold" style={{ background: active ? `${data.color}14` : '#f1f5f9', color: active ? data.color : '#94a3b8' }}>
             {active ? <span className="live-dot" style={{ ['--c' as any]: data.color }} /> : <Check size={13} strokeWidth={3} />}
@@ -61,6 +69,7 @@ export function DeptNode({ data }: NodeProps<any>) {
           </span>
         </div>
       </div>
+      {active && data.phase === 'risk' && <div className="laser" />}
       <Ports />
     </div>
   )
@@ -129,6 +138,7 @@ const STATUS = { boot: 'opening', type: 'typing', think: 'waiting', answer: 'rea
 export function SessionFrame({ i, force, fs, name }: { i: number; force?: boolean; fs?: number; name?: string }) {
   const s = useSession(i, force)
   const done = s.stage === 'done'
+  const lq = useLive((x) => (x.mode !== 'script' && i < 12 ? x.qs[s.qi] : undefined)), lTotal = useLive((x) => x.total)
   const tone = done ? (s.mentioned ? '#22c55e' : '#f87171') : '#e6e8ef'
   return (
     <div className="flex h-full w-full flex-col overflow-hidden rounded-[14px] bg-white transition-[box-shadow,border-color] duration-500" style={{ border: `1px solid ${tone}`, boxShadow: done ? `0 0 0 3px ${tone}2e` : 'none' }}>
@@ -138,6 +148,12 @@ export function SessionFrame({ i, force, fs, name }: { i: number; force?: boolea
         <span className="ml-auto flex items-center gap-1.5">{!done && <span className="mini-dot" style={{ background: '#6366f1' }} />}{STATUS[s.stage]}</span>
       </div>
       <div className="min-h-0 flex-1 border-t border-slate-100"><Chat s={s} fs={fs} /></div>
+      {lq && lq.stage === 'done' && (
+        <div className="flex flex-none items-center gap-1.5 border-t border-slate-100 bg-slate-50/70 px-2.5 py-[3px] text-slate-500" style={{ fontSize: (fs ?? 9) * 0.92 }}>
+          <span className="tnum font-semibold text-slate-700">Q{lq.qi + 1}/{lTotal}</span><span>· {(lq.ms / 1000).toFixed(1)} s</span><span>· {lq.brands.length} brands</span>{lq.domains.length > 0 && <span className="truncate">· {lq.domains[0]}</span>}
+          <span className="ml-auto font-bold uppercase tracking-[.1em] text-emerald-600">Real answer</span>
+        </div>
+      )}
     </div>
   )
 }

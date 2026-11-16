@@ -1,0 +1,12 @@
+import { chromium } from 'playwright-core'
+const b = await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--no-sandbox'] })
+const p = await b.newPage({ viewport: { width: 1600, height: 900 } })
+await p.goto('http://localhost:5197/?nowake'); await p.waitForTimeout(2000)
+await p.keyboard.press('t'); await p.waitForTimeout(800)
+console.log('team after t:', await p.locator('text=Agent team').count(), 'active:', await p.evaluate(() => document.activeElement?.tagName + '.' + document.activeElement?.className))
+await p.keyboard.press('/'); await p.waitForTimeout(300); await p.keyboard.press('Escape'); await p.waitForTimeout(500)
+console.log('active after esc:', await p.evaluate(() => document.activeElement?.tagName))
+await p.keyboard.press('p'); await p.waitForTimeout(500)
+console.log('presenter:', await p.locator('text=Speaker').count())
+await p.screenshot({ path: '/tmp/pk4.png' })
+await b.close()

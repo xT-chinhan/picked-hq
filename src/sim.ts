@@ -33,12 +33,25 @@ export const TOTAL_Q = 40
 const cl = (x: number) => Math.max(0, Math.min(1, x))
 export const cyc = (t: number) => Math.floor(Math.max(0, t) / CYCLE)
 export const ct = (t: number) => Math.max(0, t) % CYCLE
+/** Live order of the departments when a real run drives the canvas (the pipeline announces each phase). */
+export const LIVE_ORDER: Phase[] = ['intake', 'mining', 'research', 'analysis', 'sync', 'content', 'citations', 'qa', 'risk', 'approve', 'publish', 'track', 'impact']
+export const liveClock: { phase: Phase | null; t0: number } = { phase: null, t0: 0 }
+export const setLivePhase = (p: Phase | null) => { liveClock.phase = p; liveClock.t0 = clock.t; useSim.setState({ t: clock.t, now: Date.now() }) }
+/** has this department started in the current run? */
+export const ranPhase = (t: number, k: Phase) => (liveClock.phase ? LIVE_ORDER.indexOf(k) <= LIVE_ORDER.indexOf(liveClock.phase) : cyc(t) > 0 || ct(t) >= PH[k][0])
 export const phaseOf = (t: number): Phase => {
+  if (liveClock.phase) return liveClock.phase
   const c = ct(t)
   return ORDER.find((k) => c >= PH[k][0] && c < PH[k][1]) ?? 'intake'
 }
 /** progress 0..1 of a phase; keeps last run's result (1) until the phase restarts */
 export const prog = (t: number, k: Phase) => {
+  if (liveClock.phase) {
+    const i = LIVE_ORDER.indexOf(k), cur = LIVE_ORDER.indexOf(liveClock.phase)
+    if (i < cur) return 1
+    if (i > cur) return 0
+    return cl((t - liveClock.t0) / (PH[k][1] - PH[k][0]))
+  }
   const c = ct(t)
   const [s, e] = PH[k]
   if (c >= e) return 1

@@ -3,15 +3,16 @@ import { BaseEdge, ReactFlow, ReactFlowProvider, getBezierPath, getSmoothStepPat
 import { AnimatePresence, motion } from 'motion/react'
 import { Bot, Check, Maximize, Pause, Play, Sparkles, X } from 'lucide-react'
 import { BRAND, Logo } from './Chat'
-import { DEPT_ICON, SessionFrame, WriterBody, nodeTypes } from './nodes'
-import { flowTypes } from './flows'
-const types = { ...nodeTypes, ...flowTypes }
+import { DEPT_ICON, SessionFrame, WriterBody } from './nodes'
+import { allTypes as types } from './registry'
 import { CYCLE, DOCS, ORDER, PROVS, TOTAL_Q, URLS, clock, ct, feed, phaseOf, scoreAt, scoutName, usePhase, useSim, weekLabel, type Phase } from './sim'
 import { ALL, C, LOCAL, OWNER, R, SHOT, VIEW } from './layout'
 import Swarm from './Swarm'
 import { dropTrack, setTrack } from './fx'
 import LiveControl from './LiveControl'
 import { useLive } from './live'
+import SystemOne, { setNav, useKeys } from './SystemOne'
+import { Dock, Info, Presenter, ScoreBoard, Stamp, Team, Wake } from './Stage'
 
 
 const N = (id: string, type: string, [x, y, w, h]: number[], data: any = {}, parentId?: string): Node => ({ id, type, position: { x, y }, width: w, height: h, data, parentId, draggable: false, selectable: false })
@@ -181,6 +182,7 @@ function CycleBeam() {
   return <div className="absolute bottom-[-1px] left-0 h-[2px] w-full origin-left bg-gradient-to-r from-indigo-500 via-violet-500 to-emerald-500" style={{ transform: `scaleX(${p / 100})`, transition: 'transform 1s linear' }} />
 }
 function TopBar() {
+  const liveBrand = useLive((s) => (s.mode !== 'script' ? s.brand : ''))
   const rf = useReactFlow()
   const phase = usePhase()
   const scScript = useSim((s) => scoreAt(s.t))
@@ -194,7 +196,7 @@ function TopBar() {
         <div className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-gradient-to-br from-indigo-500 to-violet-600 text-white"><Check size={17} strokeWidth={3.2} /></div>
         <span className="text-[16px] font-semibold tracking-tight">Picked</span>
         <span className="h-4 w-px bg-slate-200" />
-        <span className="truncate text-[13px] font-medium text-slate-500">xT Store</span>
+        <span className="truncate text-[13px] font-medium text-slate-500">{liveBrand || 'xT Store'}</span>
       </div>
 
       <nav className="flex items-center gap-0.5 rounded-full bg-slate-100/80 p-1">
@@ -245,14 +247,22 @@ const CAP: Record<Phase, string> = {
   track: 'AI Visibility climbs, week after week.',
   impact: 'Six weeks: from 2 to 14 out of 40.',
 }
+const LIVE_CAP: Partial<Record<Phase, string>> = {
+  research: 'Parallel Gemini tabs answer real buyer questions.', analysis: 'They count who Gemini names, and which sources it cites.',
+  content: 'They write fixes only from sourced facts.', citations: 'They draft a pitch to the source Gemini cites most.', risk: 'Claims and personal data are scanned before the owner sees them.',
+  publish: 'Only what the owner approved goes live.',
+  mining: 'Buyer questions are prepared for Gemini.', sync: 'They audit the website and extract sourced facts.', qa: 'Every sentence is checked against the facts.',
+  approve: 'The owner approves from a phone or right here.', track: 'The baseline is saved; the same questions rerun in 7 days.', impact: 'Measured today, with real answers.',
+}
 function Caption() {
   const phase = usePhase()
+  const live = useLive((s) => s.mode !== 'script')
   return (
     <div className="pointer-events-none absolute bottom-6 left-1/2 z-10 -translate-x-1/2">
       <AnimatePresence mode="wait">
         <motion.div key={phase} initial={{ opacity: 0, y: 16, filter: 'blur(6px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, y: -10, filter: 'blur(6px)' }} transition={{ duration: 0.45, ease: [0.2, 0.8, 0.2, 1] }} className="flex items-center gap-3 rounded-full border border-slate-200/80 bg-white py-2 pl-2 pr-5 shadow-[0_18px_44px_-20px_rgba(15,23,42,.45)]">
           <span className="tnum grid h-7 w-7 place-items-center rounded-full bg-slate-900 text-[12.5px] font-semibold text-white">{ORDER.indexOf(phase) + 1}</span>
-          <span className="whitespace-nowrap text-[15px] font-medium tracking-tight text-slate-800">{CAP[phase]}</span>
+          <span className="whitespace-nowrap text-[15px] font-medium tracking-tight text-slate-800">{(live && LIVE_CAP[phase]) || CAP[phase]}</span>
         </motion.div>
       </AnimatePresence>
     </div>
@@ -310,6 +320,11 @@ function Inspector() {
 /* ───────────── app ───────────── */
 function Stage() {
   const rf = useReactFlow()
+  useKeys()
+  useEffect(() => setNav({
+    goto: (k) => { if (useLive.getState().mode !== 'script') holdCam(20000); rf.fitBounds(VIEW[k], { duration: 900, padding: 0.04 }).then(sharpen) },
+    overview: () => { holdCam(); rf.fitBounds(ALL, { duration: 900, padding: 0.04 }).then(sharpen) },
+  }), [rf])
   return (
     <div className="flex h-full flex-col">
       <TopBar />
@@ -337,7 +352,8 @@ function Stage() {
         <Feed />
         <Caption />
         <Inspector />
-        <div className="pointer-events-none absolute bottom-5 right-5 z-10 text-[10.5px] font-semibold uppercase tracking-[.16em] text-slate-400">Illustrative · AI for Business Innovation 2026</div>
+        <ScoreBoard /><Stamp /><Team /><Presenter /><SystemOne /><Info /><Dock /><Wake />
+        <div className="pointer-events-none absolute bottom-[62px] right-5 z-10 text-[10px] font-semibold uppercase tracking-[.16em] text-slate-400">AI for Business Innovation 2026</div>
       </div>
     </div>
   )
@@ -349,7 +365,7 @@ export default function App() {
     const loop = (now: number) => {
       const dt = Math.max(0, Math.min(0.1, (now - last) / 1000)); last = now
       if (DBG.has('nosim') && clock.t > 8) { raf = requestAnimationFrame(loop); return }
-      if (!useLive.getState().freeze) clock.t += dt
+      clock.t += dt
       acc += dt
       if (acc >= 0.08) { useSim.setState({ t: clock.t, now: Date.now() }); acc = 0 }
       raf = requestAnimationFrame(loop)

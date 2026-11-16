@@ -1,0 +1,85 @@
+import { spawn } from 'node:child_process'
+import crypto from 'node:crypto'
+import fs from 'node:fs'
+import net from 'node:net'
+import os from 'node:os'
+import path from 'node:path'
+
+/* The system's LLM layer. Models come from the user's own agy/agyxt (Gemini 4, Gemini 3.8 Flash, GPT-OSS) through the agy CLI,
+   with an on-disk cache keyed by content, a concurrency limit, and the agyxt proxy (account failover) when it is running. */
+const CACHE = path.join(import.meta.dirname, 'data', 'cache')
+fs.mkdirSync(CACHE, { recursive: true })
+const PROXY_PORT = +process.env.AGYXT_PORT || 8899
+export const MODELS = { fast: 'gemini-3.8-flash-low', write: 'gemini-4-argon-medium', writeAlt: 'gemini-4-hydrogen-low', oss: 'gpt-oss-120b-medium' }
+
+const sha = (...parts) => crypto.createHash('sha256').update(parts.join('\u0000')).digest('hex').slice(0, 32)
+const portOpen = (port) => new Promise((resolve) => { const s = net.connect(port, '127.0.0.1'); s.once('connect', () => { s.destroy(); resolve(true) }); s.once('error', () => resolve(false)); s.setTimeout(400, () => { s.destroy(); resolve(false) }) })
+
+class Gate { // small semaphore
+  constructor(n) { this.n = n; this.q = [] }
+  async run(fn) { if (this.n <= 0) await new Promise((r) => this.q.push(r)); this.n--; try { return await fn() } finally { this.n++; this.q.shift()?.() } }
+}
+const gates = { agy: new Gate(+process.env.AGY_PARALLEL || 3), codex: new Gate(2) }
+
+function run(cmd, args, { env = {}, timeoutMs = 150000 } = {}) {
+  return new Promise((resolve, reject) => {
+    const p = spawn(cmd, args, { env: { ...process.env, BROWSER: '/bin/false', ...env }, stdio: ['ignore', 'pipe', 'pipe'] })
+    let out = '', err = ''
+    const t = setTimeout(() => { p.kill('SIGKILL'); reject(new Error(`${cmd} timed out after ${timeoutMs / 1000}s`)) }, timeoutMs)
+    p.stdout.on('data', (d) => (out += d)); p.stderr.on('data', (d) => (err += d))
+    p.on('close', (code) => { clearTimeout(t); code === 0 ? resolve(out) : reject(new Error(`${cmd} exited ${code}: ${err.slice(-200)}`)) })
+    p.on('error', (e) => { clearTimeout(t); reject(e) })
+  })
+}
+
+async function agyEnv() { return (await portOpen(PROXY_PORT)) ? { CLOUD_CODE_URL: `http://127.0.0.1:${PROXY_PORT}` } : {} }
+
+async function agyCall(prompt, model, schemaPath, timeoutMs) {
+  const args = ['-p', prompt, '--model', model, '--output-format', 'json', ...(schemaPath ? ['--json-schema', schemaPath] : [])]
+  const raw = await gates.agy.run(async () => run('agy', args, { env: await agyEnv(), timeoutMs }))
+  const d = JSON.parse(raw)
+  if (d.status && d.status !== 'SUCCESS') throw new Error(`agy status ${d.status}`)
+  return String(d.response ?? '')
+}
+
+/** Structured output: the reply is parsed JSON matching `schema`. Cached by (model, prompt, schema). */
+export async function agyJson({ prompt, schema, model = MODELS.fast, timeoutMs = 150000, retries = 1 }) {
+  const key = sha(model, prompt, JSON.stringify(schema)), file = path.join(CACHE, key + '.json')
+  if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, 'utf8'))
+  const sp = path.join(os.tmpdir(), `picked-schema-${key}.json`)
+  fs.writeFileSync(sp, JSON.stringify(schema))
+  let lastErr
+  try {
+    for (let i = 0; i <= retries; i++) {
+      try {
+        const text = await agyCall(i ? prompt + '\n\nReturn ONLY valid JSON that matches the schema.' : prompt, model, sp, timeoutMs)
+        const m = text.match(/[{[][\s\S]*[}\]]/)
+        const obj = JSON.parse(m ? m[0] : text)
+        fs.writeFileSync(file, JSON.stringify(obj))
+        return obj
+      } catch (e) { lastErr = e }
+    }
+  } finally { fs.rmSync(sp, { force: true }) }
+  throw lastErr
+}
+
+/** Free text. Cached the same way. */
+export async function agyText({ prompt, model = MODELS.write, timeoutMs = 150000 }) {
+  const key = sha('text', model, prompt), file = path.join(CACHE, key + '.txt')
+  if (fs.existsSync(file)) return fs.readFileSync(file, 'utf8')
+  const text = await agyCall(prompt, model, null, timeoutMs)
+  fs.writeFileSync(file, text)
+  return text
+}
+
+/** Optional: Codex with live web search, used to fill gaps when a brand has no usable website. Read-only sandbox. */
+export async function codexExec({ prompt, model = 'gpt-6.1-sol', timeoutMs = 170000 }) {
+  const out = path.join(os.tmpdir(), `picked-codex-${sha(prompt, Date.now())}.txt`)
+  try {
+    await gates.codex.run(() => run('codex', ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-m', model, '-c', 'model_reasoning_effort=low', '-o', out, prompt], { timeoutMs }))
+    return fs.readFileSync(out, 'utf8').trim()
+  } finally { fs.rmSync(out, { force: true }) }
+}
+
+export const llm = { agyJson, agyText, codexExec }
+export async function proxyStatus() { return (await portOpen(PROXY_PORT)) ? 'running' : 'off' }

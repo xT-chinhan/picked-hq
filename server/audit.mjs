@@ -34,6 +34,6 @@ export async function runAudit({ brand, category, total = 40, tabs = 4, headed =
   }
   try { await Promise.all(Array.from({ length: Math.min(tabs, questions.length) }, (_, s) => worker(s))) } finally { await close() }
   const summary = summarize(results, brand, questions.length)
-  emit({ type: 'run.done', summary, ms: Date.now() - t0 })
+  emit({ type: 'research.done', summary, ms: Date.now() - t0 })
   return { summary, results }
 }

@@ -9,6 +9,8 @@ export function aliasesOf(brand) {
 const CANON = { locknlock: 'Lock&Lock', locklock: 'Lock&Lock', lockandlock: 'Lock&Lock', zojirushi: 'Zojirushi', tiger: 'Tiger', thermos: 'Thermos', elmich: 'Elmich', sunhouse: 'Sunhouse', tupperware: 'Tupperware', kangaroo: 'Kangaroo' }
 /* Known brands of the demo categories. Position in the answer = recommendation order. */
 const DICT = [
+  // air fryers (second category)
+  ['Philips', ['philips']], ['Tefal', ['tefal']], ['Xiaomi', ['xiaomi', 'mijia']], ['Cosori', ['cosori']], ['Ninja', ['ninja']], ['Bear', ['bear']], ['Mishio', ['mishio']], ['Gaabor', ['gaabor']], ['Rapido', ['rapido']], ['Kalite', ['kalite']], ['Bluestone', ['bluestone']], ['Ferroli', ['ferroli']], ['Toshiba', ['toshiba']], ['Panasonic', ['panasonic']], ['Electrolux', ['electrolux']],
   ['Lock&Lock', ['locknlock', 'locklock', 'lockandlock']], ['Zojirushi', ['zojirushi']], ['Tiger', ['tigercorp', 'tigerbrand', 'tiger']], ['Thermos', ['thermos']],
   ['Elmich', ['elmich']], ['Sunhouse', ['sunhouse']], ['Tupperware', ['tupperware']], ['Zebra', ['zebra']], ['Kangaroo', ['kangaroo']], ['Inochi', ['inochi']],
   ['Hakawa', ['hakawa']], ['Goldsun', ['goldsun']], ['Pigeon', ['pigeon']], ['Mikiko', ['mikiko']], ['Stanley', ['stanley']], ['Skater', ['skater']], ['Hario', ['hario']],

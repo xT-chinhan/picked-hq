@@ -6,7 +6,7 @@ import openai from '@lobehub/icons-static-svg/icons/openai.svg'
 import gemini from '@lobehub/icons-static-svg/icons/gemini-color.svg'
 import { usePhase } from './sim'
 import { useLive } from './live'
-import { LAYERS, analyzeBenchmark, fisherExact, fmtP, layerScores, outcome, permutationP } from '../server/criteria.mjs'
+import { LAYERS, analyzeBenchmark, fisherExact, fmtP, layerScores, outcome, permutationP, spearman } from '../server/criteria.mjs'
 
 /* The story sheets (positioning, business case, what is next) and the council scene. Everything here is presentation: no backend needed. */
 export const useStory = create<{ open: boolean; slide: number }>(() => ({ open: false, slide: 0 }))
@@ -53,13 +53,13 @@ function Bar({ label, v, max, c, text, delay }: { label: string; v: number; max:
 /* ───────────── real data: the saved benchmark and the 40 Gemini answers it was scored on ───────────── */
 type Check = { id: string; status: string; title: string; evidence?: string; fix?: string }
 type Bench = { generatedAt: string; runId: string; brands: { name: string; mentioned: number; total: number; top3: number; audit?: { score: number; blocked: boolean; checks: Check[] } }[]; published?: { auditedAt: string; audit: { score: number; checks: Check[] } } }
-let cache: { bench: Bench; answers: { brands: string[]; domains: string[] }[] } | null = null
+let cache: { bench: Bench; answers: { brands: string[]; domains: string[] }[]; fryer: Bench | null } | null = null
 function useProof() {
   const [d, set] = useState(cache)
   useEffect(() => {
     if (cache) return
-    Promise.all([fetch('/data/benchmark.json').then((r) => r.json()), fetch('/runs/20261116070613-2h9.json').then((r) => r.json())])
-      .then(([bench, run]) => { cache = { bench, answers: run.events.filter((e: any) => e.type === 'q.done') }; set(cache) }).catch(() => {})
+    Promise.all([fetch('/data/benchmark.json').then((r) => r.json()), fetch('/runs/20261116070613-2h9.json').then((r) => r.json()), fetch('/data/benchmark-airfryer.json').then((r) => (r.ok ? r.json() : null)).catch(() => null)])
+      .then(([bench, run, fryer]) => { cache = { bench, answers: run.events.filter((e: any) => e.type === 'q.done'), fryer }; set(cache) }).catch(() => {})
   }, [])
   return d
 }
@@ -107,10 +107,20 @@ function Criteria() {
 }
 
 /* ───────────── scatter: website score (x) against times named (y), one dot per brand ───────────── */
-function Scatter({ rows, rho, p }: { rows: { name: string; site: number; mentioned: number; total: number }[]; rho: number | null; p: number | null }) {
+function Scatter({ rows, rho, p, highlight }: { rows: { name: string; site: number; mentioned: number; total: number }[]; rho: number | null; p: number | null; highlight: string }) {
   const W = 520, H = 330, L = 44, R = 18, T = 14, B = 40
   const xs = rows.map((r) => r.site), x0 = Math.floor((Math.min(...xs) - 3) / 5) * 5, x1 = Math.ceil((Math.max(...xs) + 3) / 5) * 5
   const X = (v: number) => L + ((v - x0) / (x1 - x0)) * (W - L - R), Y = (v: number) => T + (1 - v / 40) * (H - T - B)
+  // labels: placed from the top down; one that would collide with a label on the same side moves down a line
+  const placed: { a: number; b: number; y: number }[] = [], ly: Record<string, number> = {}
+  for (const r of [...rows].sort((a, b) => b.mentioned - a.mentioned)) {
+    if (!(r.name === highlight || r.mentioned >= 3)) continue
+    const cx = X(r.site), right = cx < W - 120, w = r.name.length * 8 + 6
+    const a = right ? cx + 10 : cx - 10 - w, b = right ? cx + 10 + w : cx - 10 // the label's horizontal extent
+    let y = Y(r.mentioned) + 4.5
+    for (let k = 0; k < 6; k++) { const hit = placed.find((q) => q.a < b && a < q.b && Math.abs(q.y - y) < 15); if (!hit) break; y = hit.y + 15 }
+    placed.push({ a, b, y }); ly[r.name] = y
+  }
   return (
     <div className="relative mt-2">
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
@@ -119,17 +129,17 @@ function Scatter({ rows, rho, p }: { rows: { name: string; site: number; mention
         <text x={(L + W - R) / 2} y={H - 4} textAnchor="middle" fontSize="13" fill="#64748b">Website score (39 checks)</text>
         <text x={14} y={(T + H - B) / 2} textAnchor="middle" fontSize="13" fill="#64748b" transform={`rotate(-90 14 ${(T + H - B) / 2})`}>Named in 40 answers</text>
         {rows.map((r, i) => {
-          const me = r.name === 'Elmich', cx = X(r.site), cy = Y(r.mentioned), right = cx < W - 120, labelled = me || r.mentioned >= 3
+          const me = r.name === highlight, cx = X(r.site), cy = Y(r.mentioned), right = cx < W - 120, labelled = me || r.mentioned >= 3
           return (
             <motion.g key={r.name} initial={{ opacity: 0, scale: 0.4 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.2 + i * 0.07, type: 'spring', stiffness: 300, damping: 18 }} style={{ transformOrigin: `${cx}px ${cy}px` }}>
               <circle cx={cx} cy={cy} r={me ? 9 : 6.5} fill={me ? '#4f46e5' : '#94a3b8'} stroke="#fff" strokeWidth="2" />
-              {labelled && <text x={right ? cx + 12 : cx - 12} y={cy + 4.5} textAnchor={right ? 'start' : 'end'} fontSize={me ? 15 : 13} fontWeight={me ? 700 : 500} fill={me ? '#4338ca' : '#475569'}>{r.name}</text>}
+              {labelled && <text x={right ? cx + 12 : cx - 12} y={ly[r.name] ?? cy + 4.5} textAnchor={right ? 'start' : 'end'} fontSize={me ? 15 : 13} fontWeight={me ? 700 : 500} fill={me ? '#4338ca' : '#475569'}>{r.name}</text>}
             </motion.g>
           )
         })}
       </svg>
-      <div className="mt-1.5 text-[13px] text-slate-500">Named 0–1 times despite strong sites: <b className="text-slate-700">{rows.filter((r) => r.mentioned < 3 && r.name !== 'Elmich').sort((a, b) => b.site - a.site).map((r) => `${r.name} (${r.site})`).join(', ')}</b></div>
-      {rho != null && p != null && <div className="mt-1.5 text-[14px] text-slate-600">Rank correlation <b className="text-slate-900">ρ = {rho.toFixed(2)}</b>, {fmtP(p)} across {rows.length} brands: <b className="text-slate-900">no relationship</b>.</div>}
+      {rows.some((r) => r.mentioned < 3 && r.name !== highlight) && <div className="mt-1.5 text-[13px] text-slate-500">Named 0–2 times: <b className="text-slate-700">{rows.filter((r) => r.mentioned < 3 && r.name !== highlight).sort((a, b) => b.site - a.site).map((r) => `${r.name} (${r.site})`).join(', ')}</b></div>}
+      {rho != null && p != null && <div className="mt-1.5 text-[14px] text-slate-600">Rank correlation <b className="text-slate-900">ρ = {rho.toFixed(2)}</b>, {fmtP(p)} across {rows.length} brands: <b className="text-slate-900">{p < 0.05 ? 'a real relationship' : Math.abs(rho) >= 0.3 ? 'a trend, not significant' : 'no relationship'}</b>.</div>}
     </div>
   )
 }
@@ -137,8 +147,10 @@ function Scatter({ rows, rho, p }: { rows: { name: string; site: number; mention
 /* ───────────── 4 · what the real data says ───────────── */
 function Proof() {
   const d = useProof()
+  const [cat, setCat] = useState<'lunch' | 'fryer'>('lunch')
   if (!d) return <div className="grid h-[380px] place-items-center text-[13px] text-slate-400"><span className="spinner" /></div>
   const a = analyzeBenchmark(d.bench.brands), rows = [...a.rows].sort((x, y) => y.mentioned - x.mentioned)
+  const sc = cat === 'fryer' && d.fryer ? analyzeBenchmark(d.fryer.brands) : a
   const el = rows.find((r) => r.name === 'Elmich'), top = rows[0]
   const p = el && top ? fisherExact(top.mentioned, top.total, el.mentioned, el.total) : null
   const oe = outcome(d.answers, 'Elmich'), lift = fisherExact(oe.withSources.named, oe.withSources.answers, oe.withoutSources.named, oe.withoutSources.answers)
@@ -148,8 +160,12 @@ function Proof() {
   return (
     <div className="grid grid-cols-[1.15fr_1fr] gap-6">
       <div>
-        <div className="text-[17px] font-semibold tracking-tight text-slate-900">A better website does not get you named</div>
-        <Scatter rows={a.rows} rho={a.correlation.site} p={permutationP(a.rows.map((r) => r.site), a.rows.map((r) => r.mentioned))} />
+        <div className="flex items-center gap-3">
+          <div className="text-[17px] font-semibold leading-tight tracking-tight text-slate-900">A better website does not<br />reliably get you named</div>
+          {d.fryer && <div className="ml-auto flex rounded-full bg-slate-100 p-0.5 text-[13px] font-semibold">{(['lunch', 'fryer'] as const).map((k) => <button key={k} onClick={() => setCat(k)} className={`whitespace-nowrap rounded-full px-3 py-1 ${cat === k ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>{k === 'lunch' ? 'Lunch boxes' : 'Air fryers'}</button>)}</div>}
+        </div>
+        <Scatter key={cat} rows={sc.rows} highlight={cat === 'lunch' ? 'Elmich' : ''} rho={sc.correlation.site} p={permutationP(sc.rows.map((r) => r.site), sc.rows.map((r) => r.mentioned))} />
+        {d.fryer && (() => { const all = [...a.rows, ...analyzeBenchmark(d.fryer.brands).rows], x = all.map((r) => r.site), y = all.map((r) => r.mentioned), r = spearman(x, y), pp = permutationP(x, y); return r != null && pp != null ? <div className="mt-1 text-[14px] text-slate-600">Both categories together, {all.length} brands: <b className="text-slate-900">ρ = {r.toFixed(2)}, {fmtP(pp)}</b>.</div> : null })()}
       </div>
       <div className="space-y-2.5">
         {[
@@ -163,7 +179,7 @@ function Proof() {
             <div className="text-[15px] font-semibold leading-snug text-slate-800">{x.t}</div><div className="text-[13px] leading-snug text-slate-500">{x.d}</div>
           </motion.div>
         ))}
-        <div className="text-[10.5px] leading-snug text-slate-400">{a.note} Measured {new Date(d.bench.generatedAt).toLocaleDateString()} on {a.n} sites ({d.bench.brands.filter((b) => b.audit?.blocked).map((b) => b.name).join(', ') || 'none'} blocks audits and is left out) and 40 real Gemini answers. Gemini only; other assistants are not measured.</div>
+        <div className="text-[10.5px] leading-snug text-slate-400">{a.note} Measured {new Date(d.bench.generatedAt).toLocaleDateString()} on {a.n} lunch-box sites{d.fryer ? ` and ${analyzeBenchmark(d.fryer.brands).n} air-fryer sites` : ''} ({d.bench.brands.filter((b) => b.audit?.blocked).map((b) => b.name).join(', ') || 'none'} blocks audits and is left out) and 40 real Gemini answers. Gemini only; other assistants are not measured.</div>
       </div>
     </div>
   )

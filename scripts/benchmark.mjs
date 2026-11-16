@@ -4,7 +4,9 @@ import fs from 'node:fs'
 import { auditSites } from '../server/vendor/site-audit.mjs'
 import { BRANDS } from '../server/directory.mjs'
 
-const run = JSON.parse(fs.readFileSync('public/runs/20261116070613-2h9.json', 'utf8'))
+// RUN, OUT and BRANDS (JSON list of {name, website}) choose another category; defaults are the lunch-box pitch run
+const RUN = process.env.RUN || '20261116070613-2h9', OUT = process.env.OUT || 'public/data/benchmark.json'
+const run = JSON.parse(fs.readFileSync(`public/runs/${RUN}.json`, 'utf8'))
 const { parseAnswer, summarize } = await import('../server/parse.mjs')
 const answers = run.events.filter((e) => e.type === 'q.done')
 const extra = [
@@ -12,9 +14,10 @@ const extra = [
   { name: 'Hakawa', website: 'https://hakawa.vn' }, { name: 'Pigeon', website: 'https://pigeon.com.vn' }, { name: 'Stanley', website: 'https://www.stanley1913.com' },
   { name: 'Skater', website: 'https://skater.co.jp' }, { name: 'Hario', website: 'https://hario.com' }, { name: 'Kangaroo', website: 'https://kangaroo.vn' },
 ]
-const prev = fs.existsSync('public/data/benchmark.json') ? JSON.parse(fs.readFileSync('public/data/benchmark.json', 'utf8')) : {}
+const prev = fs.existsSync(OUT) ? JSON.parse(fs.readFileSync(OUT, 'utf8')) : {}
 const out = { published: prev.published, generatedAt: new Date().toISOString(), runId: run.id, category: run.category, brands: [] }
-for (const b of [...BRANDS, ...extra]) {
+const list = process.env.BRANDS ? JSON.parse(process.env.BRANDS) : [...BRANDS, ...extra]
+for (const b of list) {
   const results = answers.map((e) => ({ qi: e.qi, q: e.q, text: e.text, ...parseAnswer({ text: e.text, heads: [], cells: [], chips: e.domains }, b.name) }))
   const s = summarize(results, b.name, results.length)
   let audit = null, err = ''
@@ -26,4 +29,4 @@ for (const b of [...BRANDS, ...extra]) {
   console.log(b.name.padEnd(10), `${s.mentioned}/${s.total}`.padStart(6), row.audit ? `site ${row.audit.score}` : `no audit: ${err}`, row.audit?.blocked ? '(blocked)' : '')
 }
 fs.mkdirSync('public/data', { recursive: true })
-fs.writeFileSync('public/data/benchmark.json', JSON.stringify(out))
+fs.writeFileSync(OUT, JSON.stringify(out))

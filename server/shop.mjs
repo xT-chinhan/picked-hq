@@ -35,7 +35,7 @@ export function renderShopPage({ brand, slug, website, category, facts, content,
   const structured = {
     '@context': 'https://schema.org',
     '@graph': [
-      { '@type': 'Organization', name: brand, url: home },
+      { '@type': 'Organization', name: brand, url: home, description: line(summary), sameAs: [...new Set([home, ...sources.filter(source => new URL(source).origin === new URL(home).origin ? false : true)])].slice(0, 6) },
       { '@type': 'FAQPage', mainEntity: content.faqs.map(faq => ({
         '@type': 'Question', name: faq.q, acceptedAnswer: { '@type': 'Answer', text: faq.a },
       })) },
@@ -53,6 +53,7 @@ export function renderShopPage({ brand, slug, website, category, facts, content,
 <title>${escape(brand)} — ${escape(category)}</title>
 <meta name="description" content="${escape(summary)}">
 <link rel="canonical" href="${escape(page)}">
+<meta property="og:type" content="website"><meta property="og:title" content="${escape(brand)} — ${escape(category)}"><meta property="og:description" content="${escape(summary)}"><meta property="og:url" content="${escape(page)}"><meta property="og:locale" content="vi_VN">
 <style>
 :root{color-scheme:light;--accent:#4f46e5}*{box-sizing:border-box}body{margin:0;background:#fff;color:#242424;font:1rem/1.75 system-ui,sans-serif}main,header,footer{max-width:52rem;margin:auto;padding:2rem 1.25rem}header{padding-top:3rem;border-bottom:1px solid #eee}h1{font-size:2.4rem;line-height:1.2;margin:.5rem 0}h2{font-size:1.5rem}h3{font-size:1.1rem}h1,h2{color:var(--accent)}section{margin-bottom:3rem}article{padding:1rem 0;border-bottom:1px solid #eee}a{color:var(--accent);overflow-wrap:anywhere}p,li{overflow-wrap:anywhere}li{margin:.75rem 0}footer{border-top:1px solid #eee;font-size:.875rem;color:#555}@media(min-width:48rem){main,header,footer{padding-left:3rem;padding-right:3rem}}
 </style><script type="application/ld+json">${json}</script></head>
@@ -68,6 +69,7 @@ ${content.faqs.map((faq, index) => `<article id="faq-${index + 1}"><h3>${escape(
       const notes = facts.facts.filter(fact => httpUrl(fact.source, 'fact source') === source).map(fact => fact.text).join(' ');
       return `- [${markdown(new URL(source).hostname)}](${markdownUrl(source)}): ${markdown(notes)}`;
     }).join('\n')}\n\n## Hỏi đáp\n\n${content.faqs.map((faq, index) => `- [${markdown(faq.q)}](${markdownUrl(page.replace(/#.*$/, ''))}#faq-${index + 1}): ${markdown(faq.a)}`).join('\n')}\n`,
+    'llms-full.txt': `# ${line(brand)}\n\n> ${line(summary)}\n\n## ${line(content.overview.title)}\n\n${content.overview.paragraphs.map(paragraph => line(paragraph.text)).join('\n\n')}\n\n## Hỏi đáp\n\n${content.faqs.map(faq => `### ${line(faq.q)}\n\n${line(faq.a)}`).join('\n\n')}\n\n## Dữ kiện và nguồn\n\n${facts.facts.map(fact => `- ${line(fact.text)} (nguồn: ${httpUrl(fact.source, 'fact source')})`).join('\n')}\n`,
     'sitemap.xml': `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${escape(page)}</loc><lastmod>${lastmod}</lastmod></url></urlset>\n`,
     'robots.txt': `${bots.map(bot => `User-agent: ${bot}\nAllow: /`).join('\n\n')}\n\nSitemap: ${sitemapUrl.href}\n`,
   };

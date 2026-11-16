@@ -27,13 +27,14 @@ test('slugify removes Vietnamese diacritics and trims separators', () => {
 
 test('renders Vietnamese HTML, parseable JSON-LD, source links, metadata and escaped facts', () => {
   const files = renderShopPage(input);
-  assert.deepEqual(Object.keys(files), ['index.html', 'llms.txt', 'sitemap.xml', 'robots.txt']);
+  assert.deepEqual(Object.keys(files), ['index.html', 'llms.txt', 'llms-full.txt', 'sitemap.xml', 'robots.txt']);
   const html = files['index.html'];
   const { document } = parseHTML(html);
   assert.equal(document.documentElement.lang, 'vi');
   assert.equal(document.querySelector('meta[name=description]').content, input.content.overview.paragraphs[0].text);
   const graph = JSON.parse(document.querySelector('script').textContent)['@graph'];
-  assert.deepEqual(graph[0], { '@type': 'Organization', name: input.brand, url: input.website });
+  assert.equal(graph[0]['@type'], 'Organization'); assert.equal(graph[0].name, input.brand); assert.equal(graph[0].url, input.website);
+  assert.equal(graph[0].description, input.content.overview.paragraphs[0].text);
   assert.equal(graph[1]['@type'], 'FAQPage');
   assert.equal(graph[1].mainEntity.length, input.content.faqs.length);
   assert.equal(document.querySelectorAll('article h3').length, 2);
@@ -99,4 +100,17 @@ test('rendering is deterministic, does not mutate inputs and rejects unsafe URLs
   assert.throws(() => renderShopPage({ ...input, baseUrl: 'invalid' }), /HTTP/);
   assert.throws(() => renderShopPage({ ...input, publishedAt: 'invalid' }), /valid date/);
   assert.throws(() => renderShopPage({ ...input, facts: { facts: [{ source: 'javascript:alert(1)' }] } }), /fact source/);
+});
+
+test('Organization lists sameAs links, the page carries Open Graph tags, and llms-full.txt quotes every fact with its source', () => {
+  const files = renderShopPage(input), { document } = parseHTML(files['index.html']);
+  const org = JSON.parse(document.querySelector('script').textContent)['@graph'][0];
+  assert.ok(Array.isArray(org.sameAs) && org.sameAs.includes(input.website) && org.sameAs.length <= 6);
+  for (const url of org.sameAs) assert.match(url, /^https?:\/\//);
+  assert.equal(document.querySelector('meta[property="og:type"]').content, 'website');
+  assert.equal(document.querySelector('meta[property="og:url"]').content, input.baseUrl);
+  const full = files['llms-full.txt'];
+  assert.match(full, /^# Bếp Việt/);
+  for (const fact of input.facts.facts) { assert.ok(full.includes(fact.text)); assert.ok(full.includes(fact.source)); }
+  for (const faq of input.content.faqs) assert.ok(full.includes(faq.a));
 });

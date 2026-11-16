@@ -6,10 +6,11 @@ import openai from '@lobehub/icons-static-svg/icons/openai.svg'
 import gemini from '@lobehub/icons-static-svg/icons/gemini-color.svg'
 import { usePhase } from './sim'
 import { useLive } from './live'
+import { LAYERS, analyzeBenchmark, fisherExact, fmtP, layerScores, outcome } from '../server/criteria.mjs'
 
 /* The story sheets (positioning, business case, what is next) and the council scene. Everything here is presentation: no backend needed. */
 export const useStory = create<{ open: boolean; slide: number }>(() => ({ open: false, slide: 0 }))
-export const SLIDES = 3
+export const SLIDES = 5
 
 /* ───────────── 1 · positioning matrix ───────────── */
 type Dot = { n: string; sub: string; x: number; y: number; c: string; hero?: boolean }
@@ -49,6 +50,111 @@ function Bar({ label, v, max, c, text, delay }: { label: string; v: number; max:
   )
 }
 
+/* ───────────── real data: the saved benchmark and the 40 Gemini answers it was scored on ───────────── */
+type Check = { id: string; status: string; title: string; evidence?: string; fix?: string }
+type Bench = { generatedAt: string; runId: string; brands: { name: string; mentioned: number; total: number; top3: number; audit?: { score: number; blocked: boolean; checks: Check[] } }[]; published?: { auditedAt: string; audit: { score: number; checks: Check[] } } }
+let cache: { bench: Bench; answers: { brands: string[]; domains: string[] }[] } | null = null
+function useProof() {
+  const [d, set] = useState(cache)
+  useEffect(() => {
+    if (cache) return
+    Promise.all([fetch('/data/benchmark.json').then((r) => r.json()), fetch('/runs/20261116070613-2h9.json').then((r) => r.json())])
+      .then(([bench, run]) => { cache = { bench, answers: run.events.filter((e: any) => e.type === 'q.done') }; set(cache) }).catch(() => {})
+  }, [])
+  return d
+}
+const DOT: Record<string, string> = { pass: '#16a34a', warn: '#d97706', fail: '#e11d48', info: '#cbd5e1', not_checked: '#e2e8f0' }
+const LAYER_COLOR = ['#0891b2', '#7c3aed', '#d97706']
+
+/* ───────────── 3 · the criteria, measured on a real site ───────────── */
+function Criteria() {
+  const d = useProof()
+  const own = d?.bench.brands.find((b) => b.name === 'Elmich')?.audit
+  const layers = own ? layerScores(own) : []
+  const byId = new Map((own?.checks ?? []).map((c) => [c.id, c]))
+  const o = d ? outcome(d.answers, 'Elmich') : null
+  return (
+    <div>
+      <div className="mb-3 text-[13px] leading-snug text-slate-600">What decides whether an AI assistant recommends a shop, in four layers. Everything below was measured on <b>elmich.vn</b> with 39 real checks and on <b>40 real Gemini answers</b>.</div>
+      <div className="grid grid-cols-4 gap-3">
+        {LAYERS.map((l, i) => {
+          const ls = layers[i]
+          return (
+            <motion.div key={l.id} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 + i * 0.12 }} className="rounded-2xl border border-slate-200 p-3.5">
+              <div className="flex items-center gap-1.5"><span className="grid h-5 w-5 place-items-center rounded-full text-[10px] font-bold text-white" style={{ background: LAYER_COLOR[i] }}>{i + 1}</span><span className="text-[10px] font-semibold uppercase tracking-[.1em] text-slate-400">{l.kind}</span></div>
+              <div className="mt-1.5 text-[14.5px] font-semibold tracking-tight text-slate-900">{l.name}</div>
+              <div className="text-[11.5px] leading-snug text-slate-500">{l.question}</div>
+              <div className="mt-2.5 flex items-end gap-1.5"><span className="tnum text-[28px] font-semibold leading-none tracking-tight" style={{ color: LAYER_COLOR[i] }}>{ls?.score ?? '–'}</span><span className="pb-0.5 text-[11px] text-slate-400">/100 · {ls ? `${ls.passed}/${ls.counted} pass` : ''}</span></div>
+              <div className="mt-2.5 flex flex-wrap gap-[3px]">{l.checks.map((id, k) => <motion.span key={id} initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.4 + i * 0.1 + k * 0.03, type: 'spring', stiffness: 400, damping: 18 }} title={`${byId.get(id)?.title ?? id}: ${byId.get(id)?.status ?? 'n/a'}`} className="h-3.5 w-3.5 rounded-[4px]" style={{ background: DOT[byId.get(id)?.status ?? 'not_checked'] }} />)}</div>
+              <div className="mt-2 space-y-0.5">{ls?.failed.slice(0, 2).map((f) => <div key={f.id} className="truncate text-[10.5px] text-rose-600">✗ {f.title}</div>)}</div>
+            </motion.div>
+          )
+        })}
+        <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.46 }} className="rounded-2xl border-2 border-indigo-200 bg-indigo-50/40 p-3.5">
+          <div className="flex items-center gap-1.5"><span className="grid h-5 w-5 place-items-center rounded-full bg-indigo-600 text-[10px] font-bold text-white">4</span><span className="text-[10px] font-semibold uppercase tracking-[.1em] text-slate-400">The result</span></div>
+          <div className="mt-1.5 text-[14.5px] font-semibold tracking-tight text-slate-900">Chosen</div>
+          <div className="text-[11.5px] leading-snug text-slate-500">Does the assistant name the shop?</div>
+          <div className="mt-2.5 flex items-end gap-1.5"><span className="tnum text-[28px] font-semibold leading-none tracking-tight text-indigo-600">{o?.mentioned ?? '–'}</span><span className="pb-0.5 text-[11px] text-slate-400">/ {o?.total ?? 40} answers</span></div>
+          <div className="mt-2.5 space-y-1 text-[11.5px] text-slate-600"><div>Top 3 in <b>{o?.top3 ?? '–'}</b> answers</div><div>Average position <b>{o?.avgRank ?? '–'}</b></div><div>First place in <b>{o?.first ?? '–'}</b></div></div>
+        </motion.div>
+      </div>
+      <div className="mt-4 flex items-center gap-4 text-[11px] text-slate-500">
+        {[['pass', 'Pass'], ['warn', 'Partly'], ['fail', 'Fails'], ['not_checked', 'Not measurable']].map(([k, t]) => <span key={k} className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-[3px]" style={{ background: DOT[k] }} />{t}</span>)}
+        <span className="ml-auto text-slate-400">Each square is one real check. Hover a square for its name.</span>
+      </div>
+    </div>
+  )
+}
+
+/* ───────────── 4 · what the real data says ───────────── */
+function Proof() {
+  const d = useProof()
+  if (!d) return <div className="grid h-[380px] place-items-center text-[13px] text-slate-400"><span className="spinner" /></div>
+  const a = analyzeBenchmark(d.bench.brands), rows = [...a.rows].sort((x, y) => y.mentioned - x.mentioned)
+  const el = rows.find((r) => r.name === 'Elmich'), top = rows[0]
+  const p = el && top ? fisherExact(top.mentioned, top.total, el.mentioned, el.total) : null
+  const oe = outcome(d.answers, 'Elmich'), lift = fisherExact(oe.withSources.named, oe.withSources.answers, oe.withoutSources.named, oe.withoutSources.answers)
+  const own = d.bench.brands.find((b) => b.name === 'Elmich')?.audit, pub = d.bench.published?.audit
+  const fixed = own && pub ? own.checks.filter((c) => { const y = pub.checks.find((z) => z.id === c.id); return y && y.status === 'pass' && (c.status === 'fail' || c.status === 'warn') }).map((c) => c.title) : []
+  const max = Math.max(...rows.map((r) => r.mentioned), 1)
+  return (
+    <div className="grid grid-cols-[1.15fr_1fr] gap-6">
+      <div>
+        <div className="text-[12.5px] font-semibold text-slate-800">Website readiness does not decide who gets named</div>
+        <div className="mt-2.5 space-y-3">
+          {rows.map((r, i) => (
+            <div key={r.name}>
+              <div className={`text-[12px] font-semibold ${r.name === 'Elmich' ? 'text-indigo-600' : 'text-slate-700'}`}>{r.name}</div>
+              {[['Named in answers', r.mentioned, r.total, `${r.mentioned}/${r.total}`, r.name === 'Elmich' ? '#4f46e5' : '#94a3b8'], ['Website score', r.site, 100, `${r.site}/100`, '#10b981']].map(([label, v, of, text, c], k) => (
+                <div key={label as string} className="mt-1 flex items-center gap-2">
+                  <span className="w-[98px] flex-none text-[10.5px] text-slate-400">{label}</span>
+                  <div className={`${k ? 'h-2' : 'h-3.5'} flex-1 overflow-hidden rounded-full bg-slate-100`}><motion.div initial={{ width: 0 }} animate={{ width: `${((v as number) / (of as number)) * 100}%` }} transition={{ delay: 0.2 + i * 0.12 + k * 0.1, duration: 0.8, ease: [0.2, 0.8, 0.2, 1] }} className="h-full rounded-full" style={{ background: c as string }} /></div>
+                  <span className="tnum w-[44px] flex-none text-right text-[11.5px] font-semibold text-slate-800">{text}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 rounded-xl bg-slate-50 px-3.5 py-2.5 text-[12px] leading-snug text-slate-600">{a.bestSite && el ? <>Best-prepared site: <b>{a.bestSite}</b>. <b>Elmich</b> scores {el.site}, second highest, yet is named in only {el.mentioned} of {el.total} answers. So the gap is mostly <b>not</b> on the shop's own site.</> : null}</div>
+      </div>
+      <div className="space-y-2.5">
+        {[
+          { k: 'Real gap', c: '#16a34a', t: p != null && top && el ? `${top.name} ${top.mentioned}/40 against Elmich ${el.mentioned}/40` : '', d: p != null ? `${fmtP(p)}: far beyond chance. The problem is real and measurable.` : '' },
+          { k: 'What our files fix', c: '#4f46e5', t: pub && own ? `Site score ${own.score} → ${pub.score} with Picked files` : '', d: fixed.length ? `Now passing: ${fixed.slice(0, 4).join(', ')}.` : 'Same 39 checks, run on the files Picked generates.' },
+          { k: 'Found by the criteria, then fixed', c: '#d97706', t: 'Our own output had gaps', d: 'The audit caught missing sameAs links, social tags and llms-full.txt. The generator now writes them.' },
+          { k: 'Not proven yet', c: '#94a3b8', t: `Cited sources may help: ${oe.withSources.named}/${oe.withSources.answers} named with sources, ${oe.withoutSources.named}/${oe.withoutSources.answers} without`, d: `${fmtP(lift)}: not significant. We state it as a hypothesis, and the weekly re-measure will test it.` },
+        ].map((x, i) => (
+          <motion.div key={x.k} initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 + i * 0.16 }} className="rounded-xl border border-slate-200 px-3.5 py-2.5" style={{ borderLeft: `4px solid ${x.c}` }}>
+            <div className="text-[10px] font-semibold uppercase tracking-[.12em]" style={{ color: x.c }}>{x.k}</div>
+            <div className="text-[13px] font-semibold leading-snug text-slate-800">{x.t}</div><div className="text-[11.5px] leading-snug text-slate-500">{x.d}</div>
+          </motion.div>
+        ))}
+        <div className="text-[10.5px] leading-snug text-slate-400">{a.note} Measured {new Date(d.bench.generatedAt).toLocaleDateString()} on {a.n} sites ({d.bench.brands.filter((b) => b.audit?.blocked).map((b) => b.name).join(', ') || 'none'} blocks audits and is left out) and 40 real Gemini answers. Gemini only; other assistants are not measured.</div>
+      </div>
+    </div>
+  )
+}
+
 /* ───────────── 3 · what is next ───────────── */
 const NEXT: { t: string; d: string; tag: string }[] = [
   { t: 'Deep page analysis', d: 'Any competitor page read like an engineer would: structure, data, network, with every finding cited.', tag: 'REA' },
@@ -61,12 +167,12 @@ const NEXT: { t: string; d: string; tag: string }[] = [
 
 export function Story() {
   const { open, slide } = useStory()
-  const titles = ['Where Picked sits', 'The business case', 'What comes next']
+  const titles = ['Where Picked sits', 'The business case', 'What we measure', 'What the real data says', 'What comes next']
   return (
     <AnimatePresence>
       {open && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => useStory.setState({ open: false })} className="absolute inset-0 z-40 grid place-items-center bg-slate-900/25">
-          <motion.div key="sheet" initial={{ y: 28, scale: 0.97 }} animate={{ y: 0, scale: 1 }} exit={{ y: 28 }} onClick={(e) => e.stopPropagation()} className="w-[940px] max-w-[94%] rounded-[28px] border border-slate-200 bg-white p-7 shadow-[0_50px_120px_-30px_rgba(15,23,42,.5)]">
+          <motion.div key="sheet" initial={{ y: 28, scale: 0.97 }} animate={{ y: 0, scale: 1 }} exit={{ y: 28 }} onClick={(e) => e.stopPropagation()} className="w-[1020px] max-w-[96%] rounded-[28px] border border-slate-200 bg-white p-7 shadow-[0_50px_120px_-30px_rgba(15,23,42,.5)]">
             <div className="flex items-center gap-2"><Sparkles size={17} className="text-indigo-600" /><span className="text-[19px] font-semibold tracking-tight">{titles[slide]}</span>
               <div className="ml-auto flex items-center gap-1.5">{Array.from({ length: SLIDES }).map((_, i) => <button key={i} onClick={() => useStory.setState({ slide: i })} className={`h-2 rounded-full transition-all ${i === slide ? 'w-7 bg-indigo-600' : 'w-2 bg-slate-300'}`} />)}</div>
               <button onClick={() => useStory.setState({ open: false })} className="ml-3 grid h-8 w-8 place-items-center rounded-full text-slate-400 hover:bg-slate-100"><X size={16} /></button></div>
@@ -94,7 +200,9 @@ export function Story() {
                     </div>
                   </div>
                 )}
-                {slide === 2 && (
+                {slide === 2 && <Criteria />}
+                {slide === 3 && <Proof />}
+                {slide === 4 && (
                   <div className="grid grid-cols-3 gap-3.5">
                     {NEXT.map((n, i) => <motion.div key={n.t} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 + i * 0.09 }} className="rounded-2xl border border-slate-200 p-4"><span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[.1em] text-indigo-600">{n.tag}</span><div className="mt-2.5 text-[14.5px] font-semibold tracking-tight text-slate-900">{n.t}</div><div className="mt-1 text-[12.5px] leading-snug text-slate-500">{n.d}</div><div className="mt-3 text-[10px] font-semibold uppercase tracking-[.14em] text-slate-400">Next</div></motion.div>)}
                   </div>

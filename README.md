@@ -61,6 +61,10 @@ Press `/` to open **NaN**, the operator chat. Type in any language: the request 
 | `I` | Q&A sheet (cost, data, responsibility, what is real) |
 | `O` | Whole company |
 
+## The criteria, measured for real
+
+`V` opens the story sheets; two of them are data. **What we measure** lays out four layers (reachable, understandable, quotable and trusted, chosen) with one square per real check, taken from 39 site checks on elmich.vn and 40 real Gemini answers. **What the real data says** puts five brands side by side (`scripts/benchmark.mjs`, saved in `public/data/benchmark.json`): website score and how often Gemini names each brand. Findings are stated with their statistics (`server/criteria.mjs`): Lock&Lock 33/40 against Elmich 19/40 is far beyond chance (Fisher exact p = 0.002), website readiness alone does not rank the brands, and the idea that cited sources lift mentions is **not** significant (p = 0.20), so it is presented as a hypothesis. The files Picked generates are scored with the same checks (`scripts/audit-published.mjs`, 71 on the brand's own site, 77 for our files), and the audit found gaps in our own output (sameAs, social tags, llms-full.txt) that the generator now fills. Run these audits with `NODE_OPTIONS=--no-network-family-autoselection` on a machine without IPv6.
+
 ## The agent company
 
 Every agent has a **soul** (who it is and the rules it keeps, with a hash that flags changes), a tool scope and an engine policy. Model calls go through one **engine room** that serves 14 engines (11 `agy` models, GPT-6.1 Sol and GPT-6 Astra through Codex) and logs time and tokens for each call; `T` shows the agents and the AI engines wall with the measured numbers. Quinn, the fact checker, is a **council**: three engines of different families judge each sentence and the majority decides, so one model's mistake cannot approve a claim. Engine policies follow measurements, not guesses (`node scripts/engine-bench.mjs`).

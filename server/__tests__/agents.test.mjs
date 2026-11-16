@@ -9,9 +9,10 @@ process.env.PICKED_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'picked-agen
 const { ENGINES, engine, ledger, call } = await import('../engines.mjs')
 const { AGENTS, agent, agentLlm, roster, lockSouls } = await import('../agents.mjs')
 
-test('engine registry: unique ids, known drivers, no Claude, Codex engines use the api profile', () => {
+test('engine registry: unique ids, known drivers, Claude through agy, Codex engines use the api profile', () => {
   assert.equal(new Set(ENGINES.map((e) => e.id)).size, ENGINES.length)
-  for (const e of ENGINES) { assert.ok(['agy', 'codex'].includes(e.driver)); assert.ok(['fast', 'write', 'deep'].includes(e.tier)); assert.ok(!/claude/i.test(e.model)) }
+  for (const e of ENGINES) { assert.ok(['agy', 'codex'].includes(e.driver)); assert.ok(['fast', 'write', 'deep'].includes(e.tier)); if (/claude/i.test(e.model)) assert.equal(e.driver, 'agy') }
+  assert.ok(engine('opus-med') && engine('sonnet-med'))
   assert.match(engine('astra').home, /codex_profiles\/api$/)
   assert.equal(engine('nope'), null)
 })

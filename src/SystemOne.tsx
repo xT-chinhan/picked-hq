@@ -22,7 +22,7 @@ type Step = { t: string; done: boolean }
 export type Msg = { id: number; who: 'me' | 'one'; text: string; busy?: boolean; steps?: Step[]; tr?: Tr; pr?: Prompt & { by: 'rules' | 'llm' }; card?: any }
 type Act = { type: string; brand?: string; website?: string; q?: string; phase?: Phase; fresh?: boolean; url?: string; review?: boolean }
 
-export const useOne = create<{ open: boolean; msgs: Msg[]; team: boolean; presenter: boolean; info: boolean }>(() => ({ open: false, msgs: [], team: false, presenter: false, info: false }))
+export const useOne = create<{ open: boolean; msgs: Msg[]; team: boolean; info: boolean }>(() => ({ open: false, msgs: [], team: false, info: false }))
 let mid = 0
 const push = (m: Omit<Msg, 'id'>) => { const id = ++mid; useOne.setState((s) => ({ msgs: [...s.msgs, { ...m, id }] })); return id }
 const patch = (id: number, p: Partial<Msg> | ((m: Msg) => Partial<Msg>)) => useOne.setState((s) => ({ msgs: s.msgs.map((m) => (m.id === id ? { ...m, ...(typeof p === 'function' ? p(m) : p) } : m)) }))
@@ -196,7 +196,7 @@ const quickPrompt = (task: string, a: Act | null): Msg['pr'] => {
   return {
     by: 'rules', role: 'NaN, the operator console of Picked (a company of AI agents for GEO).',
     context: `Brand: ${s.brand}. Mode: ${s.mode}. Step: ${NAME[s.phase]}.${s.score ? ` Score: ${s.score}.` : ''}`,
-    task, constraints: ['Use only data that is on screen.', 'Reply in the operator\'s language.', 'Run a real action only when it is asked for.'], output: outputFor(a),
+    task, constraints: ['Use only data that is on screen.', 'Reply in English.', 'Run a real action only when it is asked for.'], output: outputFor(a),
   }
 }
 async function translate(text: string): Promise<Tr & { needsRestore?: boolean }> {
@@ -210,7 +210,7 @@ export async function submit(raw: string) {
   const text = raw.trim()
   if (!text) return
   const n = plain(text)
-  const vi = /[^\x00-\x7f]/.test(text) || /\b(toi|tui|khong|kiem tra|chay|mo|xem|phong|duyet|doi thu|hoi|giup|cho|nao|di|nhe|thuong hieu|ho so)\b/.test(n)
+  const vi = false // the whole console speaks English; any language goes in, English comes out
   let act = intent(text)
   const me = push({ who: 'me', text, pr: quickPrompt(text, act) })
   const bot = push({ who: 'one', text: '', busy: true, steps: [{ t: act ? `Command matched: ${act.type}` : 'Reading the request', done: false }] })
@@ -246,7 +246,7 @@ function PromptCard({ m }: { m: Msg }) {
     <div className="mt-1.5 w-full overflow-hidden rounded-xl border border-indigo-100 bg-indigo-50/50 text-left">
       <button onClick={() => setOpen((o) => !o)} className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[.1em] text-indigo-500">
         <Sparkles size={11} />Structured prompt
-        {m.tr ? <span className="rounded-full bg-white px-1.5 py-px font-semibold normal-case tracking-normal text-slate-500">{m.tr.src.toUpperCase()} → EN · {m.tr.provider} · {m.tr.ms} ms</span> : <span className="spinner" />}
+        {!m.tr && <span className="spinner" />}
         <span className={`ml-auto rounded-full px-1.5 py-px normal-case tracking-normal ${p.by === 'llm' ? 'bg-emerald-100 text-emerald-700' : 'bg-white text-slate-400'}`}>{p.by === 'llm' ? 'refined by LLM' : 'instant'}</span>
       </button>
       {open && (
@@ -287,7 +287,7 @@ function Card({ c }: { c: any }) {
   )
   return null
 }
-const HINTS = ['audit Elmich', 'hồ sơ Sunhouse', 'đối thủ nào được AI gợi ý nhiều nhất?', 'đến phòng rủi ro', 'giải thích màn hình']
+const HINTS = ['audit Elmich', 'profile Sunhouse', 'Which rival does AI recommend most?', 'go to risk', 'explain the screen', 'review elmich.vn']
 
 export default function SystemOne() {
   const { open, msgs } = useOne()
@@ -314,14 +314,14 @@ export default function SystemOne() {
             )}
             {msgs.map((m) => m.who === 'me' ? (
               <motion.div key={m.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-end">
-                <div className="max-w-[88%] rounded-2xl rounded-br-md bg-slate-900 px-3.5 py-2 text-[13px] text-white">{m.text}</div>
-                {m.tr && m.tr.src !== 'en' && <div className="mt-1 max-w-[92%] text-right text-[11.5px] italic text-slate-500">{m.tr.en}{m.tr.refined && <span className="ml-1 not-italic text-emerald-600">✓ accents restored</span>}</div>}
+                <div className="max-w-[88%] rounded-2xl rounded-br-md bg-slate-900 px-3.5 py-2 text-[14px] text-white">{m.tr ? m.tr.en : m.text}</div>
+                
                 {m.pr && <PromptCard m={m} />}
               </motion.div>
             ) : (
               <motion.div key={m.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="max-w-[94%]">
                 {m.steps && <div className="mb-1 space-y-0.5">{m.steps.map((s, i) => <div key={i} className="flex items-center gap-1.5 text-[11px] text-slate-400">{s.done ? <Check size={11} strokeWidth={3} className="text-emerald-500" /> : <span className="spinner" />}{s.t}</div>)}</div>}
-                {m.text && <div className="rounded-2xl rounded-bl-md bg-slate-100 px-3.5 py-2 text-[13px] leading-snug text-slate-800">{m.text}</div>}
+                {m.text && <div className="rounded-2xl rounded-bl-md bg-slate-100 px-3.5 py-2 text-[14px] leading-snug text-slate-800">{m.text}</div>}
                 {m.card && <Card c={m.card} />}
               </motion.div>
             ))}
@@ -352,7 +352,6 @@ export function useKeys() {
       else if (k === 'c') useOffice.setState((x) => ({ open: !x.open }))
       else if (k === 'v') useStory.setState((x) => ({ open: !x.open, slide: 0 }))
       else if (k === 'b') useBrowser.setState((x) => ({ open: !x.open, control: false }))
-      else if (k === 'p') useOne.setState({ presenter: !o.presenter })
       else if (k === 'i' || e.key === '?') useOne.setState({ info: !o.info })
       else if (k === 'o') nav.overview()
       else if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && useStory.getState().open) useStory.setState((x) => ({ slide: (x.slide + (e.key === 'ArrowRight' ? 1 : -1) + SLIDES) % SLIDES }))

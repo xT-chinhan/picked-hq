@@ -1,5 +1,5 @@
 // The engine room: every AI the team owns behind one call, with a ledger of what each call really cost in time and tokens.
-// agy gives many Gemini / GPT-OSS models; Codex gives gpt-6.1-sol and gpt-6-astra through the API profile. Claude is not part of this system.
+// agy (through agyxt) gives Gemini, Claude Opus/Sonnet and GPT-OSS models; Codex gives gpt-6.1-sol and gpt-6-astra through the API profile.
 import { spawn } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
@@ -24,6 +24,12 @@ export const ENGINES = [
   { id: 'hydrogen-high', label: 'Gemini 4 Hydrogen · high', driver: 'agy', model: 'gemini-4-hydrogen-high', tier: 'deep' },
   { id: 'hydrogen-xhigh', label: 'Gemini 4 Hydrogen · xhigh', driver: 'agy', model: 'gemini-4-hydrogen-xhigh', tier: 'deep' },
   { id: 'orchestrator', label: 'Orchestrator (Argon)', driver: 'agy', model: 'gemini-pro-orchestrator-g1-pro', tier: 'deep' },
+  { id: 'sonnet-low', label: 'Claude Sonnet 5.5 · low', driver: 'agy', model: 'claude-sonnet-5-5-low', tier: 'write' },
+  { id: 'sonnet-med', label: 'Claude Sonnet 5.5 · medium', driver: 'agy', model: 'claude-sonnet-5-5-medium', tier: 'write' },
+  { id: 'sonnet-high', label: 'Claude Sonnet 5.5 · high', driver: 'agy', model: 'claude-sonnet-5-5-high', tier: 'deep' },
+  { id: 'opus-low', label: 'Claude Opus 5.5 · low', driver: 'agy', model: 'claude-opus-5-5-low', tier: 'deep' },
+  { id: 'opus-med', label: 'Claude Opus 5.5 · medium', driver: 'agy', model: 'claude-opus-5-5-medium', tier: 'deep' },
+  { id: 'opus-high', label: 'Claude Opus 5.5 · high', driver: 'agy', model: 'claude-opus-5-5-high', tier: 'deep' },
   { id: 'oss', label: 'GPT-OSS 120B · medium', driver: 'agy', model: 'gpt-oss-120b-medium', tier: 'write', structured: false }, // ignores JSON schemas (measured), so free text only
   { id: 'sol', label: 'GPT-6.1 Sol (Codex)', driver: 'codex', model: 'gpt-6.1-sol', effort: 'low', home: API_HOME, tier: 'deep' },
   { id: 'astra', label: 'GPT-6 Astra (Codex)', driver: 'codex', model: 'gpt-6-astra', effort: 'low', home: API_HOME, tier: 'deep' },

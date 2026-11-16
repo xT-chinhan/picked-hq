@@ -5,7 +5,7 @@ import { Check, ChevronDown, Plug, Search, Trash2, X } from 'lucide-react'
 
 /* Apps: connect MCP servers once, then choose which agents may use them. All state lives on the backend. */
 type Req = { key: string; label: string }
-type App = { id: string; name: string; group: string; blurb: string; requires: Req[] }
+type App = { id: string; name: string; group: string; blurb: string; icon?: string; requires: Req[] }
 type Server = { name: string; status: 'stopped' | 'starting' | 'ready' | 'failed'; toolCount: number; error?: string; envKeys: string[]; command: string }
 export const useApps = create<{ open: boolean; catalog: App[]; servers: Server[]; scopes: Record<string, string[]>; loaded: boolean }>(() => ({ open: false, catalog: [], servers: [], scopes: {}, loaded: false }))
 
@@ -16,8 +16,6 @@ const call = async (url: string, method = 'GET', body?: any) => {
   return j
 }
 export const refreshApps = () => call('/api/mcp/catalog').then((j) => useApps.setState({ catalog: j.catalog, servers: j.servers, scopes: j.scopes, loaded: true })).catch(() => useApps.setState({ loaded: false }))
-const MARK: Record<string, string> = { playwright: 'Pw', filesystem: 'Fs', memory: 'Mm', github: 'Gh', notion: 'N', slack: 'Sl' }
-const COLOR: Record<string, string> = { playwright: '#16a34a', filesystem: '#0ea5e9', memory: '#7c3aed', github: '#0f172a', notion: '#111827', slack: '#e11d48' }
 
 export function Apps() {
   const { open, catalog, servers, scopes, loaded } = useApps()
@@ -35,9 +33,9 @@ export function Apps() {
     <AnimatePresence>
       {open && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => useApps.setState({ open: false })} className="absolute inset-0 z-40 grid place-items-center bg-slate-900/25 backdrop-blur-sm">
-          <motion.div initial={{ y: 24, scale: 0.97 }} animate={{ y: 0, scale: 1 }} exit={{ y: 24 }} onClick={(e) => e.stopPropagation()} className="flex max-h-[86%] w-[760px] max-w-[94%] flex-col rounded-[26px] border border-slate-200 bg-white shadow-[0_50px_120px_-30px_rgba(15,23,42,.5)]">
+          <motion.div initial={{ y: 24, scale: 0.97 }} animate={{ y: 0, scale: 1 }} exit={{ y: 24 }} onClick={(e) => e.stopPropagation()} className="flex max-h-[88%] w-[920px] max-w-[94%] flex-col rounded-[26px] border border-slate-200 bg-white shadow-[0_50px_120px_-30px_rgba(15,23,42,.5)]">
             <div className="flex items-center gap-2 px-6 pt-5"><Plug size={18} className="text-indigo-600" /><span className="text-[18px] font-semibold tracking-tight">Apps</span><span className="ml-2 text-[12px] text-slate-400">{servers.filter((s) => s.status === 'ready').length} connected</span><button onClick={() => useApps.setState({ open: false })} className="ml-auto grid h-8 w-8 place-items-center rounded-full text-slate-400 hover:bg-slate-100"><X size={16} /></button></div>
-            <div className="px-6 pt-1 text-[12.5px] text-slate-500">Connect an app once, then choose which agents may use it. Every tool call is checked against that choice.</div>
+            <div className="px-6 pt-1 text-[12.5px] text-slate-500">{catalog.length} apps run as MCP servers on this machine. Connect once, then choose which agents may use each one.</div>
             <div className="px-6 pt-3"><div className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 px-3 focus-within:border-indigo-400"><Search size={15} className="text-slate-400" /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search apps" className="h-full min-w-0 flex-1 bg-transparent text-[13.5px] outline-none" /></div></div>
             <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-5">
               {!loaded && <div className="py-10 text-center text-[13px] text-slate-400">The backend is off, so apps cannot be listed.</div>}
@@ -47,13 +45,13 @@ export function Apps() {
                 return (
                   <div key={g} className="mt-4">
                     <div className="text-[12px] font-semibold text-slate-800">{g}</div>
-                    <div className="mt-1.5 grid grid-cols-2 gap-x-6">
+                    <div className="mt-1.5 grid grid-cols-3 gap-x-5">
                       {items.map((a) => {
                         const s = live(a.id), ready = s?.status === 'ready'
                         return (
                           <div key={a.id} className="border-b border-slate-100 py-2.5">
                             <div className="flex items-center gap-3">
-                              <div className="grid h-10 w-10 flex-none place-items-center rounded-xl text-[13px] font-bold text-white" style={{ background: COLOR[a.id] ?? '#475569' }}>{MARK[a.id] ?? a.name[0]}</div>
+                              <div className="grid h-11 w-11 flex-none place-items-center rounded-xl border border-slate-100 bg-white shadow-sm">{a.icon ? <img src={a.icon} alt="" className="h-6 w-6 object-contain" /> : <span className="text-[14px] font-bold text-slate-400">{a.name[0]}</span>}</div>
                               <div className="min-w-0 flex-1"><div className="text-[13.5px] font-semibold text-slate-800">{a.name}</div><div className="truncate text-[11.5px] text-slate-500">{ready ? `${s!.toolCount} tools ready` : a.blurb}</div></div>
                               {ready ? <button onClick={() => wrap('rm-' + a.id, () => call(`/api/mcp/servers/${a.id}`, 'DELETE'))} title="Disconnect" className="grid h-8 w-8 place-items-center rounded-full text-slate-400 hover:bg-rose-50 hover:text-rose-600"><Trash2 size={14} /></button>
                                 : <button disabled={!!busy} onClick={() => (a.requires.length ? setForm(form === a.id ? '' : a.id) : connect(a))} className="h-8 rounded-full border border-slate-200 px-3.5 text-[12.5px] font-semibold text-slate-700 hover:border-indigo-300 hover:text-indigo-600 disabled:opacity-50">{busy === a.id ? 'Starting…' : 'Connect'}</button>}

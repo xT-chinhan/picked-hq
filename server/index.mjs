@@ -139,7 +139,7 @@ http.createServer(async (req, res) => {
         const env = {}; for (const r of e.requires) { const v = String(b.env?.[r.key] ?? '').trim(); if (!v) return json(res, 400, { error: `${r.label} is required` }); env[r.key] = v }
         if (e.prepare === 'workspace') fs.mkdirSync(path.join(DATA, 'workspace'), { recursive: true })
         if (mcp.list().some((x) => x.name === e.id)) await mcp.remove(e.id)
-        mcp.add({ name: e.id, command: e.command, args: e.args, env })
+        mcp.add({ name: e.id, command: e.command, args: e.args, env: { ...(e.env ?? {}), ...env } })
         try { await mcp.connect(e.id, { timeoutMs: 90000 }) } catch (x) { await mcp.remove(e.id); throw x }
         return json(res, 200, { server: mcp.list().find((x) => x.name === e.id), tools: await mcp.tools(e.id) })
       } catch (e) { return json(res, 502, { error: String(e.message || e).slice(0, 200) }) }

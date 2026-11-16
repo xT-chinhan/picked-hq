@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { Check, Sparkles, X } from 'lucide-react'
 import openai from '@lobehub/icons-static-svg/icons/openai.svg'
 import gemini from '@lobehub/icons-static-svg/icons/gemini-color.svg'
+import claude from '@lobehub/icons-static-svg/icons/claude-color.svg'
 import { usePhase } from './sim'
 import { useLive } from './live'
 import { LAYERS, analyzeBenchmark, fisherExact, fmtP, layerScores, outcome, permutationP, spearman } from '../server/criteria.mjs'
@@ -112,14 +113,21 @@ function Scatter({ rows, rho, p, highlight }: { rows: { name: string; site: numb
   const xs = rows.map((r) => r.site), x0 = Math.floor((Math.min(...xs) - 3) / 5) * 5, x1 = Math.ceil((Math.max(...xs) + 3) / 5) * 5
   const X = (v: number) => L + ((v - x0) / (x1 - x0)) * (W - L - R), Y = (v: number) => T + (1 - v / 40) * (H - T - B)
   // labels: placed from the top down; one that would collide with a label on the same side moves down a line
-  const placed: { a: number; b: number; y: number }[] = [], ly: Record<string, number> = {}
+  // labels: each tries the right, then the left, then moves down a line, until it touches no other label and no other dot
+  const dots = rows.map((r) => ({ x: X(r.site), y: Y(r.mentioned), name: r.name }))
+  const placed: { a: number; b: number; y: number }[] = [], ly: Record<string, number> = {}, side: Record<string, 'r' | 'l'> = {}
   for (const r of [...rows].sort((a, b) => b.mentioned - a.mentioned)) {
     if (!(r.name === highlight || r.mentioned >= 3)) continue
-    const cx = X(r.site), right = cx < W - 120, w = r.name.length * 8 + 6
-    const a = right ? cx + 10 : cx - 10 - w, b = right ? cx + 10 + w : cx - 10 // the label's horizontal extent
-    let y = Y(r.mentioned) + 4.5
-    for (let k = 0; k < 6; k++) { const hit = placed.find((q) => q.a < b && a < q.b && Math.abs(q.y - y) < 15); if (!hit) break; y = hit.y + 15 }
-    placed.push({ a, b, y }); ly[r.name] = y
+    const cx = X(r.site), w = r.name.length * 8 + 6
+    const free = (a: number, b: number, y: number) => a > L && b < W - 4 && !placed.some((q) => q.a < b && a < q.b && Math.abs(q.y - y) < 15) && !dots.some((d) => d.name !== r.name && d.x + 8 > a && d.x - 8 < b && Math.abs(d.y - (y - 4.5)) < 11)
+    let done = false
+    for (let k = 0; k < 6 && !done; k++) {
+      const y = Y(r.mentioned) + 4.5 + k * 15
+      for (const sd of ['r', 'l'] as const) {
+        const a = sd === 'r' ? cx + 10 : cx - 10 - w, b = sd === 'r' ? cx + 10 + w : cx - 10
+        if (free(a, b, y)) { placed.push({ a, b, y }); ly[r.name] = y; side[r.name] = sd; done = true; break }
+      }
+    }
   }
   return (
     <div className="relative mt-2">
@@ -133,12 +141,11 @@ function Scatter({ rows, rho, p, highlight }: { rows: { name: string; site: numb
           return (
             <motion.g key={r.name} initial={{ opacity: 0, scale: 0.4 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.2 + i * 0.07, type: 'spring', stiffness: 300, damping: 18 }} style={{ transformOrigin: `${cx}px ${cy}px` }}>
               <circle cx={cx} cy={cy} r={me ? 9 : 6.5} fill={me ? '#4f46e5' : '#94a3b8'} stroke="#fff" strokeWidth="2" />
-              {labelled && <text x={right ? cx + 12 : cx - 12} y={ly[r.name] ?? cy + 4.5} textAnchor={right ? 'start' : 'end'} fontSize={me ? 15 : 13} fontWeight={me ? 700 : 500} fill={me ? '#4338ca' : '#475569'}>{r.name}</text>}
+              {labelled && ly[r.name] != null && <text x={side[r.name] === 'r' ? cx + 12 : cx - 12} y={ly[r.name]} textAnchor={side[r.name] === 'r' ? 'start' : 'end'} fontSize={me ? 15 : 13} fontWeight={me ? 700 : 500} fill={me ? '#4338ca' : '#475569'}>{r.name}</text>}
             </motion.g>
           )
         })}
       </svg>
-      {rows.some((r) => r.mentioned < 3 && r.name !== highlight) && <div className="mt-1.5 text-[13px] text-slate-500">Named 0–2 times: <b className="text-slate-700">{rows.filter((r) => r.mentioned < 3 && r.name !== highlight).sort((a, b) => b.site - a.site).map((r) => `${r.name} (${r.site})`).join(', ')}</b></div>}
       {rho != null && p != null && <div className="mt-1.5 text-[14px] text-slate-600">Rank correlation <b className="text-slate-900">ρ = {rho.toFixed(2)}</b>, {fmtP(p)} across {rows.length} brands: <b className="text-slate-900">{p < 0.05 ? 'a real relationship' : Math.abs(rho) >= 0.3 ? 'a trend, not significant' : 'no relationship'}</b>.</div>}
     </div>
   )
@@ -169,17 +176,17 @@ function Proof() {
       </div>
       <div className="space-y-2.5">
         {[
-          { k: 'Real gap', c: '#16a34a', t: p != null && top && el ? `${top.name} ${top.mentioned}/40 against Elmich ${el.mentioned}/40` : '', d: p != null ? `${fmtP(p)}: far beyond chance. The problem is real and measurable.` : '' },
-          { k: 'What our files fix', c: '#4f46e5', t: pub && own ? `Site score ${own.score} → ${pub.score} with Picked files` : '', d: fixed.length ? `Now passing: ${fixed.slice(0, 4).join(', ')}.` : 'Same 39 checks, run on the files Picked generates.' },
-          { k: 'Found by the criteria, then fixed', c: '#d97706', t: 'Our own output had gaps', d: 'The audit caught missing sameAs links, social tags and llms-full.txt. The generator now writes them.' },
-          { k: 'Not proven yet', c: '#94a3b8', t: `Cited sources may help: ${oe.withSources.named}/${oe.withSources.answers} named with sources, ${oe.withoutSources.named}/${oe.withoutSources.answers} without`, d: `${fmtP(lift)}: not significant. We state it as a hypothesis, and the weekly re-measure will test it.` },
+          { k: 'Real gap', c: '#16a34a', t: p != null && top && el ? `${top.name} ${top.mentioned}/40 vs Elmich ${el.mentioned}/40` : '', d: p != null ? `${fmtP(p)}: not chance.` : '' },
+          { k: 'Our fix', c: '#4f46e5', t: pub && own ? `Site score ${own.score} → ${pub.score}` : '', d: 'Same 39 checks, on the files Picked writes.' },
+          { k: 'Self-check', c: '#d97706', t: 'The audit caught 3 gaps in our own output', d: 'Fixed in the generator.' },
+          { k: 'Not proven yet', c: '#94a3b8', t: 'Cited sources lift mentions', d: `${fmtP(lift)}: a hypothesis. Weekly re-measure tests it.` },
         ].map((x, i) => (
           <motion.div key={x.k} initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 + i * 0.16 }} className="rounded-xl border border-slate-200 px-3.5 py-2.5" style={{ borderLeft: `4px solid ${x.c}` }}>
             <div className="text-[10px] font-semibold uppercase tracking-[.12em]" style={{ color: x.c }}>{x.k}</div>
             <div className="text-[15px] font-semibold leading-snug text-slate-800">{x.t}</div><div className="text-[13px] leading-snug text-slate-500">{x.d}</div>
           </motion.div>
         ))}
-        <div className="text-[10.5px] leading-snug text-slate-400">{a.note} Measured {new Date(d.bench.generatedAt).toLocaleDateString()} on {a.n} lunch-box sites{d.fryer ? ` and ${analyzeBenchmark(d.fryer.brands).n} air-fryer sites` : ''} ({d.bench.brands.filter((b) => b.audit?.blocked).map((b) => b.name).join(', ') || 'none'} blocks audits and is left out) and 40 real Gemini answers. Gemini only; other assistants are not measured.</div>
+        <div className="text-[12px] text-slate-400">Real Gemini answers and real site audits. Gemini only.</div>
       </div>
     </div>
   )
@@ -252,7 +259,7 @@ const SIM_SENTENCES = [
   { s: 'Made of 304 stainless steel.', v: [1, 1, 1] }, { s: 'Keeps food hot for up to 6 hours.', v: [1, 1, 1] },
   { s: 'Same-day delivery in District 7.', v: [1, 0, 1] }, { s: 'The best lunch box in Vietnam.', v: [0, 0, 0] },
 ]
-const LABEL: Record<string, [string, string]> = { 'flash-low': ['Gemini 3.8', gemini], 'hydrogen-med': ['Gemini 4', gemini], astra: ['GPT-6 Astra', openai], sol: ['GPT-6.1 Sol', openai] }
+const LABEL: Record<string, [string, string]> = { 'flash-low': ['Gemini 3.8', gemini], 'hydrogen-med': ['Gemini 4', gemini], astra: ['GPT-6 Astra', openai], sol: ['GPT-6.1 Sol', openai], 'opus-med': ['Claude Opus 5.5', claude], 'sonnet-med': ['Claude Sonnet 5.5', claude] }
 const lab = (id: string): [string, string] => LABEL[id] ?? [id, gemini]
 export function Council() {
   const phase = usePhase(), mode = useLive((s) => s.mode), c = useLive((s) => s.council), risk = useLive((s) => s.risk)
@@ -260,7 +267,7 @@ export function Council() {
   const [tick, setTick] = useState(0)
   useEffect(() => { if (show) setTick((x) => x + 1) }, [show])
   const live = mode !== 'script' && !!c
-  const engines: string[] = live ? c.engines.map((e: any) => e.engine) : ['flash-low', 'hydrogen-med', 'astra']
+  const engines: string[] = live ? c.engines.map((e: any) => e.engine) : ['hydrogen-med', 'astra', 'opus-med']
   const text: Record<string, string> = Object.fromEntries((risk?.items ?? []).map((i: any) => [i.id, i.sentence]))
   const rows: { s: string; v: number[] }[] = live
     ? Object.entries(c.votes as Record<string, { engine: string; supported: boolean }[]>).slice(0, 5).map(([id, vs]) => ({ s: text[id] ?? id, v: engines.map((e) => (vs.find((x) => x.engine === e)?.supported ? 1 : 0)) }))

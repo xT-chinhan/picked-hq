@@ -30,15 +30,15 @@ export const PEOPLE: Person[] = [
 ]
 /** The three models of the fact-check council. */
 export const COUNCIL: Person[] = [
-  { id: 'g38', name: 'Gemini 3.8', role: 'Council vote', av: 'a11', color: '#06b6d4', phase: 'qa', line: 'Supported.' },
-  { id: 'g4', name: 'Gemini 4', role: 'Council vote', av: 'a14', color: '#3b82f6', phase: 'qa', line: 'Supported.' },
-  { id: 'astra', name: 'GPT-6 Astra', role: 'Council vote', av: 'a20', color: '#a855f7', phase: 'qa', line: 'Not supported.' },
+  { id: 'g4', name: 'Gemini 4', role: 'Council vote', av: 'a11', color: '#3b82f6', phase: 'qa', line: 'Supported.' },
+  { id: 'astra', name: 'GPT-6 Astra', role: 'Council vote', av: 'a14', color: '#10b981', phase: 'qa', line: 'Supported.' },
+  { id: 'opus', name: 'Claude Opus 5.5', role: 'Council vote', av: 'a20', color: '#d97757', phase: 'qa', line: 'Not supported.' },
 ]
 /** Waiting on the bench, ready to be called into a team. */
 export const BENCH: string[] = ['a01', 'a06', 'a08', 'a09', 'a16', 'a18', 'a19', 'a22', 'a23', 'a29']
 export const person = (id: string) => PEOPLE.find((p) => p.id === id) ?? COUNCIL.find((p) => p.id === id) ?? null
 /** The faces shown on a department card. */
-const CREW: Partial<Record<Phase, string[]>> = { intake: ['nan', 'lia'], mining: ['mina'], research: ['scout1', 'scout2', 'scout3', 'scout4'], analysis: ['ana'], sync: ['sy'], content: ['mira'], citations: ['theo'], qa: ['quinn', 'g38', 'g4', 'astra'], risk: ['rhea'], approve: ['owner'], publish: ['pax'], track: ['tara'], impact: ['tara', 'ana'] }
+const CREW: Partial<Record<Phase, string[]>> = { intake: ['nan', 'lia'], mining: ['mina'], research: ['scout1', 'scout2', 'scout3', 'scout4'], analysis: ['ana'], sync: ['sy'], content: ['mira'], citations: ['theo'], qa: ['quinn', 'g4', 'astra', 'opus'], risk: ['rhea'], approve: ['owner'], publish: ['pax'], track: ['tara'], impact: ['tara', 'ana'] }
 export const crew = (phase: Phase) => (CREW[phase] ?? []).map((id) => person(id)!).filter(Boolean)
 
 /** A round face for small spaces: the top of the character, on a soft tinted disc. */

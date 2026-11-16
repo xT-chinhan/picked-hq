@@ -12,9 +12,12 @@ import { useApps } from './Apps'
 import { useStory } from './Story'
 import { useOffice } from './Office'
 import { Face, PEOPLE } from './avatars'
+import openaiLogo from '@lobehub/icons-static-svg/icons/openai.svg'
+import geminiLogo from '@lobehub/icons-static-svg/icons/gemini-color.svg'
+import claudeLogo from '@lobehub/icons-static-svg/icons/claude-color.svg'
 import { shortEngine, useCompany, useCompanyPoll, type AgentInfo } from './company'
 
-/* Stage overlays: the opening, the scoreboard, the approval stamp, the agent team, presenter notes and the Q&A sheet. */
+/* Stage overlays: the opening, the scoreboard, the approval stamp, the agent team and the Q&A sheet. */
 
 const NAME: Record<Phase, string> = { intake: 'Shop', mining: 'Signals', research: 'Research', analysis: 'Analysis', content: 'Content', citations: 'Citations', sync: 'Channel Sync', qa: 'QA', risk: 'Risk Gate', approve: 'Approve', publish: 'Publish', track: 'Track', impact: 'Impact' }
 const useOrder = () => (useLive((s) => s.mode) === 'script' ? ORDER : LIVE_ORDER)
@@ -140,12 +143,14 @@ const SAY: Partial<Record<Phase, (s: ReturnType<typeof snap>) => string>> = {
   publish: (s) => `Owner ${s.approval ?? 'approved'}. Ship what was approved.`,
   track: () => 'Published. Save the baseline and rerun the same questions in 7 days.',
 }
+/** the vendor's mark for an engine or model id */
+export const vendorLogo = (m = '') => (/claude|opus|sonnet/i.test(m) ? claudeLogo : /gemini|flash|argon|hydrogen|orchestrator/i.test(m) ? geminiLogo : openaiLogo)
 const ENGINE_NOTE: Record<string, string> = { fast: 'seconds', write: 'drafting', deep: 'judging' }
 function EngineChip({ e }: { e: AgentInfo['engine'] }) {
-  if (e.council) return <span className="rounded-full bg-indigo-100 px-1.5 py-px text-[10px] font-semibold text-indigo-700">council ×{e.council.length}</span>
+  if (e.council) return <span className="flex items-center gap-0.5 rounded-full bg-indigo-100 px-1.5 py-px text-[10px] font-semibold text-indigo-700">{e.council.map((c) => <img key={c} src={vendorLogo(c)} alt="" className="h-3 w-3" />)}<span className="ml-0.5">council</span></span>
   if (e.browser) return <span className="rounded-full bg-sky-100 px-1.5 py-px text-[10px] font-semibold text-sky-700">browser</span>
   if (e.rules) return <span className="rounded-full bg-slate-100 px-1.5 py-px text-[10px] font-semibold text-slate-500">rules</span>
-  return <span className="rounded-full bg-violet-100 px-1.5 py-px text-[10px] font-semibold text-violet-700">{shortEngine(e.primary)}</span>
+  return <span className="flex items-center gap-1 rounded-full bg-violet-100 px-1.5 py-px text-[10px] font-semibold text-violet-700"><img src={vendorLogo(e.primary)} alt="" className="h-3 w-3" />{shortEngine(e.primary)}</span>
 }
 function EngineWall() {
   const { engines, recent } = useCompany()
@@ -157,7 +162,7 @@ function EngineWall() {
       {engines.map((e) => (
         <div key={e.id} className={`rounded-xl px-2.5 py-1.5 transition-colors ${hot.has(e.id) ? 'bg-indigo-50' : ''}`}>
           <div className="flex items-center gap-1.5 text-[12px]">
-            <span className={`h-1.5 w-1.5 flex-none rounded-full ${hot.has(e.id) ? 'bg-indigo-500' : e.calls ? 'bg-emerald-400' : 'bg-slate-200'}`} />
+            <img src={vendorLogo(e.model)} alt="" className="h-[18px] w-[18px] flex-none" /><span className={`h-1.5 w-1.5 flex-none rounded-full ${hot.has(e.id) ? 'bg-indigo-500' : e.calls ? 'bg-emerald-400' : 'bg-slate-200'}`} />
             <span className="min-w-0 flex-1 truncate font-semibold text-slate-800">{e.label}</span>
             <span className={`rounded-full px-1.5 py-px text-[9.5px] font-bold uppercase tracking-[.08em] ${e.driver === 'codex' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{e.driver}</span>
           </div>
@@ -227,47 +232,6 @@ export function Team() {
   )
 }
 
-/* ───────────── presenter mode ───────────── */
-/** [speaker, target minute, note]. The 20-minute plan: problem 0-2, wake 2-4, measure 4-8, company 8-12, human decision 12-15, result 15-17, business and next 17-20. */
-const NOTES: Record<Phase, [number, number, string]> = {
-  intake: [1, 0, 'Vấn đề: người mua giờ hỏi AI thay vì Google. Shop nhỏ không biết AI có nhắc mình không. Mở màn ở Văn phòng (phím C): bấm vài bạn để gọi, rồi "Call everyone", rồi "Start the demo".'],
-  mining: [1, 2, 'Agent chuẩn bị 40 câu hỏi mà người mua thật hay hỏi cho ngành hàng này.'],
-  research: [2, 4, 'PHẦN THẬT: nhiều tab Gemini ẩn danh hỏi song song. Chỉ vào bảng điểm góc phải: 40 ô xanh/đỏ.'],
-  analysis: [2, 7, 'Đọc số: Elmich được nhắc 19/40, Lock&Lock dẫn đầu. Nguồn Gemini trích nhiều nhất là chỗ cần có mặt.'],
-  sync: [2, 9, 'Agent đọc website của shop, rút dữ kiện kèm trang nguồn. Mọi câu viết sau đều phải bám vào đây.'],
-  content: [2, 10, 'Viết FAQ, trang giới thiệu, thư gửi trang đánh giá, đúng các câu Gemini chưa nhắc shop. Mỗi đoạn ghi dữ kiện đã dùng.'],
-  citations: [2, 11, 'Nhắm đúng nguồn Gemini đang trích. Thư mới ở dạng nháp, chưa gửi (nói thật).'],
-  qa: [2, 11.5, 'HỘI ĐỒNG: ba model khác họ cùng chấm từng câu. Đa số quyết định, hòa thì chặn. Chỉ vào ba dấu tích.'],
-  risk: [2, 12, 'Cổng rủi ro: chặn lời quảng cáo quá đà và dữ liệu cá nhân trước khi tới chủ shop.'],
-  approve: [3, 12.5, 'Con người quyết định: chủ shop quét QR, duyệt trên điện thoại. Mời giám khảo quét thử.'],
-  publish: [3, 14, 'Chỉ đăng phần được duyệt: trang shop, llms.txt, JSON-LD để AI đọc được.'],
-  track: [3, 15, 'Lưu mốc hôm nay, 7 ngày sau hỏi lại đúng 40 câu để đo thay đổi (routine thật).'],
-  impact: [3, 16, 'Chốt kết quả. Sau đó bấm V: định vị so với RoMes và Muse, bài toán chi phí 15 triệu so với dưới 1 triệu, và bước tiếp theo.'],
-}
-const mmss = (sec: number) => `${String(Math.floor(Math.abs(sec) / 60)).padStart(2, '0')}:${String(Math.floor(Math.abs(sec) % 60)).padStart(2, '0')}`
-export function Presenter() {
-  const on = useOne((s) => s.presenter)
-  const phase = usePhase(), order = useOrder()
-  const now = useSim((s) => Math.floor(s.now / 1000))
-  const [t0, setT0] = useState(0)
-  useEffect(() => { if (on) setT0(Math.floor(Date.now() / 1000)) }, [on])
-  if (!on) return null
-  const sec = Math.max(0, now - t0), i = order.indexOf(phase), next = order[(i + 1) % order.length], [sp, target, note] = NOTES[phase]
-  const late = sec - target * 60
-  return (
-    <div className="absolute left-5 top-5 z-30 w-[390px] rounded-[18px] border border-slate-800 bg-slate-900/95 p-4 text-white shadow-[0_30px_80px_-30px_rgba(15,23,42,.8)]">
-      <div className="flex items-center gap-3">
-        <button title="Reset the timer" onClick={() => setT0(Math.floor(Date.now() / 1000))} className="tnum text-[28px] font-semibold leading-none tracking-tight" style={{ color: sec > 1200 ? '#fb7185' : sec > 1080 ? '#fbbf24' : '#fff' }}>{mmss(sec)}</button>
-        <div className="text-[11px] leading-tight text-slate-400">Step {i + 1}/{order.length}<br /><b className="text-[13px] text-white">{NAME[phase]}</b></div>
-        <span className="ml-auto rounded-full bg-indigo-500 px-2.5 py-1 text-[11.5px] font-semibold">Speaker {sp}</span>
-      </div>
-      <div className="mt-2.5 flex items-center gap-2 text-[11px]"><span className="text-slate-400">Target {mmss(target * 60)}</span><span className="rounded-full px-2 py-px font-semibold" style={{ background: Math.abs(late) < 45 ? '#065f46' : late > 0 ? '#9a3412' : '#1e3a8a', color: '#fff' }}>{Math.abs(late) < 45 ? 'on time' : late > 0 ? `${mmss(late)} behind` : `${mmss(late)} ahead`}</span><span className="ml-auto text-slate-500">20:00 total</span></div>
-      <div className="mt-2.5 text-[13.5px] leading-snug text-slate-100">{note}</div>
-      <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400"><span>Next: <b className="text-slate-200">{NAME[next]}</b> · Speaker {NOTES[next][0]}</span><span>← → step · C office · V story · / NaN</span></div>
-    </div>
-  )
-}
-
 /* ───────────── Q&A sheet ───────────── */
 const QA: [string, string[]][] = [
   ['Cost', ['Research uses the public Gemini web app in anonymous tabs: no API bill.', '40 buyer questions take about 3 minutes on 5 parallel tabs.', 'Writing and checking run on low-cost LLM tiers, cached by content hash.']],
@@ -320,7 +284,6 @@ export function Dock() {
         )}
       </AnimatePresence>
       <button onClick={() => setMore((m) => !m)} title="More" className="relative grid h-9 w-9 place-items-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-[0_10px_26px_-14px_rgba(15,23,42,.5)] hover:text-slate-900"><MoreHorizontal size={16} />{need > 0 && !more && <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-amber-500" />}</button>
-      <Btn k="P" label="Presenter" on={o.presenter} go={() => useOne.setState({ presenter: !o.presenter })} />
       <Btn k="/" label="NaN" on={o.open} main go={() => useOne.setState({ open: !o.open })} />
     </div>
   )

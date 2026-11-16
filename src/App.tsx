@@ -17,8 +17,8 @@ import { Workspace } from './Workspace'
 import { BrowserPanel } from './BrowserPanel'
 import { Apps } from './Apps'
 import { Council, Story } from './Story'
-import { Dock, EdgeNotice, Info, Presenter, ScoreBoard, Stamp, Team } from './Stage'
-import { Office } from './Office'
+import { Dock, EdgeNotice, Info, ScoreBoard, Stamp, Team } from './Stage'
+import { Office, useOffice } from './Office'
 
 
 const N = (id: string, type: string, [x, y, w, h]: number[], data: any = {}, parentId?: string): Node => ({ id, type, position: { x, y }, width: w, height: h, data, parentId, draggable: false, selectable: false })
@@ -324,6 +324,7 @@ function Inspector() {
 /* ───────────── app ───────────── */
 function Stage() {
   const rf = useReactFlow()
+  const office = useOffice((s) => s.open)
   useKeys()
   useEffect(() => { watchEdge(); resume() }, [])
   useEffect(() => setNav({
@@ -353,10 +354,10 @@ function Stage() {
         >
           {!DBG.has('nocam') && <Director />}
         </ReactFlow>
-        {!DBG.has('noswarm') && <Swarm />}
+        {!DBG.has('noswarm') && !office && <Swarm />}
         <Caption />
         <Inspector />
-        <ScoreBoard /><Council /><Legend /><Stamp /><Team /><Workspace /><BrowserPanel /><Apps /><Story /><Presenter /><SystemOne /><Info /><Dock /><EdgeNotice /><Office />
+        <ScoreBoard /><Council /><Legend /><Stamp /><Team /><Workspace /><BrowserPanel /><Apps /><Story /><SystemOne /><Info /><Dock /><EdgeNotice /><Office />
       </div>
     </div>
   )
@@ -367,7 +368,8 @@ export default function App() {
     let raf = 0, last = performance.now(), acc = 0
     const loop = (now: number) => {
       const dt = Math.max(0, Math.min(0.1, (now - last) / 1000)); last = now
-      if (DBG.has('nosim') && clock.t > 8) { raf = requestAnimationFrame(loop); return }
+      // nothing moves behind the office: the demo clock starts when the office closes
+      if ((DBG.has('nosim') && clock.t > 8) || useOffice.getState().open) { raf = requestAnimationFrame(loop); return }
       clock.t += dt
       acc += dt
       if (acc >= 0.08) { useSim.setState({ t: clock.t, now: Date.now() }); acc = 0 }

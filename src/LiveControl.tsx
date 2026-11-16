@@ -6,10 +6,10 @@ import { replayRun, setPhaseHook, startLive, stopLive, useLive } from './live'
 import { useEdge } from './edge'
 
 setPhaseHook((p) => setLivePhase(p as Phase | null))
-type Brand = { name: string; website: string; note: string; runs?: number }
+type Brand = { name: string; website: string; note: string; logo?: string; runs?: number }
 const FALLBACK: Brand[] = [
-  { name: 'Elmich', website: 'https://elmich.vn', note: 'Pitch brand' }, { name: 'Lock&Lock', website: 'https://www.locknlock.vn', note: 'Market leader' },
-  { name: 'Sunhouse', website: 'https://sunhouse.com.vn', note: 'Local rival' }, { name: 'Zojirushi', website: 'https://www.zojirushi.com.vn', note: 'Premium import' },
+  { name: 'Elmich', website: 'https://elmich.vn', note: 'Pitch brand', logo: '/brands/elmich.png' }, { name: 'Lock&Lock', website: 'https://www.locknlock.vn', note: 'Market leader', logo: '/brands/locknlock.png' },
+  { name: 'Sunhouse', website: 'https://sunhouse.com.vn', note: 'Local rival', logo: '/brands/sunhouse.png' }, { name: 'Zojirushi', website: 'https://www.zojirushi.com.vn', note: 'Premium import', logo: '/brands/zojirushi.png' },
 ]
 type Saved = { id: string; brand: string; total: number; mentioned: number; startedAt: number }
 const NAME: Record<Phase, string> = { intake: 'Shop', mining: 'Signals', research: 'Research', analysis: 'Analysis', content: 'Content', citations: 'Citations', sync: 'Channel Sync', qa: 'QA', risk: 'Risk Gate', approve: 'Approve', publish: 'Publish', track: 'Track', impact: 'Impact' }
@@ -85,8 +85,9 @@ export default function LiveControl() {
 
             <div className="mt-3 grid grid-cols-2 gap-2">
               {brands.map((b) => (
-                <button key={b.name} onClick={() => { setBrand(b.name); setWebsite('') }} className={`rounded-xl border px-3 py-2 text-left transition-colors ${brand === b.name ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-300'}`}>
-                  <div className="text-[13px] font-semibold text-slate-800">{b.name}</div><div className="text-[11px] text-slate-500">{b.note}</div>
+                <button key={b.name} onClick={() => { setBrand(b.name); setWebsite('') }} className={`flex items-center gap-2.5 rounded-xl border px-2.5 py-2 text-left transition-colors ${brand === b.name ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                  <span className="grid h-10 w-10 flex-none place-items-center overflow-hidden rounded-[10px] border border-slate-100 bg-white">{b.logo ? <img src={b.logo} alt="" className="h-8 w-8 object-contain" /> : <span className="text-[15px] font-bold text-slate-400">{b.name[0]}</span>}</span>
+                  <span className="min-w-0"><span className="block truncate text-[14px] font-semibold text-slate-800">{b.name}</span><span className="block truncate text-[11.5px] text-slate-500">{b.note}</span></span>
                 </button>
               ))}
             </div>

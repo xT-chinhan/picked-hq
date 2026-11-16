@@ -8,6 +8,7 @@ import { lget, replayRun, startLive, stopLive } from './live'
 import { OFFLINE_MSG, probe } from './edge'
 import { useWork } from './Workspace'
 import { openPage, reviewTab, useBrowser } from './BrowserPanel'
+import { useApps } from './Apps'
 
 /* NaN: the operator chat. Familiar commands are matched by rules in the browser (instant);
    anything else goes to the local LLM, which answers with a reply plus a list of real actions. */
@@ -67,6 +68,7 @@ const DEPT: [RegExp, Phase][] = [
 export function intent(raw: string): Act | null {
   const n = plain(raw)
   let m: RegExpMatchArray | null
+  if ((m = raw.match(/^\s*(?:apps?|app:|dùng app|dung app|use apps?)\s*[:,]?\s+(.{6,})$/i))) return { type: 'apps', q: m[1].trim() }
   if ((m = raw.match(/^\s*(?:ask|hỏi|hoi)(?:\s+gemini)?\s*[:,]?\s+(.{6,})$/i))) return { type: 'ask', q: m[1].trim() }
   if ((m = raw.match(/(?:mở|mo|open|xem|review|rà soát|ra soat|kiểm tra|kiem tra|check|browse|duyệt|truy cập|vào)\s+(?:trang\s+|page\s+|website\s+|site\s+)?((?:https?:\/\/)?(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/\S*)?)/i))) return { type: 'browse', url: m[1], review: /review|rà soát|ra soat|kiểm tra|kiem tra|check|đánh giá|danh gia/i.test(raw) }
   if (/^(stop|dung|thoat|exit|quay lai demo|back to (the )?demo)/.test(n)) return { type: 'stop' }
@@ -127,6 +129,11 @@ async function exec(a: Act, vi: boolean, id: number): Promise<{ text: string; ca
       step(id, T('Đọc trang và chấm theo tiêu chí AI đọc được', 'Reading the page and scoring how readable it is for AI'))
       const r = await reviewTab(tab); useBrowser.setState({ review: r })
       return { text: `${a.url}: ${r.summary}` }
+    }
+    case 'apps': {
+      step(id, T('Dùng các ứng dụng đã kết nối (từng công cụ một)', 'Using the connected apps, one tool at a time'))
+      const r = await post('/api/one/agent', { text: a.q || '' }, 170000)
+      return { text: r.answer, card: r.steps?.length ? { kind: 'steps', steps: r.steps } : undefined }
     }
     case 'explain': return { text: explain(vi) }
     case 'help': return { text: T('Lệnh: audit <thương hiệu> · replay <thương hiệu> · hỏi: <câu hỏi cho Gemini> · hồ sơ <thương hiệu> · đến phòng <tên> · duyệt / từ chối · mở shop · giải thích · toàn cảnh · dừng. Câu hỏi tự do cũng được.', 'Commands: audit <brand> · replay <brand> · ask: <question for Gemini> · profile <brand> · go to <department> · approve / reject · open shop · explain · overview · stop. Free-form questions work too.') }
@@ -264,6 +271,9 @@ function Card({ c }: { c: any }) {
       </div>
     )
   }
+  if (c.kind === 'steps') return (
+    <div className="mt-2 space-y-1.5">{c.steps.map((s: any, i: number) => <div key={i} className="rounded-xl border border-slate-200 bg-white px-3 py-2"><div className="flex items-center gap-1.5 text-[11.5px]"><span className={`h-1.5 w-1.5 rounded-full ${s.isError ? 'bg-rose-500' : 'bg-emerald-500'}`} /><b className="font-mono text-slate-700">{s.server}.{s.tool}</b><span className="ml-auto text-slate-400">{s.ms} ms</span></div><div className="mt-1 max-h-16 overflow-hidden text-[11px] leading-snug text-slate-500">{String(s.text).slice(0, 240)}</div></div>)}<div className="text-[9.5px] font-semibold uppercase tracking-[.12em] text-emerald-600">Real · MCP tool calls</div></div>
+  )
   if (c.kind === 'answer') return (
     <div className="mt-2 rounded-xl border border-slate-200 bg-white p-3">
       <div className="text-[11.5px] font-medium text-slate-700">“{c.q}”</div>
@@ -335,6 +345,7 @@ export function useKeys() {
       else if (e.key === 'Escape') useOne.setState({ open: false, info: false })
       else if (k === 't') useOne.setState({ team: !o.team })
       else if (k === 'w') useWork.setState((x) => ({ open: !x.open }))
+      else if (k === 'a') useApps.setState((x) => ({ open: !x.open }))
       else if (k === 'b') useBrowser.setState((x) => ({ open: !x.open, control: false }))
       else if (k === 'p') useOne.setState({ presenter: !o.presenter })
       else if (k === 'i' || e.key === '?') useOne.setState({ info: !o.info })

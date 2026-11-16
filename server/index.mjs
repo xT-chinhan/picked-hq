@@ -11,6 +11,10 @@ import { roster, lockSouls } from './agents.mjs'
 import { ledger } from './engines.mjs'
 import { probeLlmsTxt, reviewPage } from './pagereview.mjs'
 import { hub } from './browserhub.mjs'
+import { createMcpHub, handleMcpRequest, isAllowed } from './mcp.mjs'
+import { entry, publicCatalog } from './mcp-catalog.mjs'
+import { runToolLoop } from './toolloop.mjs'
+import { agentLlm, scopesFor, setScopes } from './agents.mjs'
 
 const PORT = +process.env.PICKED_PORT || 5198
 const DATA = process.env.PICKED_DATA_DIR || path.join(import.meta.dirname, 'data')
@@ -48,6 +52,8 @@ function stopRun(run, why = 'stopped') {
   const ev = { t: Date.now() - run.startedAt, type: 'run.error', error: why }; run.events.push(ev)
   for (const c of run.clients) { c.write(`data: ${JSON.stringify(ev)}\n\n`); c.end() }
 }
+const mcp = createMcpHub({ file: path.join(DATA, 'mcp.json') })
+const nanLlm = agentLlm('nan')
 const routines = createRoutines({
   file: path.join(DATA, 'routines.json'),
   isBusy: () => !!running(),
@@ -92,7 +98,7 @@ http.createServer(async (req, res) => {
     // phones on the LAN may only reach the approval page and published shop pages
     if (!local && !viaTunnel && !/^\/(approve\/|api\/approve\/|shop\/)/.test(p)) return json(res, 403, { error: 'local only' })
     if (await handleApprovalRequest(req, res, { onDecision: (a) => pending.get(a.id)?.(a) })) return
-    if (await handleSystemOne(req, res)) return
+    if (await handleSystemOne(req, res, { apps: () => mcp.list().filter((x) => x.status === 'ready').map((x) => x.name) })) return
     let m
     if ((m = p.match(/^\/shop\/([\w-]+)\/?([\w.-]*)$/))) {
       const f = path.join(SHOPS, m[1], m[2] || 'index.html')
@@ -124,6 +130,35 @@ http.createServer(async (req, res) => {
       run.clients.add(res); req.on('close', () => run.clients.delete(res)); return
     }
     if ((m = p.match(/^\/api\/audit\/([\w-]+)\/stop$/)) && req.method === 'POST') { const r = live.get(m[1]); if (r) stopRun(r); return json(res, 200, { ok: true }) }
+    if (p === '/api/mcp/catalog' && req.method === 'GET') return json(res, 200, { catalog: publicCatalog(), servers: mcp.list(), scopes: Object.fromEntries(['nan'].map((a) => [a, scopesFor(a)])) })
+    if (p === '/api/mcp/install' && req.method === 'POST') {
+      if (!local) return json(res, 403, { error: 'local only' })
+      try {
+        const b = await body(req), e = entry(String(b.id || ''))
+        if (!e) return json(res, 404, { error: 'unknown app' })
+        const env = {}; for (const r of e.requires) { const v = String(b.env?.[r.key] ?? '').trim(); if (!v) return json(res, 400, { error: `${r.label} is required` }); env[r.key] = v }
+        if (e.prepare === 'workspace') fs.mkdirSync(path.join(DATA, 'workspace'), { recursive: true })
+        if (mcp.list().some((x) => x.name === e.id)) await mcp.remove(e.id)
+        mcp.add({ name: e.id, command: e.command, args: e.args, env })
+        try { await mcp.connect(e.id, { timeoutMs: 90000 }) } catch (x) { await mcp.remove(e.id); throw x }
+        return json(res, 200, { server: mcp.list().find((x) => x.name === e.id), tools: await mcp.tools(e.id) })
+      } catch (e) { return json(res, 502, { error: String(e.message || e).slice(0, 200) }) }
+    }
+    if (p === '/api/mcp/scopes' && req.method === 'PUT') {
+      if (!local) return json(res, 403, { error: 'local only' })
+      try { const b = await body(req); return json(res, 200, { agent: b.agent, scopes: setScopes(String(b.agent), b.scopes) }) } catch (e) { return json(res, 400, { error: String(e.message || e) }) }
+    }
+    if (p === '/api/one/agent' && req.method === 'POST') {
+      // NaN uses the connected apps it was granted, one allowed tool at a time
+      if (!local) return json(res, 403, { error: 'Apps can only be used from the machine running Picked.' })
+      const text = String((await body(req)).text || '').slice(0, 1000)
+      const scope = scopesFor('nan'), tools = []
+      for (const sv of mcp.list().filter((x) => x.status === 'ready')) for (const t of await mcp.tools(sv.name)) if (isAllowed(scope, sv.name, t.name)) tools.push({ server: sv.name, ...t })
+      if (!tools.length) return json(res, 200, { answer: 'No app is connected and allowed for NaN yet. Open Apps (A), connect one and switch on "NaN may use".', steps: [], tools: 0 })
+      const r = await runToolLoop({ request: text, tools, llm: nanLlm, call: (server, tool, args) => mcp.call(server, tool, args, { scope, timeoutMs: 60000 }) })
+      return json(res, 200, { ...r, tools: tools.length })
+    }
+    if (await handleMcpRequest(req, res, { hub: mcp, local })) return
     if (p === '/api/browser/tabs' && req.method === 'GET') return json(res, 200, { tabs: hub.list().filter((t) => local || t.kind === 'gemini') })
     if (p === '/api/browser/stream' && req.method === 'GET') {
       const tab = u.searchParams.get('tab') || ''
@@ -178,6 +213,7 @@ http.createServer(async (req, res) => {
   } catch (e) { json(res, 500, { error: String(e.message || e) }) }
 }).listen(PORT, '0.0.0.0', () => {
   console.log(`audit server on http://127.0.0.1:${PORT} (LAN ${lanIp()}: approval and shop pages only)`)
+  for (const sig of ['SIGINT', 'SIGTERM']) process.once(sig, () => Promise.allSettled([mcp.stopAll(), hub.stop()]).finally(() => process.exit(0)))
   setInterval(() => { try { routines.tick() } catch (e) { console.log('routines:', e.message) } }, 30000)
   if (EDGE) startEdge(PORT, EDGE)
   else console.log('edge: not configured (no ~/.config/picked/edge.env), the hosted UI will show the maintenance notice')

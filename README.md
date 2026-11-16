@@ -56,8 +56,18 @@ Press `/` to open **NaN**, the operator chat. Type in any language: the request 
 | `T` | Agent team and handoffs |
 | `P` | Presenter notes and timer |
 | `W` | Inbox and routines |
+| `B` | Browser: watch the agents' real pages, take control |
+| `A` | Apps: connect MCP servers and choose which agents may use them |
 | `I` | Q&A sheet (cost, data, responsibility, what is real) |
 | `O` | Whole company |
+
+## The agent company
+
+Every agent has a **soul** (who it is and the rules it keeps, with a hash that flags changes), a tool scope and an engine policy. Model calls go through one **engine room** that serves 14 engines (11 `agy` models, GPT-6.1 Sol and GPT-6 Astra through Codex) and logs time and tokens for each call; `T` shows the agents and the AI engines wall with the measured numbers. Quinn, the fact checker, is a **council**: three engines of different families judge each sentence and the majority decides, so one model's mistake cannot approve a claim. Engine policies follow measurements, not guesses (`node scripts/engine-bench.mjs`).
+
+- **Browser (`B`)**: live view of the Gemini tabs during a Fresh audit and of any page NaN opens ("kiểm tra trang elmich.vn" opens it and scores 12 checks for AI readability). *Take control* forwards clicks, typing and scrolling; only the machine running Picked can do that.
+- **Apps (`A`)**: MCP servers started on this machine (Memory, Files, Browser, GitHub, Notion, Slack). Secrets are stored in a mode-600 file on the machine; each agent may use only the apps the owner switched on; `apps: <request>` makes NaN use them one tool at a time.
+- **Chrome extension** (`extension/`): NaN beside any page (Alt+Shift+N), reads a page only when asked. Load it unpacked; see `extension/README.md`.
 
 ## Inbox and routines
 

@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="vi">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NaN · Picked</title><link rel="stylesheet" href="panel.css"></head>
+<body>
+  <header><h1>NaN <span>cho Picked</span></h1><p id="status" role="status"><span id="status-dot"></span><span id="status-text">Đang kết nối…</span></p></header>
+  <main>
+    <p id="tab-title" class="chip">Chưa chọn trang</p>
+    <div class="actions"><button id="review" type="button">Review this page</button><button id="send-page" type="button">Send page to chat</button></div>
+    <section id="messages" aria-label="Cuộc trò chuyện" aria-live="polite" aria-relevant="additions"></section>
+    <form id="chat"><label for="input">Nhắn cho NaN</label><div class="composer"><textarea id="input" rows="2" required placeholder="Bạn muốn cải thiện điều gì?"></textarea><button type="submit">Gửi</button></div></form>
+    <details><summary>Cài đặt máy chủ</summary><form id="settings"><label for="base">URL máy chủ Picked</label><div class="settings-row"><input id="base" type="url" required><button type="submit">Lưu</button></div><p>Máy chủ khác cần cho phép CORS từ tiện ích. Tiện ích chỉ có quyền truy cập hai máy chủ mặc định.</p><output id="settings-result" aria-live="polite"></output></form></details>
+  </main>
+  <script type="module" src="panel.js"></script>
+</body>
+</html>

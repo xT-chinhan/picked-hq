@@ -80,3 +80,9 @@ test('inbox is empty and idle on a fresh backend', async () => {
   const j = await (await fetch(url('/api/inbox'))).json()
   assert.deepEqual(j.needs, []); assert.equal(j.running, null); assert.ok(Array.isArray(j.results))
 })
+
+test('a POST to a route owned by another module is not swallowed by the NaN handler', async () => {
+  // regression: /api/one/agent hung because an earlier handler had already consumed the request body
+  const r = await fetch(url('/api/one/agent'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: 'hello' }), signal: AbortSignal.timeout(8000) })
+  assert.equal(r.status, 200); assert.match((await r.json()).answer, /No app is connected/)
+})

@@ -5,7 +5,7 @@ import { parseAnswer } from './parse.mjs'
 import { handleTranslateRequest, makeAgyRestorer } from './translate.mjs'
 
 const PHASES = ['mining', 'research', 'analysis', 'sync', 'content', 'citations', 'qa', 'risk', 'approve', 'publish', 'track', 'impact']
-const ACTIONS = ['audit', 'replay', 'ask', 'browse', 'goto', 'approve', 'reject', 'shop', 'profile', 'explain', 'stop', 'overview', 'none']
+const ACTIONS = ['audit', 'replay', 'ask', 'browse', 'apps', 'goto', 'approve', 'reject', 'shop', 'profile', 'explain', 'stop', 'overview', 'none']
 const PROMPT = {
   type: 'object',
   properties: { role: { type: 'string' }, context: { type: 'string' }, task: { type: 'string' }, constraints: { type: 'array', items: { type: 'string' } }, output: { type: 'string' } },
@@ -35,12 +35,13 @@ const restore = makeAgyRestorer(lia)
 let asking = false
 
 /** Handles /api/translate*, /api/one/prompt, /api/one/chat, /api/one/ask. Resolves false for any other route. */
-export async function handleSystemOne(req, res) {
+export async function handleSystemOne(req, res, ctx = {}) {
   const route = req.url?.split('?')[0]
   if (route === '/api/translate' || route === '/api/translate/refine') return handleTranslateRequest(req, res, { restore })
-  if (req.method !== 'POST' || !route?.startsWith('/api/one/')) return false
+  // read the body only for routes this module owns; another handler may need the stream
+  if (req.method !== 'POST' || !['/api/one/prompt', '/api/one/chat', '/api/one/ask'].includes(route)) return false
   const b = await read(req), t0 = Date.now()
-  const state = clip(JSON.stringify(b.state ?? {}), 2500)
+  const state = clip(JSON.stringify({ ...(b.state ?? {}), connectedApps: ctx.apps?.() ?? [] }), 2500)
   try {
     if (route === '/api/one/prompt') {
       const text = clip(b.text, 1500)
@@ -57,7 +58,7 @@ export async function handleSystemOne(req, res) {
 Return three things.
 1. prompt: ${STRUCT}
 2. reply: answer the operator in the language of the original wording, at most 3 short sentences, using only numbers found in the state. If the state lacks the data, say so and name the action that would get it.
-3. actions: zero or more of: audit {brand, website} (run a live audit), replay {brand} (replay the saved real run, re-scored for that brand), ask {q} (ask Gemini one real question, q in Vietnamese), browse {url, review} (open a web page in the agent browser; review=true also scores how readable it is for AI assistants),
+3. actions: zero or more of: audit {brand, website} (run a live audit), replay {brand} (replay the saved real run, re-scored for that brand), ask {q} (ask Gemini one real question, q in Vietnamese), apps {q} (use the connected apps listed in connectedApps to do q), browse {url, review} (open a web page in the agent browser; review=true also scores how readable it is for AI assistants),
 goto {phase} (move the camera to a department), approve, reject (decide the pending owner approval), shop (open the published shop page), profile {brand} (brand profile card),
 explain (describe what is on screen), stop (back to the demo loop), overview (whole company). Use an empty list when the request is only a question.`,
       })

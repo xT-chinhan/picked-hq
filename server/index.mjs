@@ -6,9 +6,11 @@ import { handleApprovalRequest } from './approve.mjs'
 import { handleSystemOne } from './systemone.mjs'
 import { edgeConfig, startEdge } from './edge.mjs'
 import { BRANDS, CATEGORY, findBrand } from './directory.mjs'
+import { createRoutines } from './routines.mjs'
 
 const PORT = +process.env.PICKED_PORT || 5198
-const DIR = path.join(import.meta.dirname, 'data', 'runs')
+const DATA = process.env.PICKED_DATA_DIR || path.join(import.meta.dirname, 'data')
+const DIR = path.join(DATA, 'runs')
 const SHOPS = path.join(import.meta.dirname, '..', 'public', 'shops')
 fs.mkdirSync(DIR, { recursive: true })
 const EDGE = edgeConfig()
@@ -37,11 +39,22 @@ const brief = (r) => r && { id: r.id, brand: r.brand, mode: r.mode, startedAt: r
 /** Ends a run for good: releases a pending owner decision and tells every listener. */
 function stopRun(run, why = 'stopped') {
   if (run.status !== 'running') return
-  run.status = 'stopped'; run.ctrl.abort()
+  run.status = 'stopped'; run.ctrl.abort(); routines.finished(run.id, 'stopped')
   for (const r of pending.values()) r({ status: 'rejected', decisions: {} })
   const ev = { t: Date.now() - run.startedAt, type: 'run.error', error: why }; run.events.push(ev)
   for (const c of run.clients) { c.write(`data: ${JSON.stringify(ev)}\n\n`); c.end() }
 }
+const routines = createRoutines({
+  file: path.join(DATA, 'routines.json'),
+  isBusy: () => !!running(),
+  startRun: ({ brand, mode }) => {
+    const known = findBrand(brand), reuse = mode === 'quick' ? saved().find((r) => r.total >= 40 && r.category === CATEGORY)?.id ?? '' : ''
+    if (mode === 'quick' && !reuse) return null
+    return start({ brand: known?.name ?? brand, category: CATEGORY, website: known?.website ?? '', total: 40, tabs: 5, reuse, measureOnly: true }, mode)
+  },
+  result: (id) => saved().find((r) => r.id === id) ?? null,
+  previous: (brand, beforeId) => saved().filter((r) => r.brand === brand && r.id !== beforeId && r.total >= 40).sort((a, b) => b.startedAt - a.startedAt)[0] ?? null,
+})
 const MIME = { '.html': 'text/html; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.xml': 'application/xml', '.json': 'application/json' }
 
 function start(o, mode) {
@@ -50,8 +63,8 @@ function start(o, mode) {
   live.set(id, run)
   const emit = (e) => { const ev = { t: Date.now() - run.startedAt, ...e }; run.events.push(ev); for (const c of run.clients) c.write(`data: ${JSON.stringify(ev)}\n\n`) }
   runPipeline({ ...o, signal: run.ctrl.signal }, emit, { runId: id, port: PORT, awaitDecision: (aid) => new Promise((res) => pending.set(aid, res)) })
-    .then(({ summary }) => { if (run.status !== 'running') return; run.status = 'done'; fs.writeFileSync(path.join(DIR, id + '.json'), JSON.stringify({ id, brand: o.brand, category: o.category, website: o.website, startedAt: run.startedAt, ms: Date.now() - run.startedAt, summary, events: run.events.filter((e) => e.type !== 'q.partial') })) })
-    .catch((e) => { if (run.status !== 'running') return; run.status = 'error'; emit({ type: 'run.error', error: String(e.message || e) }) })
+    .then(({ summary }) => { if (run.status !== 'running') return; run.status = 'done'; setTimeout(() => routines.finished(id, 'done'), 50); fs.writeFileSync(path.join(DIR, id + '.json'), JSON.stringify({ id, brand: o.brand, category: o.category, website: o.website, startedAt: run.startedAt, ms: Date.now() - run.startedAt, summary, events: run.events.filter((e) => e.type !== 'q.partial') })) })
+    .catch((e) => { if (run.status !== 'running') return; run.status = 'error'; routines.finished(id, 'failed'); emit({ type: 'run.error', error: String(e.message || e) }) })
     .finally(() => { for (const c of run.clients) c.end() })
   return run
 }
@@ -107,6 +120,24 @@ http.createServer(async (req, res) => {
       run.clients.add(res); req.on('close', () => run.clients.delete(res)); return
     }
     if ((m = p.match(/^\/api\/audit\/([\w-]+)\/stop$/)) && req.method === 'POST') { const r = live.get(m[1]); if (r) stopRun(r); return json(res, 200, { ok: true }) }
+    if (p === '/api/inbox') {
+      // everything that is waiting for a person: an owner decision on the running audit, and routine results nobody has looked at yet
+      const cur = running(), ap = cur && [...cur.events].reverse().find((e) => e.type === 'approval.requested' || e.type === 'approval.done')
+      const needs = ap?.type === 'approval.requested' ? [{ kind: 'approval', runId: cur.id, brand: cur.brand, docs: ap.approval.docs.length, keys: ap.approval.docs.map((d) => d.key), approvalId: ap.approval.id, at: cur.startedAt + ap.t }] : []
+      return json(res, 200, { needs, results: routines.unseen().slice(0, 20), running: brief(cur) ?? null })
+    }
+    if (p === '/api/routines' && req.method === 'GET') return json(res, 200, { routines: routines.list(), brands: BRANDS.map((b) => b.name) })
+    if (p.startsWith('/api/routines') && req.method !== 'GET') {
+      if (viaTunnel) return json(res, 403, { error: 'local only' })
+      try {
+        if (p === '/api/routines' && req.method === 'POST') return json(res, 200, routines.create(await body(req)))
+        if (p === '/api/routines/seen' && req.method === 'POST') { routines.markSeen((await body(req)).runId); return json(res, 200, { ok: true }) }
+        const mm = p.match(/^\/api\/routines\/([\w-]+)(\/run)?$/)
+        if (mm && mm[2] && req.method === 'POST') { const rid = routines.fire(mm[1], 'manual'); return rid ? json(res, 200, { runId: rid }) : json(res, 409, { error: 'another audit is running', running: brief(running()) }) }
+        if (mm && req.method === 'PATCH') return json(res, 200, routines.update(mm[1], await body(req)))
+        if (mm && req.method === 'DELETE') return json(res, routines.remove(mm[1]) ? 200 : 404, { ok: true })
+      } catch (e) { return json(res, 400, { error: String(e.message || e) }) }
+    }
     if (p === '/api/runs') return json(res, 200, saved())
     if ((m = p.match(/^\/api\/runs\/([\w-]+)$/))) {
       const f = path.join(DIR, m[1] + '.json')
@@ -117,6 +148,7 @@ http.createServer(async (req, res) => {
   } catch (e) { json(res, 500, { error: String(e.message || e) }) }
 }).listen(PORT, '0.0.0.0', () => {
   console.log(`audit server on http://127.0.0.1:${PORT} (LAN ${lanIp()}: approval and shop pages only)`)
+  setInterval(() => { try { routines.tick() } catch (e) { console.log('routines:', e.message) } }, 30000)
   if (EDGE) startEdge(PORT, EDGE)
   else console.log('edge: not configured (no ~/.config/picked/edge.env), the hosted UI will show the maintenance notice')
 })

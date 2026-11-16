@@ -56,7 +56,7 @@ const TITLES = { faq: 'FAQ page', overview: 'About page', pitch: 'Review pitch e
  * Every step emits events; `phase` events tell the canvas which department is working.
  */
 export async function runPipeline(opts, emit, ctx) {
-  const { brand, category, website, total = 40, tabs = 4, headed = false, reuse, autoApprove = false, signal } = opts
+  const { brand, category, website, total = 40, tabs = 4, headed = false, reuse, autoApprove = false, measureOnly = false, signal } = opts
   const t0 = Date.now(), slug = slugify(brand)
   const publicBase = (process.env.PUBLIC_BASE || 'https://pickedhq.pages.dev').replace(/\/$/, '') + `/shops/${slug}/`
   const phase = async (name, work, minMs = 3200) => {
@@ -95,6 +95,9 @@ export async function runPipeline(opts, emit, ctx) {
   const missed = results.filter((r) => r && !r.error && !r.mentioned).map((r) => r.q)
   const sources = pitchSources(summary.sources, brand, summary.competitors)
   await phase('analysis', async () => emit({ type: 'analysis.done', missed, sources }), 5000)
+
+  // scheduled re-checks only measure: nothing is drafted, asked for approval or published
+  if (measureOnly) { await siteTask.catch(() => {}); emit({ type: 'run.done', summary, ms: Date.now() - t0, note: 'measured only' }); return { summary } }
 
   // 4 source of truth
   const { audit, facts } = await siteTask

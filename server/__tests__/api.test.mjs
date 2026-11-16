@@ -1,6 +1,9 @@
 import test, { before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 
 // Starts the real server on a spare port with the edge off, and exercises the HTTP contract the frontend relies on.
 const PORT = 5391
@@ -9,7 +12,11 @@ const url = (p) => `http://127.0.0.1:${PORT}${p}`
 const post = (p, b) => fetch(url(p), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) })
 
 before(async () => {
-  child = spawn('node', ['server/index.mjs'], { env: { ...process.env, PICKED_PORT: String(PORT), PICKED_NO_EDGE: '1' }, stdio: 'ignore' })
+  // own data directory seeded with the bundled real run, so the tests never touch the developer's runs or routines
+  const data = fs.mkdtempSync(path.join(os.tmpdir(), 'picked-api-'))
+  fs.mkdirSync(path.join(data, 'runs'))
+  fs.copyFileSync('public/runs/20261116070613-2h9.json', path.join(data, 'runs', '20261116070613-2h9.json'))
+  child = spawn('node', ['server/index.mjs'], { env: { ...process.env, PICKED_PORT: String(PORT), PICKED_NO_EDGE: '1', PICKED_DATA_DIR: data }, stdio: 'ignore' })
   for (let i = 0; i < 40; i++) { try { if ((await fetch(url('/api/health'))).ok) return } catch {} await new Promise((r) => setTimeout(r, 150)) }
   throw new Error('server did not start')
 })
@@ -39,7 +46,6 @@ test('traffic that came through the tunnel is refused without the edge secret', 
 
 test('a second audit is refused with the running one, unless replaced from this machine', async () => {
   const a = await post('/api/audit', { brand: 'Acme Test', mode: 'quick' })
-  if (a.status === 422) return // no saved answers on this checkout: nothing to start
   assert.equal(a.status, 200)
   const first = await a.json()
   const b = await post('/api/audit', { brand: 'Acme Two' })
@@ -55,4 +61,22 @@ test('a second audit is refused with the running one, unless replaced from this 
 test('shop route serves files only, never directories', async () => {
   assert.equal((await fetch(url('/shop/elmich/..'))).status, 404)
   assert.equal((await fetch(url('/shop/nobody/index.html'))).status, 404)
+})
+
+test('routines: create, validate, list; the hosted address may read but never change them', async () => {
+  const bad = await post('/api/routines', { brand: 'Acme Test', schedule: { kind: 'interval', minutes: 1 } })
+  assert.equal(bad.status, 400)
+  const ok = await post('/api/routines', { brand: 'Acme Test', schedule: { kind: 'daily', at: '09:00' } })
+  assert.equal(ok.status, 200)
+  const made = await ok.json()
+  const list = await (await fetch(url('/api/routines'))).json()
+  assert.ok(list.routines.some((r) => r.id === made.id))
+  assert.equal((await fetch(url('/api/routines'), { headers: { 'cf-ray': 'x' } })).status, 403, 'tunnel traffic without the edge secret is refused outright')
+  assert.equal((await fetch(url(`/api/routines/${made.id}`), { method: 'DELETE' })).status, 200)
+  assert.equal((await fetch(url(`/api/routines/${made.id}`), { method: 'DELETE' })).status, 404)
+})
+
+test('inbox is empty and idle on a fresh backend', async () => {
+  const j = await (await fetch(url('/api/inbox'))).json()
+  assert.deepEqual(j.needs, []); assert.equal(j.running, null); assert.ok(Array.isArray(j.results))
 })

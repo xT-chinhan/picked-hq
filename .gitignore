@@ -5,3 +5,7 @@ dist
 .env*
 server/data/
 docs/tasks/out/
+
+# published pages are demo output: only the pitch shop is kept in the repo
+public/shops/*
+!public/shops/elmich/

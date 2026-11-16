@@ -6,6 +6,7 @@ import { parseAnswer, summarize } from '../server/parse.mjs'
 import { CYCLE, LIVE_ORDER, ORDER, PH, clock, cyc, phaseOf, type Phase } from './sim'
 import { lget, replayRun, startLive, stopLive } from './live'
 import { OFFLINE_MSG, probe } from './edge'
+import { useWork } from './Workspace'
 
 /* NaN: the operator chat. Familiar commands are matched by rules in the browser (instant);
    anything else goes to the local LLM, which answers with a reply plus a list of real actions. */
@@ -322,6 +323,7 @@ export function useKeys() {
       if (e.key === '/') { e.preventDefault(); useOne.setState({ open: true }) }
       else if (e.key === 'Escape') useOne.setState({ open: false, info: false })
       else if (k === 't') useOne.setState({ team: !o.team })
+      else if (k === 'w') useWork.setState((x) => ({ open: !x.open }))
       else if (k === 'p') useOne.setState({ presenter: !o.presenter })
       else if (k === 'i' || e.key === '?') useOne.setState({ info: !o.info })
       else if (k === 'o') nav.overview()

@@ -55,8 +55,13 @@ Press `/` to open **NaN**, the operator chat. Type in any language: the request 
 | `←` `→` | Previous or next step |
 | `T` | Agent team and handoffs |
 | `P` | Presenter notes and timer |
+| `W` | Inbox and routines |
 | `I` | Q&A sheet (cost, data, responsibility, what is real) |
 | `O` | Whole company |
+
+## Inbox and routines
+
+`W` opens the workspace. **Inbox** gathers what waits for a person: the owner decision of a running audit (approve all in one tap) and the results of scheduled re-checks, each with the change since the previous run for that brand. **Routines** re-measure a brand on a schedule (every X minutes, daily, or on chosen weekdays), which is the real mechanism behind "measured again in 7 days". A routine only measures: it never drafts, asks for approval or publishes. The scheduler runs inside the backend (`server/routines.mjs`) and the hosted page can read routines but not change them.
 
 ## Hosting: Cloudflare Pages + this machine as the backend
 

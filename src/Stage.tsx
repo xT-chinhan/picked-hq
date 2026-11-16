@@ -247,7 +247,7 @@ export function Dock() {
       <B k="T" label="Team" on={o.team} go={() => useOne.setState({ team: !o.team })} />
       <B k="I" label="Q&A" on={o.info} go={() => useOne.setState({ info: !o.info })} />
       <B k="P" label="Presenter" on={o.presenter} go={() => useOne.setState({ presenter: !o.presenter })} />
-      <B k="/" label="System One" on={o.open} main go={() => useOne.setState({ open: !o.open })} />
+      <B k="/" label="NaN" on={o.open} main go={() => useOne.setState({ open: !o.open })} />
     </div>
   )
 }

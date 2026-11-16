@@ -4,10 +4,10 @@ import { AnimatePresence, motion } from 'motion/react'
 import { ArrowUp, Bot, Check, Sparkles, X } from 'lucide-react'
 import { parseAnswer, summarize } from '../server/parse.mjs'
 import { CYCLE, LIVE_ORDER, ORDER, PH, clock, cyc, phaseOf, type Phase } from './sim'
-import { lget, leaveLive, replayRun, startLive } from './live'
+import { lget, replayRun, startLive, stopLive } from './live'
 import { OFFLINE_MSG, probe } from './edge'
 
-/* System One: the operator chat. Familiar commands are matched by rules in the browser (instant);
+/* NaN: the operator chat. Familiar commands are matched by rules in the browser (instant);
    anything else goes to the local LLM, which answers with a reply plus a list of real actions. */
 
 export type Prompt = { role: string; context: string; task: string; constraints: string[]; output: string }
@@ -115,7 +115,7 @@ async function exec(a: Act, vi: boolean, id: number): Promise<{ text: string; ca
   switch (a.type) {
     case 'goto': if (!a.phase) break; jump(a.phase); return { text: T(`Đã chuyển tới phòng ${NAME[a.phase]}.`, `Moved to ${NAME[a.phase]}.`) }
     case 'overview': nav.overview(); return { text: T('Đây là toàn cảnh công ty.', 'Here is the whole company.') }
-    case 'stop': leaveLive(); return { text: T('Đã quay về vòng demo.', 'Back to the demo loop.') }
+    case 'stop': stopLive(); return { text: T('Đã quay về vòng demo.', 'Back to the demo loop.') }
     case 'explain': return { text: explain(vi) }
     case 'help': return { text: T('Lệnh: audit <thương hiệu> · replay <thương hiệu> · hỏi: <câu hỏi cho Gemini> · hồ sơ <thương hiệu> · đến phòng <tên> · duyệt / từ chối · mở shop · giải thích · toàn cảnh · dừng. Câu hỏi tự do cũng được.', 'Commands: audit <brand> · replay <brand> · ask: <question for Gemini> · profile <brand> · go to <department> · approve / reject · open shop · explain · overview · stop. Free-form questions work too.') }
     case 'rivals': { const r = snap().rivals; return { text: r.length ? T(`Được Gemini nhắc nhiều nhất: ${r.map((x) => `${x.name} (${x.count})`).join(', ')}.`, `Named most by Gemini: ${r.map((x) => `${x.name} (${x.count})`).join(', ')}.`) : T('Chưa có dữ liệu thật trên màn hình. Gõ "replay Elmich" hoặc "audit Elmich".', 'No real data on screen yet. Type "replay Elmich" or "audit Elmich".') } }
@@ -132,8 +132,8 @@ async function exec(a: Act, vi: boolean, id: number): Promise<{ text: string; ca
       const full = runs.find((r) => r.total >= 40) ?? runs[0]
       if (a.type === 'audit' && (await serverUp())) {
         step(id, a.fresh ? T('Mở 5 tab Gemini ẩn danh', 'Opening 5 anonymous Gemini tabs') : T('Dùng lại câu trả lời Gemini đã lưu, chạy thật các bước sau', 'Reusing saved Gemini answers, running the rest for real'))
-        await startLive({ brand, category: lget().category || 'hộp cơm giữ nhiệt', website: a.website || '', total: 40, tabs: 5, reuse: a.fresh ? '' : full?.id ?? '' })
-        if (lget().status === 'error') return { text: T(`Không chạy được: ${lget().err}`, `Could not start: ${lget().err}`) }
+        const ok = await startLive({ brand, website: a.website || undefined, mode: a.fresh ? 'fresh' : 'quick', replace: true })
+        if (!ok) return { text: lget().err === OFFLINE_MSG ? `${OFFLINE_MSG}.` : T(`Không chạy được: ${lget().err}`, `Could not start: ${lget().err}`) }
         return { text: a.fresh ? T(`Đang audit ${brand}: 40 câu hỏi thật trên Gemini, khoảng 3 phút.`, `Auditing ${brand}: 40 real questions on Gemini, about 3 minutes.`) : T(`Đang audit ${brand} trên 40 câu trả lời Gemini đã lưu; phân tích, nội dung, kiểm rủi ro và duyệt chạy thật.`, `Auditing ${brand} on 40 saved Gemini answers; analysis, content, risk and approval run for real.`) }
       }
       if (!full) return { text: T('Chưa có bản ghi nào để phát lại.', 'There is no saved run to replay.') }
@@ -172,7 +172,7 @@ const quickPrompt = (task: string, a: Act | null): Msg['pr'] => {
   const s = snap()
   if (a && TASK[a.type]) task = TASK[a.type](a)
   return {
-    by: 'rules', role: 'System One, the operator console of Picked (a company of AI agents for GEO).',
+    by: 'rules', role: 'NaN, the operator console of Picked (a company of AI agents for GEO).',
     context: `Brand: ${s.brand}. Mode: ${s.mode}. Step: ${NAME[s.phase]}.${s.score ? ` Score: ${s.score}.` : ''}`,
     task, constraints: ['Use only data that is on screen.', 'Reply in the operator\'s language.', 'Run a real action only when it is asked for.'], output: outputFor(a),
   }
@@ -277,7 +277,7 @@ export default function SystemOne() {
         <motion.div initial={{ opacity: 0, y: 24, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 24, scale: 0.97 }} transition={{ type: 'spring', stiffness: 340, damping: 30 }} className="absolute bottom-[68px] right-5 z-40 flex h-[min(640px,calc(100%-90px))] w-[430px] flex-col overflow-hidden rounded-[22px] border border-slate-200 bg-white/95 shadow-[0_40px_100px_-30px_rgba(15,23,42,.5)] backdrop-blur-xl">
           <div className="flex items-center gap-2.5 border-b border-slate-100 px-4 py-3">
             <div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white"><Bot size={18} /></div>
-            <div><div className="text-[14.5px] font-semibold tracking-tight">System One</div><div className="flex items-center gap-1.5 text-[11px] text-slate-500"><span className="live-dot" />Operator console · runs real actions</div></div>
+            <div><div className="text-[14.5px] font-semibold tracking-tight">NaN</div><div className="flex items-center gap-1.5 text-[11px] text-slate-500"><span className="live-dot" />Operator console · runs real actions</div></div>
             <button onClick={() => { (document.activeElement as HTMLElement)?.blur(); useOne.setState({ open: false }) }} className="ml-auto grid h-8 w-8 place-items-center rounded-full text-slate-400 hover:bg-slate-100"><X size={16} /></button>
           </div>
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">

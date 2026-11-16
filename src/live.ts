@@ -68,18 +68,39 @@ let es: EventSource | null = null
 let timers: number[] = []
 const stopAll = () => { es?.close(); es = null; timers.forEach(clearTimeout); timers = [] }
 
-export async function startLive(o: { brand: string; category: string; website: string; total: number; tabs: number; headed?: boolean; reuse?: string; autoApprove?: boolean }) {
+type Start = { brand: string; mode?: 'quick' | 'fresh'; category?: string; website?: string; total?: number; tabs?: number; headed?: boolean; replace?: boolean; autoApprove?: boolean }
+/** Follows a run that is already going on the server; every event so far is replayed first, so a reload or a second window just catches up. */
+export function attach(id: string) {
   stopAll()
+  useLive.setState({ mode: 'live', runId: id, status: 'running', ...FRESH }); phaseHook('mining')
+  es = new EventSource(`/api/audit/${id}/events`)
+  es.onmessage = (m) => { const ev = JSON.parse(m.data); apply(ev); if (ev.type === 'run.done' || ev.type === 'run.error') stopAll() }
+  es.onerror = () => { if (lget().status === 'running' && es?.readyState === EventSource.CLOSED) { probe(); useLive.setState({ status: 'error', err: OFFLINE_MSG }) } }
+}
+/** The server chooses what to reuse, fills in the website and rejects a second run; the browser only says which brand and how. */
+export async function startLive(o: Start): Promise<boolean> {
   let r: Response, j: any
   try {
     r = await fetch('/api/audit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(o) })
     j = await r.json()
-  } catch { probe(); useLive.setState({ mode: 'script', status: 'error', err: OFFLINE_MSG }); return }
-  if (!r.ok) { useLive.setState({ status: 'error', err: j.offline ? OFFLINE_MSG : j.error || 'could not start' }); return }
-  useLive.setState({ mode: 'live', runId: j.id, status: 'running', ...FRESH }); phaseHook('mining')
-  es = new EventSource(`/api/audit/${j.id}/events`)
-  es.onmessage = (m) => { const ev = JSON.parse(m.data); apply(ev); if (ev.type === 'run.done' || ev.type === 'run.error') stopAll() }
-  es.onerror = () => { if (lget().status === 'running' && es?.readyState === EventSource.CLOSED) useLive.setState({ status: 'error', err: 'connection lost' }) }
+  } catch { probe(); useLive.setState({ status: 'error', err: OFFLINE_MSG }); return false }
+  if (j.offline) { probe(); useLive.setState({ status: 'error', err: OFFLINE_MSG }); return false }
+  if (r.status === 409 && j.running) { attach(j.running.id); useLive.setState({ err: `An audit for ${j.running.brand} is already running, so this window joined it.` }); return true }
+  if (!r.ok) { useLive.setState({ status: 'error', err: j.error || 'could not start' }); return false }
+  attach(j.id); return true
+}
+/** Stops the run on the server (best effort; the hosted page is not allowed to) and returns to the demo loop. */
+export async function stopLive() {
+  const id = lget().runId
+  if (lget().mode === 'live' && id) await fetch(`/api/audit/${id}/stop`, { method: 'POST' }).catch(() => {})
+  leaveLive()
+}
+/** On page load: join a run that is already going, so a refresh never loses the audit. */
+export async function resume() {
+  try {
+    const st = await fetch('/api/status', { cache: 'no-store', signal: AbortSignal.timeout(4000) }).then((r) => (r.ok ? r.json() : null))
+    if (st?.running && lget().mode === 'script') attach(st.running.id)
+  } catch { /* backend off */ }
 }
 
 /** Replays a saved run. A run saved before phases existed gets research → analysis phases synthesised. */

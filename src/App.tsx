@@ -10,7 +10,7 @@ import { ALL, C, LOCAL, OWNER, R, SHOT, VIEW } from './layout'
 import Swarm from './Swarm'
 import { dropTrack, setTrack } from './fx'
 import LiveControl from './LiveControl'
-import { useLive } from './live'
+import { resume, useLive } from './live'
 import SystemOne, { setNav, useKeys } from './SystemOne'
 import { watchEdge } from './edge'
 import { Dock, EdgeNotice, Info, Presenter, ScoreBoard, Stamp, Team, Wake } from './Stage'
@@ -322,7 +322,7 @@ function Inspector() {
 function Stage() {
   const rf = useReactFlow()
   useKeys()
-  useEffect(() => { watchEdge() }, [])
+  useEffect(() => { watchEdge(); resume() }, [])
   useEffect(() => setNav({
     goto: (k) => { if (useLive.getState().mode !== 'script') holdCam(20000); rf.fitBounds(VIEW[k], { duration: 900, padding: 0.04 }).then(sharpen) },
     overview: () => { holdCam(); rf.fitBounds(ALL, { duration: 900, padding: 0.04 }).then(sharpen) },

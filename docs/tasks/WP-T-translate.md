@@ -1,6 +1,6 @@
 # WP-T — Prompt translation (`server/translate.mjs`, `server/__tests__/translate.test.mjs`)
 
-Translate any user prompt to English fast, detecting the source language. Used for the commands people type to the "System One" chat and for free-form questions.
+Translate any user prompt to English fast, detecting the source language. Used for the commands people type to the "NaN" chat and for free-form questions.
 
 ## Exports
 1. `translateToEnglish(text, opts = {})` → `Promise<{ original, text, source, target: 'en', provider, ms, cached }>`

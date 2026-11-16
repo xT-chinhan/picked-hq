@@ -1,4 +1,4 @@
-// System One: the operator chat. Translation, prompt structuring, free-form intent and a single real Gemini question.
+// NaN: the operator chat. Translation, prompt structuring, free-form intent and a single real Gemini question.
 import { llm, MODELS } from './llm.mjs'
 import { launch, ask } from './gemini.mjs'
 import { parseAnswer } from './parse.mjs'
@@ -52,7 +52,7 @@ export async function handleSystemOne(req, res) {
       if (!text.trim()) return send(res, 400, { error: 'empty' }), true
       const out = await llm.agyJson({
         model: MODELS.fast, schema: CHAT, timeoutMs: 60000,
-        prompt: `You are System One, the operator console of Picked.\n${ABOUT}\n\nScreen state (JSON): ${state}\n\nOperator request (English): ${text}\nOriginal wording: ${clip(b.original, 600)}\n
+        prompt: `You are NaN, the operator console of Picked.\n${ABOUT}\n\nScreen state (JSON): ${state}\n\nOperator request (English): ${text}\nOriginal wording: ${clip(b.original, 600)}\n
 Return three things.
 1. prompt: ${STRUCT}
 2. reply: answer the operator in the language of the original wording, at most 3 short sentences, using only numbers found in the state. If the state lacks the data, say so and name the action that would get it.

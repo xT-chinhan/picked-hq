@@ -40,17 +40,18 @@ The **Live audit** button in the top bar runs a real audit: it opens several ano
 - **Replay** plays back a saved real run and re-scores its answers for any brand you type, so it also works online without a server. One real run is bundled in `public/runs/` (category: thermal lunch boxes, 40 questions).
 - Everything after the research step (content, QA, approval, publishing, tracking) is still the scripted showcase.
 
-## System One and stage controls
+## NaN and stage controls
 
-Press `/` to open **System One**, the operator chat. Type in any language: the request is translated to English (Google, with Vietnamese accent restoration) and shown as a structured prompt (Role, Context, Task, Constraints, Output).
+Press `/` to open **NaN**, the operator chat. Type in any language: the request is translated to English (Google, with Vietnamese accent restoration) and shown as a structured prompt (Role, Context, Task, Constraints, Output).
 
 - Commands run instantly in the browser: `audit Elmich`, `replay Sunhouse`, `hồ sơ Lock&Lock`, `hỏi: hộp cơm giữ nhiệt nào tốt?`, `đến phòng rủi ro`, `duyệt`, `mở shop`, `giải thích`.
 - Free-form questions go to the local LLM, which answers from the on-screen data and can trigger the same actions (needs `pnpm live`).
+- The **Audit a brand** button (top bar) is three taps: pick a brand, choose **Quick** (about a minute, reuses saved Gemini answers; analysis, content, risk and approval still run for real) or **Fresh** (about four minutes, 40 new questions on real Gemini), press Run. While it runs the top bar shows the current step, a one-tap **Approve** button and Stop; reloading the page rejoins the running audit.
 - Each department carries a **Real** or **Simulated** tag while a live or recorded run is on screen.
 
 | Key | Action |
 | --- | --- |
-| `/` | System One |
+| `/` | NaN (operator chat) |
 | `←` `→` | Previous or next step |
 | `T` | Agent team and handoffs |
 | `P` | Presenter notes and timer |
@@ -61,7 +62,7 @@ Press `/` to open **System One**, the operator chat. Type in any language: the r
 
 The UI is on **Cloudflare Pages** (`pickedhq.pages.dev`) and stays up when the backend is off. The backend (`pnpm live`) runs on the team's own machine: it starts a Cloudflare quick tunnel and announces its address to a Pages Function (`functions/`), which proxies `/api`, `/shop` and `/approve` to it. Only that function holds the shared secret, so the tunnel address cannot be used directly; visitors are rate limited per IP.
 
-- Backend on: System One, live audits and approval QR codes work from the public address.
+- Backend on: NaN, live audits and approval QR codes work from the public address.
 - Backend off: the UI shows **"NaN-Team đang tạm khóa để phát triển dự án"**; the scripted demo, saved replays and rule commands keep working.
 - Publish the UI: `pnpm deploy:edge`. Machine setup: `~/.config/picked/cloudflare.env` (API token) and `edge.env` (shared secret and address); without `edge.env` the server runs local-only.
 

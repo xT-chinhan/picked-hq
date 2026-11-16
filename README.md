@@ -40,6 +40,23 @@ The **Live audit** button in the top bar runs a real audit: it opens several ano
 - **Replay** plays back a saved real run and re-scores its answers for any brand you type, so it also works online without a server. One real run is bundled in `public/runs/` (category: thermal lunch boxes, 40 questions).
 - Everything after the research step (content, QA, approval, publishing, tracking) is still the scripted showcase.
 
+## System One and stage controls
+
+Press `/` to open **System One**, the operator chat. Type in any language: the request is translated to English (Google, with Vietnamese accent restoration) and shown as a structured prompt (Role, Context, Task, Constraints, Output).
+
+- Commands run instantly in the browser: `audit Elmich`, `replay Sunhouse`, `hồ sơ Lock&Lock`, `hỏi: hộp cơm giữ nhiệt nào tốt?`, `đến phòng rủi ro`, `duyệt`, `mở shop`, `giải thích`.
+- Free-form questions go to the local LLM, which answers from the on-screen data and can trigger the same actions (needs `pnpm live`).
+- Each department carries a **Real** or **Simulated** tag while a live or recorded run is on screen.
+
+| Key | Action |
+| --- | --- |
+| `/` | System One |
+| `←` `→` | Previous or next step |
+| `T` | Agent team and handoffs |
+| `P` | Presenter notes and timer |
+| `I` | Q&A sheet (cost, data, responsibility, what is real) |
+| `O` | Whole company |
+
 ## Run locally
 
 Requires Node.js 22+ and pnpm.

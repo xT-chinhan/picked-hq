@@ -10,6 +10,8 @@ import { CYCLE, DOCS, ORDER, PROVS, TOTAL_Q, URLS, clock, ct, feed, phaseOf, sco
 import { ALL, C, LOCAL, OWNER, R, SHOT, VIEW } from './layout'
 import Swarm from './Swarm'
 import { dropTrack, setTrack } from './fx'
+import LiveControl from './LiveControl'
+import { useLive } from './live'
 
 
 const N = (id: string, type: string, [x, y, w, h]: number[], data: any = {}, parentId?: string): Node => ({ id, type, position: { x, y }, width: w, height: h, data, parentId, draggable: false, selectable: false })
@@ -181,7 +183,9 @@ function CycleBeam() {
 function TopBar() {
   const rf = useReactFlow()
   const phase = usePhase()
-  const sc = useSim((s) => scoreAt(s.t))
+  const scScript = useSim((s) => scoreAt(s.t))
+  const lv = useLive((s) => (s.mode !== 'script' ? s.summary : null))
+  const sc = lv ? lv.mentioned : scScript, denom = lv ? lv.total : TOTAL_Q
   const wk = useSim((s) => weekLabel(s.t))
   const auto = useSim((s) => s.auto)
   return (
@@ -213,9 +217,10 @@ function TopBar() {
           <span><b className="tnum font-semibold text-slate-800">{AGENTS}</b> agents</span>
         </div>
         <div className="flex items-center gap-2 rounded-full bg-slate-100/80 py-1 pl-3 pr-1">
-          <span className="text-[11px] font-medium text-slate-500">Visibility · W{wk}</span>
-          <span key={sc} className="pop tnum rounded-full bg-white px-2.5 py-0.5 text-[15px] font-semibold shadow-[0_1px_3px_rgba(15,23,42,.12)]" style={{ color: sc >= 7 ? '#16a34a' : '#e11d48' }}>{sc}<span className="text-slate-300">/{TOTAL_Q}</span></span>
+          <span className="text-[11px] font-medium text-slate-500">{lv ? `${lv.brand} · live` : `Visibility · W${wk}`}</span>
+          <span key={sc} className="pop tnum rounded-full bg-white px-2.5 py-0.5 text-[15px] font-semibold shadow-[0_1px_3px_rgba(15,23,42,.12)]" style={{ color: (lv ? sc / (lv.answered || 1) >= 0.25 : sc >= 7) ? '#16a34a' : '#e11d48' }}>{sc}<span className="text-slate-300">/{denom}</span></span>
         </div>
+        <LiveControl />
         <button title={auto ? 'Auto camera on' : 'Auto camera off'} onClick={() => useSim.setState({ auto: !auto, hold: 0 })} className="grid h-8 w-8 place-items-center rounded-full text-slate-500 hover:bg-slate-100">{auto ? <Pause size={15} /> : <Play size={15} />}</button>
         <button title="Whole company" onClick={() => { holdCam(); rf.fitBounds(ALL, { duration: 900, padding: 0.04 }).then(sharpen) }} className="-ml-2 grid h-8 w-8 place-items-center rounded-full text-slate-500 hover:bg-slate-100"><Maximize size={15} /></button>
       </div>
@@ -257,11 +262,13 @@ function Caption() {
 /* ───────────── live feed + inspector ───────────── */
 function Feed() {
   const k = useSim((s) => Math.floor(s.t / 1.6))
-  const items = useMemo(() => feed(useSim.getState().t), [k])
+  const logs = useLive((s) => (s.mode !== 'script' ? s.log : null))
+  const items = useMemo(() => feed(useSim.getState().t), [k]).map((e) => e)
+  const shown = logs ? logs.map((l) => ({ id: l.id, provider: 'gemini' as const, text: l.text })) : items
   return (
     <div className="pointer-events-none absolute bottom-5 left-5 z-10 flex w-[330px] flex-col-reverse gap-1.5">
       <AnimatePresence initial={false} mode="popLayout">
-        {items.map((e, i) => (
+        {shown.map((e, i) => (
           <motion.div key={e.id} layout initial={{ opacity: 0, y: 14, scale: 0.96 }} animate={{ opacity: 1 - i * 0.24, y: 0, scale: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.35 }} className="flex items-center gap-2 rounded-full border border-slate-200/80 bg-white px-3 py-1.5 text-[12px] text-slate-600 shadow-[0_8px_20px_-14px_rgba(15,23,42,.35)]">
             <Logo p={e.provider} size={14} /><span className="truncate">{e.text}</span>
           </motion.div>
@@ -342,8 +349,9 @@ export default function App() {
     const loop = (now: number) => {
       const dt = Math.max(0, Math.min(0.1, (now - last) / 1000)); last = now
       if (DBG.has('nosim') && clock.t > 8) { raf = requestAnimationFrame(loop); return }
-      clock.t += dt; acc += dt
-      if (acc >= 0.08) { useSim.setState({ t: clock.t }); acc = 0 }
+      if (!useLive.getState().freeze) clock.t += dt
+      acc += dt
+      if (acc >= 0.08) { useSim.setState({ t: clock.t, now: Date.now() }); acc = 0 }
       raf = requestAnimationFrame(loop)
     }
     raf = requestAnimationFrame(loop)

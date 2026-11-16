@@ -1,8 +1,10 @@
 import { create } from 'zustand'
+import { isLive, liveSession } from './live'
 
 /* ───────────── global clock + UI state ───────────── */
-type S = { t: number; sel: string | null; auto: boolean; hold: number }
-export const useSim = create<S>(() => ({ t: 0, sel: null, auto: true, hold: 0 }))
+type S = { t: number; now: number; sel: string | null; auto: boolean; hold: number }
+/** `now` is wall-clock time sampled once per tick, so selectors that use it stay pure */
+export const useSim = create<S>(() => ({ t: 0, now: Date.now(), sel: null, auto: true, hold: 0 }))
 /** continuous clock, advanced every frame (the store copy only ticks at 20 Hz) */
 export const clock = { t: 0 }
 
@@ -134,9 +136,12 @@ export function session(t: number, i: number, force = false) {
   return { i, qi, provider, q, ans, total, stage, typed, shown, mentioned, rank: rank + 1 }
 }
 export type Session = ReturnType<typeof session>
+/** the scripted session, or the real one when a live/replayed audit is on the canvas */
+export const sessionAny = (t: number, i: number, force = false, now = Date.now()): Session => (i < 12 && isLive() ? liveSession(i, now) : session(t, i, force))
 export const useSession = (i: number, force = false): Session => {
-  useSim((s) => { const x = session(s.t, i, force); return `${x.qi}|${x.stage}|${x.typed}|${x.shown}` })
-  return session(useSim.getState().t, i, force)
+  useSim((s) => { const x = sessionAny(s.t, i, force, s.now); return `${x.qi}|${x.stage}|${x.typed}|${x.shown}` })
+  const st = useSim.getState()
+  return sessionAny(st.t, i, force, st.now)
 }
 export const scoutName = (i: number) => `Scout-${String(i + 1).padStart(2, '0')}`
 

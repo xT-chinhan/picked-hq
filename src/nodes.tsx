@@ -9,6 +9,7 @@ import zalo from 'simple-icons/icons/zalo.svg'
 import gmaps from 'simple-icons/icons/googlemaps.svg'
 import Chat, { BRAND, Logo } from './Chat'
 import { ChartColumn, Inbox, Quote, ShieldX } from 'lucide-react'
+import { useLive } from './live'
 import {
   CHECKS, DIAG, DOCS, PH, QUESTIONS, RIVALS, SCORES, TOTAL_Q, ct, cyc, prog, scoreAt, scoutName, stagger,
   useP, usePhase, useSession, useSim, week, type Phase,
@@ -85,9 +86,14 @@ export function StoreNode() {
 
 /* ───────────── research ───────────── */
 export function PlannerNode() {
-  const p = useP('research', 200)
-  const n = Math.round(p * TOTAL_Q)
+  const pScript = useP('research', 200)
   const top = useSim((s) => Math.floor(s.t / 1.1))
+  const live = useLive((s) => s.mode !== 'script'), lq = useLive((s) => s.qs), lTotal = useLive((s) => s.total)
+  const doneN = lq.filter((x) => x.stage === 'done' || x.stage === 'error').length
+  const p = live ? (lTotal ? doneN / lTotal : 0) : pScript
+  const n = live ? doneN : Math.round(p * TOTAL_Q)
+  const denom = live ? lTotal : TOTAL_Q
+  const from = Math.max(0, Math.min(doneN - 2, lq.length - 11))
   return (
     <div className="card lyr flex h-full w-full flex-col p-4">
       <div className="flex items-center gap-2.5">
@@ -99,14 +105,17 @@ export function PlannerNode() {
           <circle cx="50" cy="50" r="44" fill="none" stroke="#eef0f6" strokeWidth="7" />
           <circle cx="50" cy="50" r="44" fill="none" stroke="#4f46e5" strokeWidth="7" strokeLinecap="round" strokeDasharray={276.5} strokeDashoffset={276.5 * (1 - p)} style={{ transition: 'stroke-dashoffset .4s linear' }} />
         </svg>
-        <div className="text-center"><div className="tnum text-[34px] font-semibold leading-none tracking-tight">{n}<span className="text-slate-300">/{TOTAL_Q}</span></div><div className="mt-1 text-[10.5px] font-medium uppercase tracking-[.12em] text-slate-400">questions</div></div>
+        <div className="text-center"><div className="tnum text-[34px] font-semibold leading-none tracking-tight">{n}<span className="text-slate-300">/{denom}</span></div><div className="mt-1 text-[10.5px] font-medium uppercase tracking-[.12em] text-slate-400">questions</div></div>
       </div>
       <div className="mt-5 flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden">
         {Array.from({ length: 11 }).map((_, k) => {
-          const q = QUESTIONS[(top + k) % QUESTIONS.length]
+          const lx = live ? lq[from + k] : null
+          const q = live ? lx?.q : QUESTIONS[(top + k) % QUESTIONS.length]
+          if (!q) return null
+          const fin = lx && (lx.stage === 'done' || lx.stage === 'error')
           return (
-            <div key={k} className="flex items-center gap-2 rounded-xl border border-slate-100 bg-slate-50/70 px-2.5 py-[7px] text-[11px] text-slate-600" style={{ opacity: 1 - k * 0.075 }}>
-              <MessageCircleQuestion size={13} className="shrink-0 text-indigo-500" /><span className="truncate">{q}</span>
+            <div key={k} className="flex items-center gap-2 rounded-xl border border-slate-100 bg-slate-50/70 px-2.5 py-[7px] text-[11px] text-slate-600" style={{ opacity: live ? (fin ? 0.65 : 1) : 1 - k * 0.075 }}>
+              {fin ? <Check size={13} strokeWidth={3} className="shrink-0 text-emerald-500" /> : lx?.stage === 'run' ? <Spin size={13} color="#4f46e5" /> : <MessageCircleQuestion size={13} className="shrink-0 text-indigo-500" />}<span className="truncate">{q}</span>
             </div>
           )
         })}
@@ -153,7 +162,15 @@ export function DiagNode({ data }: NodeProps<any>) {
   const ran = useRan('analysis')
   const w = useSim((s) => week(s.t))
   const lp = stagger(p, data.k, 4, 0.1)
-  const st = w >= d.okFrom ? 'ok' : d.key === 'Understood' || (d.key === 'Chosen' && w >= 3) ? 'warn' : 'bad'
+  const lv = useLive((s) => (s.mode !== 'script' ? s.summary : null))
+  const liveRows = lv && lv.answered ? [
+    { key: 'Named', rate: lv.mentioned / lv.answered, text: `In ${lv.mentioned} of ${lv.answered} answers` },
+    { key: 'Top 3', rate: lv.top3 / lv.answered, text: `Top 3 pick in ${lv.top3} answers` },
+    { key: 'First pick', rate: lv.first / lv.answered, text: `#1 pick in ${lv.first} answers` },
+    { key: 'Cited', rate: Math.min(1, (lv.sources[0]?.count || 0) / lv.answered * 3), text: lv.sources[0] ? `Top source: ${lv.sources[0].domain}` : 'No sources cited' },
+  ] : null
+  const lr = liveRows?.[data.k]
+  const st = lr ? (lr.rate >= 0.5 ? 'ok' : lr.rate >= 0.2 ? 'warn' : 'bad') : w >= d.okFrom ? 'ok' : d.key === 'Understood' || (d.key === 'Chosen' && w >= 3) ? 'warn' : 'bad'
   const C = { ok: ['#16a34a', '#ecfdf3', Check], warn: ['#d97706', '#fffbeb', Minus], bad: ['#dc2626', '#fef2f2', X] }[st] as any
   const I = C[2]
   const ready = lp >= 1
@@ -163,8 +180,8 @@ export function DiagNode({ data }: NodeProps<any>) {
         ? <div className="grid h-12 w-12 place-items-center rounded-2xl bg-violet-50"><Spin size={20} color="#7c3aed" /></div>
         : <div key={st} className="pop grid h-12 w-12 place-items-center rounded-2xl text-white" style={{ background: C[0] }}><I size={24} strokeWidth={3} /></div>}
       <div className="min-w-0 flex-1">
-        <div className="text-[16px] font-semibold tracking-tight">{d.key}</div>
-        {ready ? <div className="text-[11.5px] leading-snug text-slate-500">{st === 'ok' ? d.text : d.bad}</div> : <div className="sk mt-1.5 h-2.5 w-4/5" />}
+        <div className="text-[16px] font-semibold tracking-tight">{lr ? lr.key : d.key}</div>
+        {ready ? <div className="text-[11.5px] leading-snug text-slate-500">{lr ? lr.text : st === 'ok' ? d.text : d.bad}</div> : <div className="sk mt-1.5 h-2.5 w-4/5" />}
       </div>
       <Ports />
     </div>
@@ -172,8 +189,12 @@ export function DiagNode({ data }: NodeProps<any>) {
 }
 export function RivalsNode() {
   const p = useP('analysis', 50)
+  const lv = useLive((s) => (s.mode !== 'script' ? s.summary : null))
   const me = useSim((s) => scoreAt(s.t))
-  const rows = [...RIVALS.map((r) => ({ n: r.n, v: r.v, me: false })), { n: 'xT Store', v: me, me: true }]
+  const base = lv ? lv.total || TOTAL_Q : TOTAL_Q
+  const rows = lv
+    ? [...lv.competitors.slice(0, 3).map((c) => ({ n: c.name, v: c.count, me: false })), { n: lv.brand, v: lv.mentioned, me: true }]
+    : [...RIVALS.map((r) => ({ n: r.n, v: r.v, me: false })), { n: 'xT Store', v: me, me: true }]
   return (
     <div className="card h-full w-full p-4">
       <div className="text-[11px] font-semibold uppercase tracking-[.12em] text-slate-400">Who AI picks</div>
@@ -181,7 +202,7 @@ export function RivalsNode() {
         {rows.map((r, k) => (
           <div key={r.n}>
             <div className="flex items-baseline justify-between text-[13px]"><span className={r.me ? 'font-semibold text-rose-600' : 'font-medium text-slate-700'}>{r.n}</span><span className={`tnum font-semibold ${r.me ? 'text-rose-600' : 'text-indigo-600'}`}>{Math.round(r.v * Math.min(1, p * 1.4))}</span></div>
-            <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full" style={{ width: `${(r.v / TOTAL_Q) * 100 * Math.min(1, p * 1.4)}%`, background: r.me ? '#e11d48' : ['#4f46e5', '#6d73ee', '#a5b4fc'][k], transition: 'width .5s ease' }} /></div>
+            <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full" style={{ width: `${(r.v / base) * 100 * Math.min(1, p * 1.4)}%`, background: r.me ? '#e11d48' : ['#4f46e5', '#6d73ee', '#a5b4fc'][k], transition: 'width .5s ease' }} /></div>
           </div>
         ))}
       </div>
@@ -190,18 +211,20 @@ export function RivalsNode() {
   )
 }
 export function ShareNode() {
-  const me = useSim((s) => scoreAt(s.t))
-  const pct = Math.round((me / TOTAL_Q) * 100)
+  const lv = useLive((s) => (s.mode !== 'script' ? s.summary : null))
+  const meS = useSim((s) => scoreAt(s.t))
+  const me = lv ? lv.mentioned : meS, denom = lv ? lv.answered || lv.total || 1 : TOTAL_Q
+  const pct = Math.round((me / denom) * 100)
   return (
     <div className="card flex h-full w-full flex-col items-center justify-center p-4">
       <div className="relative grid h-[150px] w-[150px] place-items-center">
         <svg viewBox="0 0 100 100" className="absolute inset-0 -rotate-90">
           <circle cx="50" cy="50" r="42" fill="none" stroke="#f1f2f7" strokeWidth="10" />
-          <circle cx="50" cy="50" r="42" fill="none" stroke={pct >= 25 ? '#16a34a' : '#e11d48'} strokeWidth="10" strokeLinecap="round" strokeDasharray={263.9} strokeDashoffset={263.9 * (1 - me / TOTAL_Q)} style={{ transition: 'stroke-dashoffset 1s ease, stroke .6s' }} />
+          <circle cx="50" cy="50" r="42" fill="none" stroke={pct >= 25 ? '#16a34a' : '#e11d48'} strokeWidth="10" strokeLinecap="round" strokeDasharray={263.9} strokeDashoffset={263.9 * (1 - me / denom)} style={{ transition: 'stroke-dashoffset 1s ease, stroke .6s' }} />
         </svg>
         <div key={pct} className="pop tnum text-[40px] font-semibold tracking-tight">{pct}<span className="text-[20px] text-slate-400">%</span></div>
       </div>
-      <div className="mt-3 text-center text-[12.5px] leading-snug text-slate-500">of buyer questions<br />recommend xT Store</div>
+      <div className="mt-3 text-center text-[12.5px] leading-snug text-slate-500">of buyer questions<br />recommend {lv ? lv.brand : 'xT Store'}</div>
       <Ports />
     </div>
   )

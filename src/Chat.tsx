@@ -20,7 +20,7 @@ function Reveal({ a, n, live }: { a: Answer; n: number; live: boolean }) {
   let left = n
   const take = (s: string) => { const out = s.slice(0, Math.max(0, left)); left -= s.length; return out }
   const intro = take(a.intro)
-  const rows = a.items.map((it) => ({ it, name: take(it.name), reason: take(' · ' + it.reason) }))
+  const rows = a.items.map((it) => ({ it, name: take(it.name), reason: take(it.reason ? ' · ' + it.reason : '') }))
   const last = rows.findLastIndex((r) => r.name.length > 0)
   return (
     <>

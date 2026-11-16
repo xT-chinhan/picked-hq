@@ -32,6 +32,14 @@ The app is one live canvas where a company of agents runs a 96-second loop, from
 
 The loop runs by itself. Click any AI chat, agent or card to open it. Drag the canvas or use the top bar to jump to a department.
 
+## Live audit with real Gemini tabs
+
+The **Live audit** button in the top bar runs a real audit: it opens several anonymous Gemini tabs in parallel, asks 40 real buyer questions, reads each answer and its cited sources, and scores how often a brand is named and in which position. The canvas shows the real questions, answers and results.
+
+- **Run live** needs the local audit server and Chrome: `pnpm live` (server on :5198, app on :5199). A full 40-question audit takes about 3 minutes on 5 tabs.
+- **Replay** plays back a saved real run and re-scores its answers for any brand you type, so it also works online without a server. One real run is bundled in `public/runs/` (category: thermal lunch boxes, 40 questions).
+- Everything after the research step (content, QA, approval, publishing, tracking) is still the scripted showcase.
+
 ## Run locally
 
 Requires Node.js 22+ and pnpm.
@@ -66,15 +74,21 @@ src/
   nodes.tsx     department nodes (Research, Analysis, Content, QA, Approval, Publish, Track)
   flows.tsx     Signals, Citations, Channel Sync, Risk Gate, Zalo approval, Impact board
   Swarm.tsx     agent cursor swarm drawn on one canvas overlay
+  live.ts       real audit data (live server or saved run) feeding the canvas
+  LiveControl.tsx  the Live audit panel in the top bar
   fx.ts         flow-particle tracks along each edge
   Chat.tsx      miniature ChatGPT, Claude, Gemini and Perplexity windows
   sim.ts        scripted timeline, scores and content
   layout.ts     world coordinates and camera shots
+server/
+  index.mjs     audit API (SSE) on :5198
+  gemini.mjs    drives anonymous Gemini tabs with Playwright
+  audit.mjs     parallel runner, parse.mjs answer parser, questions.mjs buyer questions
 ```
 
 ## Notes
 
-- **Illustrative demo.** AI answers, shop names and metrics are scripted for the demo. The app does not call any AI API yet. The workflow, screens and approval step are what the MVP shows.
+- **Real versus scripted.** The Live audit and its bundled replay use real Gemini answers. Content drafts, QA, approval, publishing and the Impact board are still scripted for the demo, and the before/after figures are pilot targets, not measured results.
 - **Targets, not results.** Before and after figures are pilot targets, not measured results.
 - **Next steps.** Connect real AI queries, Zalo and Shopee data, and publishing.
 

@@ -2,7 +2,7 @@ import { memo, useEffect, useRef } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { useStoreApi } from '@xyflow/react'
 import { FileText, Lightbulb, Mail, MessageCircle, MessageCircleQuestion, RefreshCw, Send, ShieldCheck, ShieldX, Store, TrendingUp, X } from 'lucide-react'
-import { SCORES, clock, hash, phaseOf, scoreAt, scoutName, session, type Phase } from './sim'
+import { SCORES, clock, hash, phaseOf, scoreAt, scoutName, sessionAny, type Phase } from './sim'
 import * as L from './layout'
 import { rrect, setTrack, tracks, type Track } from './fx'
 
@@ -109,7 +109,7 @@ function carrier(k: number, t: number): Pose & { a: P; b: P } {
 }
 
 function scout(i: number, t: number): Pose & { key: string } {
-  const s = session(t, i), r = L.sess(i)
+  const s = sessionAny(t, i), r = L.sess(i)
   let p: P, mode = 'arrow'
   if (s.stage === 'boot') p = [r[0] + 125, r[1] + 140]
   else if (s.stage === 'type') { p = [r[0] + 36 + Math.min(150, s.typed * 4.3), r[1] + 220]; mode = 'text' }

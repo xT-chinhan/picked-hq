@@ -10,8 +10,9 @@ export async function launch({ headed = false } = {}) {
 }
 
 /** Opens a fresh anonymous Gemini chat in its own tab, asks one question, resolves with the finished answer. */
-export async function ask(ctx, q, { onPartial, timeoutMs = 85000 } = {}) {
+export async function ask(ctx, q, { onPartial, onPage, timeoutMs = 85000 } = {}) {
   const page = await ctx.newPage()
+  const registered = onPage?.(page) // lets the browser room watch this tab; unregistered in finally
   try {
     await page.goto('https://gemini.google.com/app', { waitUntil: 'domcontentloaded', timeout: 30000 })
     const box = page.locator(BOX).first()
@@ -43,5 +44,5 @@ export async function ask(ctx, q, { onPartial, timeoutMs = 85000 } = {}) {
       }
     })
     return { ...raw, ms: Date.now() - t0 }
-  } finally { await page.close().catch(() => {}) }
+  } finally { registered?.detach?.(); await page.close().catch(() => {}) }
 }

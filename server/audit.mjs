@@ -1,6 +1,7 @@
 import { launch, ask } from './gemini.mjs'
 import { buildQuestions } from './questions.mjs'
 import { parseAnswer, summarize } from './parse.mjs'
+import { hub } from './browserhub.mjs'
 
 /** Runs one audit: N anonymous Gemini tabs in parallel work through the question list. Emits events as it goes. */
 export async function runAudit({ brand, category, total = 40, tabs = 4, headed = false, signal }, emit) {
@@ -20,7 +21,7 @@ export async function runAudit({ brand, category, total = 40, tabs = 4, headed =
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
           let lastPartial = 0
-          const raw = await ask(ctx, questions[qi], { onPartial: (text) => { if (Date.now() - lastPartial > 900) { lastPartial = Date.now(); emit({ type: 'q.partial', qi, text }) } } })
+          const raw = await ask(ctx, questions[qi], { onPage: (page) => hub.attach(`g${slot + 1}`, page, { kind: 'gemini', q: questions[qi] }), onPartial: (text) => { if (Date.now() - lastPartial > 900) { lastPartial = Date.now(); emit({ type: 'q.partial', qi, text }) } } })
           const parsed = parseAnswer(raw, brand)
           results[qi] = { qi, q: questions[qi], text: raw.text, ms: raw.ms, ...parsed }
           emit({ type: 'q.done', ...results[qi] })

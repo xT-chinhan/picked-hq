@@ -14,6 +14,7 @@ import { resume, useLive } from './live'
 import SystemOne, { setNav, useKeys } from './SystemOne'
 import { watchEdge } from './edge'
 import { Workspace } from './Workspace'
+import { BrowserPanel } from './BrowserPanel'
 import { Dock, EdgeNotice, Info, Presenter, ScoreBoard, Stamp, Team, Wake } from './Stage'
 
 
@@ -355,7 +356,7 @@ function Stage() {
         <Feed />
         <Caption />
         <Inspector />
-        <ScoreBoard /><Stamp /><Team /><Workspace /><Presenter /><SystemOne /><Info /><Dock /><EdgeNotice /><Wake />
+        <ScoreBoard /><Stamp /><Team /><Workspace /><BrowserPanel /><Presenter /><SystemOne /><Info /><Dock /><EdgeNotice /><Wake />
         <div className="pointer-events-none absolute bottom-[62px] right-5 z-10 text-[10px] font-semibold uppercase tracking-[.16em] text-slate-400">AI for Business Innovation 2026</div>
       </div>
     </div>

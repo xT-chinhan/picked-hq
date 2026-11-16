@@ -7,6 +7,7 @@ import { CYCLE, LIVE_ORDER, ORDER, PH, clock, cyc, phaseOf, type Phase } from '.
 import { lget, replayRun, startLive, stopLive } from './live'
 import { OFFLINE_MSG, probe } from './edge'
 import { useWork } from './Workspace'
+import { openPage, reviewTab, useBrowser } from './BrowserPanel'
 
 /* NaN: the operator chat. Familiar commands are matched by rules in the browser (instant);
    anything else goes to the local LLM, which answers with a reply plus a list of real actions. */
@@ -15,7 +16,7 @@ export type Prompt = { role: string; context: string; task: string; constraints:
 type Tr = { src: string; en: string; ms: number; provider: string; refined?: boolean }
 type Step = { t: string; done: boolean }
 export type Msg = { id: number; who: 'me' | 'one'; text: string; busy?: boolean; steps?: Step[]; tr?: Tr; pr?: Prompt & { by: 'rules' | 'llm' }; card?: any }
-type Act = { type: string; brand?: string; website?: string; q?: string; phase?: Phase; fresh?: boolean }
+type Act = { type: string; brand?: string; website?: string; q?: string; phase?: Phase; fresh?: boolean; url?: string; review?: boolean }
 
 export const useOne = create<{ open: boolean; msgs: Msg[]; team: boolean; presenter: boolean; info: boolean }>(() => ({ open: false, msgs: [], team: false, presenter: false, info: false }))
 let mid = 0
@@ -67,6 +68,7 @@ export function intent(raw: string): Act | null {
   const n = plain(raw)
   let m: RegExpMatchArray | null
   if ((m = raw.match(/^\s*(?:ask|hỏi|hoi)(?:\s+gemini)?\s*[:,]?\s+(.{6,})$/i))) return { type: 'ask', q: m[1].trim() }
+  if ((m = raw.match(/(?:mở|mo|open|xem|review|rà soát|ra soat|kiểm tra|kiem tra|check|browse|duyệt|truy cập|vào)\s+(?:trang\s+|page\s+|website\s+|site\s+)?((?:https?:\/\/)?(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/\S*)?)/i))) return { type: 'browse', url: m[1], review: /review|rà soát|ra soat|kiểm tra|kiem tra|check|đánh giá|danh gia/i.test(raw) }
   if (/^(stop|dung|thoat|exit|quay lai demo|back to (the )?demo)/.test(n)) return { type: 'stop' }
   if (/^(help|giup|lenh|commands?|\?)$/.test(n) || /(lam duoc gi|what can you do)/.test(n)) return { type: 'help' }
   if (/(toan canh|toan cong ty|whole company|overview|tong quan)/.test(n)) return { type: 'overview' }
@@ -117,6 +119,15 @@ async function exec(a: Act, vi: boolean, id: number): Promise<{ text: string; ca
     case 'goto': if (!a.phase) break; jump(a.phase); return { text: T(`Đã chuyển tới phòng ${NAME[a.phase]}.`, `Moved to ${NAME[a.phase]}.`) }
     case 'overview': nav.overview(); return { text: T('Đây là toàn cảnh công ty.', 'Here is the whole company.') }
     case 'stop': stopLive(); return { text: T('Đã quay về vòng demo.', 'Back to the demo loop.') }
+    case 'browse': {
+      if (!a.url) break
+      step(id, T('Mở trang trong trình duyệt của agent', 'Opening the page in the agent browser'))
+      const tab = await openPage(a.url)
+      if (!a.review) return { text: T(`Đã mở ${a.url}. Bạn xem trực tiếp ở bảng Browser.`, `Opened ${a.url}. Watch it live in the Browser panel.`) }
+      step(id, T('Đọc trang và chấm theo tiêu chí AI đọc được', 'Reading the page and scoring how readable it is for AI'))
+      const r = await reviewTab(tab); useBrowser.setState({ review: r })
+      return { text: `${a.url}: ${r.summary}` }
+    }
     case 'explain': return { text: explain(vi) }
     case 'help': return { text: T('Lệnh: audit <thương hiệu> · replay <thương hiệu> · hỏi: <câu hỏi cho Gemini> · hồ sơ <thương hiệu> · đến phòng <tên> · duyệt / từ chối · mở shop · giải thích · toàn cảnh · dừng. Câu hỏi tự do cũng được.', 'Commands: audit <brand> · replay <brand> · ask: <question for Gemini> · profile <brand> · go to <department> · approve / reject · open shop · explain · overview · stop. Free-form questions work too.') }
     case 'rivals': { const r = snap().rivals; return { text: r.length ? T(`Được Gemini nhắc nhiều nhất: ${r.map((x) => `${x.name} (${x.count})`).join(', ')}.`, `Named most by Gemini: ${r.map((x) => `${x.name} (${x.count})`).join(', ')}.`) : T('Chưa có dữ liệu thật trên màn hình. Gõ "replay Elmich" hoặc "audit Elmich".', 'No real data on screen yet. Type "replay Elmich" or "audit Elmich".') } }
@@ -324,6 +335,7 @@ export function useKeys() {
       else if (e.key === 'Escape') useOne.setState({ open: false, info: false })
       else if (k === 't') useOne.setState({ team: !o.team })
       else if (k === 'w') useWork.setState((x) => ({ open: !x.open }))
+      else if (k === 'b') useBrowser.setState((x) => ({ open: !x.open, control: false }))
       else if (k === 'p') useOne.setState({ presenter: !o.presenter })
       else if (k === 'i' || e.key === '?') useOne.setState({ info: !o.info })
       else if (k === 'o') nav.overview()

@@ -7,6 +7,7 @@ import { useLive } from './live'
 import { jump, snap, useOne } from './SystemOne'
 import { OFFLINE_MSG, useEdge } from './edge'
 import { useNeeds, useWork, useWorkPoll } from './Workspace'
+import { useBrowser } from './BrowserPanel'
 import { shortEngine, useCompany, useCompanyPoll, type AgentInfo } from './company'
 
 /* Stage overlays: the opening, the scoreboard, the approval stamp, the agent team, presenter notes and the Q&A sheet. */
@@ -289,7 +290,7 @@ export function Info() {
 /* ───────────── dock ───────────── */
 export function Dock() {
   const o = useOne()
-  const w = useWork((s) => s.open), need = useNeeds()
+  const w = useWork((s) => s.open), need = useNeeds(), br = useBrowser((s) => s.open)
   useWorkPoll()
   const B = ({ k, label, on, go, main }: { k: string; label: string; on: boolean; go: () => void; main?: boolean }) => (
     <button onClick={go} className={`flex h-9 items-center gap-1.5 rounded-full px-3 text-[12.5px] font-semibold shadow-[0_10px_26px_-14px_rgba(15,23,42,.5)] transition-colors ${main ? 'bg-gradient-to-br from-indigo-500 to-violet-600 text-white' : on ? 'bg-slate-900 text-white' : 'border border-slate-200 bg-white text-slate-600 hover:text-slate-900'}`}>
@@ -299,6 +300,7 @@ export function Dock() {
   return (
     <div className="absolute bottom-5 right-5 z-30 flex items-center gap-1.5">
       <button onClick={() => useWork.setState({ open: !w })} className={`relative flex h-9 items-center gap-1.5 rounded-full px-3 text-[12.5px] font-semibold shadow-[0_10px_26px_-14px_rgba(15,23,42,.5)] transition-colors ${w ? 'bg-slate-900 text-white' : 'border border-slate-200 bg-white text-slate-600 hover:text-slate-900'}`}>Inbox<kbd className={`rounded px-1 text-[10px] font-bold ${w ? 'bg-white/20' : 'bg-slate-100 text-slate-400'}`}>W</kbd>{need > 0 && <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white">{need}</span>}</button>
+      <B k="B" label="Browser" on={br} go={() => useBrowser.setState({ open: !br, control: false })} />
       <B k="T" label="Team" on={o.team} go={() => useOne.setState({ team: !o.team })} />
       <B k="I" label="Q&A" on={o.info} go={() => useOne.setState({ info: !o.info })} />
       <B k="P" label="Presenter" on={o.presenter} go={() => useOne.setState({ presenter: !o.presenter })} />

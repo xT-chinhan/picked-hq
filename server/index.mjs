@@ -9,6 +9,8 @@ import { BRANDS, CATEGORY, findBrand } from './directory.mjs'
 import { createRoutines } from './routines.mjs'
 import { roster, lockSouls } from './agents.mjs'
 import { ledger } from './engines.mjs'
+import { probeLlmsTxt, reviewPage } from './pagereview.mjs'
+import { hub } from './browserhub.mjs'
 
 const PORT = +process.env.PICKED_PORT || 5198
 const DATA = process.env.PICKED_DATA_DIR || path.join(import.meta.dirname, 'data')
@@ -122,6 +124,29 @@ http.createServer(async (req, res) => {
       run.clients.add(res); req.on('close', () => run.clients.delete(res)); return
     }
     if ((m = p.match(/^\/api\/audit\/([\w-]+)\/stop$/)) && req.method === 'POST') { const r = live.get(m[1]); if (r) stopRun(r); return json(res, 200, { ok: true }) }
+    if (p === '/api/browser/tabs' && req.method === 'GET') return json(res, 200, { tabs: hub.list().filter((t) => local || t.kind === 'gemini') })
+    if (p === '/api/browser/stream' && req.method === 'GET') {
+      const tab = u.searchParams.get('tab') || ''
+      // the public address may watch the Gemini tabs of an audit, but never a page NaN opened, and never type into anything
+      if (viaTunnel && tab && hub.list().find((t) => t.id === tab)?.kind !== 'gemini') return json(res, 403, { error: 'local only' })
+      res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' })
+      const off = hub.watch(res, tab); req.on('close', off); return
+    }
+    if (p.startsWith('/api/browser/') && req.method !== 'GET') {
+      if (!local) return json(res, 403, { error: 'local only' })
+      try {
+        let mm
+        if (p === '/api/browser/open' && req.method === 'POST') { const b = await body(req); return json(res, 200, { id: await hub.openWeb(String(b.url || '')) }) }
+        if ((mm = p.match(/^\/api\/browser\/([\w-]+)\/input$/)) && req.method === 'POST') return json(res, 200, await hub.input(mm[1], await body(req)))
+        if ((mm = p.match(/^\/api\/browser\/([\w-]+)\/review$/)) && req.method === 'POST') { const page = await hub.read(mm[1]); return json(res, 200, { page: { url: page.url, title: page.title, schemaTypes: page.schemaTypes, hasFaq: page.hasFaq }, ...reviewPage(page, { llms: await probeLlmsTxt(page.url) }) }) }
+        if ((mm = p.match(/^\/api\/browser\/([\w-]+)$/)) && req.method === 'DELETE') return json(res, (await hub.closeTab(mm[1])) ? 200 : 404, { ok: true })
+      } catch (e) { return json(res, 400, { error: String(e.message || e) }) }
+    }
+    if (p === '/api/page/review' && req.method === 'POST') {
+      const page = (await body(req)).page
+      if (!page || typeof page !== 'object') return json(res, 400, { error: 'page is required' })
+      return json(res, 200, reviewPage(page, { llms: await probeLlmsTxt(page.url) }))
+    }
     if (p === '/api/agents' && req.method === 'GET') return json(res, 200, { agents: roster() })
     if (p === '/api/agents/lock' && req.method === 'POST') { if (viaTunnel) return json(res, 403, { error: 'local only' }); lockSouls(); return json(res, 200, { agents: roster() }) }
     if (p === '/api/engines' && req.method === 'GET') return json(res, 200, ledger())

@@ -108,7 +108,7 @@ function ExtensionBridge({ url }: { url: string }) {
         <span className="grid h-12 w-12 flex-none place-items-center rounded-2xl bg-white text-ink ring-1 ring-line"><Chrome size={24} /></span>
         <div className="min-w-0 flex-1">
           <div className="text-[21px] font-semibold tracking-[-0.025em] text-ink">{host} turns our robot away</div>
-          <p className="mt-1 text-[15.5px] leading-snug text-mute">We do not disguise ourselves to get past a block. Open the page in <b className="font-semibold text-ink">your own Chrome</b> instead: the NaN extension reads what you can see, and the review appears here.</p>
+          <p className="mt-1 text-[15.5px] leading-snug text-mute">Open it in <b className="font-semibold text-ink">your own Chrome</b>: the NaN extension reads what you see.</p>
           <ol className="mt-3 space-y-1.5 text-[15px] text-ink">
             {['Open the site in your Chrome', 'Click the NaN extension, then “Review this page”', 'The score and checks land in this chat'].map((t, i) => <li key={t} className="flex items-center gap-2.5"><span className="grid h-6 w-6 flex-none place-items-center rounded-full bg-white text-[13px] font-bold text-ink ring-1 ring-line">{i + 1}</span>{t}</li>)}
           </ol>

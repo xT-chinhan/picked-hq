@@ -13,12 +13,14 @@ import { useChat } from './chat'
    text is typed into the real inputs, and every job it starts is the real job (one at a time, it waits for each to finish).
    Escape or Stop ends it at once. */
 type Cur = { x: number; y: number; on: boolean; down: boolean }
-export const useDemo = create<{ panel: boolean; running: boolean; scene: string; caption: string; cur: Cur; picked: Record<string, boolean>; err: string }>(() => ({ panel: false, running: false, scene: '', caption: '', cur: { x: 0, y: 0, on: false, down: false }, picked: {}, err: '' }))
+export const useDemo = create<{ panel: boolean; running: boolean; scene: string; caption: string; cur: Cur; picked: Record<string, boolean>; err: string; slow: boolean; clean: boolean }>(() => ({ panel: false, running: false, scene: '', caption: '', cur: { x: 0, y: 0, on: false, down: false }, picked: {}, err: '', slow: false, clean: false }))
 const set = useDemo.setState
 let abort = false
 class Stopped extends Error {}
 
-const sleep = (ms: number) => new Promise<void>((res, rej) => { const t0 = Date.now(); const id = setInterval(() => { if (abort) { clearInterval(id); rej(new Stopped()) } else if (Date.now() - t0 >= ms) { clearInterval(id); res() } }, 40) })
+const nap = (ms: number) => new Promise<void>((res, rej) => { const t0 = Date.now(); const id = setInterval(() => { if (abort) { clearInterval(id); rej(new Stopped()) } else if (Date.now() - t0 >= ms) { clearInterval(id); res() } }, 40) })
+/** Pauses for the presenter's rhythm: “slow” mode (for recording a video) stretches every pause by 1.7. Waiting for a real job is never stretched. */
+const sleep = (ms: number) => nap(useDemo.getState().slow ? ms * 1.7 : ms)
 const shown = (e: Element | null | undefined): e is HTMLElement => !!e && (e as HTMLElement).getClientRects().length > 0 && getComputedStyle(e).visibility !== 'hidden'
 type Target = string | (() => Element | null | undefined)
 function find(t: Target): HTMLElement | null {
@@ -30,21 +32,21 @@ function find(t: Target): HTMLElement | null {
   const all = [...document.querySelectorAll<HTMLElement>(t)].filter(shown)
   return all[all.length - 1] ?? null
 }
-async function el(t: Target, timeout = 15000) { const t0 = Date.now(); for (;;) { const e = find(t); if (e) return e; if (Date.now() - t0 > timeout) throw new Error(`Could not find ${typeof t === 'string' ? t.replace('text=', '“') + (t.startsWith('text=') ? '”' : '') : 'the control'} on screen.`); await sleep(150) } }
-async function point(e: HTMLElement) { e.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); await sleep(250); const r = e.getBoundingClientRect(); set((s) => ({ cur: { ...s.cur, on: true, x: r.left + Math.min(r.width / 2, 60), y: r.top + r.height / 2 } })); await sleep(650) }
+async function el(t: Target, timeout = 15000) { const t0 = Date.now(); for (;;) { const e = find(t); if (e) return e; if (Date.now() - t0 > timeout) throw new Error(`Could not find ${typeof t === 'string' ? t.replace('text=', '“') + (t.startsWith('text=') ? '”' : '') : 'the control'} on screen.`); await nap(150) } }
+async function point(e: HTMLElement) { e.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); await sleep(250); const r = e.getBoundingClientRect(); set((s) => ({ cur: { ...s.cur, on: true, x: r.left + Math.min(r.width / 2, 60), y: r.top + r.height / 2 } })); await sleep(820) }
 async function click(t: Target, timeout?: number) { const e = await el(t, timeout); await point(e); set((s) => ({ cur: { ...s.cur, down: true } })); await sleep(130); e.click(); set((s) => ({ cur: { ...s.cur, down: false } })); await sleep(450) }
 async function type(t: Target, text: string, { enter = false, clear = true } = {}) {
   const e = (await el(t)) as HTMLInputElement | HTMLTextAreaElement; await point(e); e.focus()
   const setter = Object.getOwnPropertyDescriptor(e instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype, 'value')!.set!
   const put = (v: string) => { setter.call(e, v); e.dispatchEvent(new Event('input', { bubbles: true })) }
   if (clear) put('')
-  for (const ch of text) { put(e.value + ch); await sleep(22 + Math.random() * 30) }
+  for (const ch of text) { put(e.value + ch); await nap((useDemo.getState().slow ? 55 : 30) + Math.random() * 28) }
   await sleep(350)
   if (enter) { const f = e.closest('form'); if (f) f.requestSubmit(); else e.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })) ; await sleep(400) }
 }
 async function until(p: string | (() => boolean), timeout = 60000, what = '') {
   const t0 = Date.now(), want = typeof p === 'string' ? p.toLowerCase() : '', ok = typeof p === 'string' ? () => document.body.innerText.toLowerCase().includes(want) : p // headings are upper-cased by CSS, and innerText follows it
-  for (;;) { if (ok()) return; if (Date.now() - t0 > timeout) throw new Error(`Waited ${Math.round(timeout / 1000)} s for ${what || (typeof p === 'string' ? `“${p}”` : 'the job')}; it did not finish.`); await sleep(400) }
+  for (;;) { if (ok()) return; if (Date.now() - t0 > timeout) throw new Error(`Waited ${Math.round(timeout / 1000)} s for ${what || (typeof p === 'string' ? `“${p}”` : 'the job')}; it did not finish.`); await nap(400) }
 }
 const say = async (text: string, ms = 0) => { set({ caption: text }); if (ms) await sleep(ms) }
 const chatBox = () => document.querySelector<HTMLElement>('main section .overflow-y-auto')
@@ -113,6 +115,43 @@ export const SCENES: Scene[] = [
     await say('What this work costs through an agency, set against the times measured on this machine.'); await glide(400); await sleep(2500)
     await type('input[aria-label="Hourly rate in US dollars"]', '20'); await say('Change the rate or the hours to match a real quote: the totals follow.', 3500)
   } },
+  { id: 'audit', title: 'Audit a brand (in the chat)', about: 'Stages tick off live; the run stops at the owner approval', mins: '1.5', run: async () => {
+    await ask('Audit Elmich'); await say('A full audit of Elmich: 40 saved Gemini answers re-scored, then analysis, the website, facts, content and the council.')
+    await until(() => { const L = useLive.getState(); return L.status !== 'running' || L.approval?.status === 'pending' }, 240000, 'the audit')
+    await say('It stops at the owner’s approval: nothing is published without it.', 4500)
+    await stopLive(); await sleep(600)
+  } },
+  { id: 'sidebar', title: 'Search and collapse the team list', about: 'Find an agent, fold the sidebar, open it again', mins: '0.4', run: async () => {
+    await office(); await type('aside input[placeholder="Search"]', 'quinn'); await say('Search finds an agent at once.', 2200)
+    await click('aside button:has(svg.lucide-x)').catch(() => {}); await sleep(500)
+    await click('button[title="Collapse"]'); await say('The list folds into faces, leaving room for the work.', 2800)
+    await click('button[title="Expand"]'); await sleep(900)
+  } },
+  { id: 'edit', title: 'Edit, clear and delete an agent', about: 'The per-agent menu on hover', mins: '0.7', run: async () => {
+    await office()
+    const kim = () => [...document.querySelectorAll<HTMLElement>('aside button')].find((b) => b.innerText.trim().startsWith('Kim'))
+    if (!kim()) { await say('No custom agent yet: play “New agent” first.', 3500); return }
+    await click(kim()!.parentElement!.querySelector('button[aria-label^="Options"]') as HTMLElement | null ? () => kim()!.parentElement!.querySelector('button[aria-label^="Options"]') : 'text=Kim'); await say('Hover an agent for its menu: clear the conversation or delete the agent.', 3200)
+    esc(); await sleep(400)
+  } },
+  { id: 'signin', title: 'Sign in to read a social page', about: 'The owner signs in; the agent reads only after approval', mins: '1.2', run: async () => {
+    await ask('GEO for locknlock.vn'); await until('These are mine', 60000, 'the places'); await sleep(1500)
+    await say('A social page can be read from the owner’s own signed-in profile.')
+    await click(() => [...document.querySelectorAll<HTMLElement>('main div')].find((d) => /^Youtube/i.test(d.innerText.trim()) && d.querySelector('button'))?.querySelector('button:not([type=button]):last-of-type, button'))
+    await sleep(2500); await say('Signing in happens on the right, in the real page. Picked never sees the password.', 3500)
+    await click('text=Approve and read'); await until('Read: ', 60000, 'the read'); await say('Read only, and only after approval. Sign out deletes the profile.', 3500)
+  } },
+  { id: 'plan', title: 'Approve the plan: the team starts', about: 'One approval starts the audit and schedules the weekly re-measure', mins: '2', run: async () => {
+    await ask('GEO for elmich.vn'); await until('These are mine', 60000, 'the places'); await sleep(1200); await click('text=These are mine, check them')
+    await until('The plan', 60000, 'the plan'); await show('The plan'); await say('Ten steps: who does what, and which ones wait for the owner.', 3500)
+    await type('input[placeholder^="e.g."]', 'hộp cơm giữ nhiệt'); await click('text=Approve the plan and start'); await say('One approval: the audit starts and the weekly re-measure is scheduled.')
+    await until('Plan started', 30000); await sleep(4500)
+    const st = await fetch('/api/status').then((r) => r.json()).catch(() => null)
+    if (st?.running?.id) await fetch(`/api/audit/${st.running.id}/stop`, { method: 'POST' }).catch(() => {})
+    const rts = await fetch('/api/routines').then((r) => r.json()).catch(() => ({ routines: [] }))
+    for (const r of rts.routines ?? []) if (/weekly re-measure/.test(r.title)) await fetch(`/api/routines/${r.id}`, { method: 'DELETE' }).catch(() => {})
+    await say('(Demo only: the run and the schedule were cleaned up.)', 2500)
+  } },
   { id: 'workflow', title: 'Workflow: audit a brand', about: 'The animated company, then a real audit on the canvas', mins: '2', run: async () => {
     await say('The workflow view: the whole company at work. First the animated walkthrough…', 1500)
     ;(window as any).__picked_workflow?.(); await sleep(20000)
@@ -144,6 +183,8 @@ export async function play(ids: string[]) {
   set({ running: false, scene: '', caption: '', cur: { x: 0, y: 0, on: false, down: false } })
 }
 export const stop = () => { abort = true }
+/** One ▶ button anywhere in the app: closes whatever is open and plays that scene. */
+export const playScene = (id: string) => { useDemo.setState({ panel: false }); return play([id]) }
 
 export function Demo() {
   const d = useDemo()
@@ -168,6 +209,10 @@ export function Demo() {
                   </div>
                 ))}
               </div>
+              <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-[14.5px] text-ink">
+                <label className="flex items-center gap-2"><input type="checkbox" checked={d.slow} onChange={(e) => set({ slow: e.target.checked })} className="h-4 w-4 accent-[#111112]" />Slow pace (for recording a video)</label>
+                <label className="flex items-center gap-2"><input type="checkbox" checked={d.clean} onChange={(e) => set({ clean: e.target.checked })} className="h-4 w-4 accent-[#111112]" />Hide the control bar</label>
+              </div>
               <div className="mt-4 flex items-center gap-3">
                 <button onClick={() => void play(SCENES.filter((s) => picked(s.id)).map((s) => s.id))} className="flex h-11 items-center gap-2 rounded-full bg-accent px-5 text-[15.5px] font-semibold text-white hover:bg-[#0057b8]"><Play size={16} />Play {SCENES.filter((s) => picked(s.id)).length === SCENES.length ? 'everything' : 'the selected scenes'}</button>
                 <span className="text-[13.5px] text-faint">about {SCENES.filter((s) => picked(s.id)).reduce((n, s) => n + Number(s.mins), 0).toFixed(0)} min with real jobs</span>
@@ -178,15 +223,15 @@ export function Demo() {
       </AnimatePresence>
       {d.running && (
         <>
-          <div className="pointer-events-auto fixed left-1/2 top-3 z-[9998] flex -translate-x-1/2 items-center gap-3 rounded-full bg-ink py-1.5 pl-4 pr-1.5 text-[14px] text-white shadow-[0_14px_40px_-18px_rgba(0,0,0,.6)]">
+          <div className={`pointer-events-auto fixed left-1/2 top-3 z-[9998] flex -translate-x-1/2 items-center gap-3 rounded-full bg-ink py-1.5 pl-4 pr-1.5 text-[14px] text-white shadow-[0_14px_40px_-18px_rgba(0,0,0,.6)] transition-opacity ${d.clean ? "opacity-0 hover:opacity-100" : ""}`}>
             <span className="h-2 w-2 animate-pulse rounded-full bg-[#4da3ff]" /><span className="font-semibold">Autopilot</span><span className="text-white/70">{d.scene}</span>
             <button onClick={stop} className="flex h-8 items-center gap-1.5 rounded-full bg-white/15 px-3 font-semibold hover:bg-white/25"><Square size={12} fill="currentColor" />Stop</button>
           </div>
-          <AnimatePresence mode="wait">{d.caption && <motion.div key={d.caption} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="pointer-events-none fixed bottom-[128px] left-1/2 z-[9998] max-w-[min(760px,90vw)] -translate-x-1/2 rounded-2xl bg-ink/90 px-5 py-3 text-center text-[17px] leading-snug text-white shadow-[0_20px_50px_-20px_rgba(0,0,0,.6)]">{d.caption}</motion.div>}</AnimatePresence>
-          {d.cur.on && <div className="pointer-events-none fixed left-0 top-0 z-[9999] transition-transform duration-[600ms] ease-[cubic-bezier(.2,.8,.2,1)]" style={{ transform: `translate(${d.cur.x}px, ${d.cur.y}px)` }}>
+          <AnimatePresence mode="wait">{d.caption && <motion.div key={d.caption} initial={{ opacity: 0, y: 12, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6 }} transition={{ type: 'spring', stiffness: 220, damping: 26 }} className="pointer-events-none fixed bottom-[128px] left-1/2 z-[9998] max-w-[min(760px,90vw)] -translate-x-1/2 rounded-2xl bg-ink/90 px-5 py-3 text-center text-[17px] leading-snug text-white shadow-[0_20px_50px_-20px_rgba(0,0,0,.6)]">{d.caption}</motion.div>}</AnimatePresence>
+          {d.cur.on && <motion.div className="pointer-events-none fixed left-0 top-0 z-[9999]" animate={{ x: d.cur.x, y: d.cur.y }} transition={{ type: 'spring', stiffness: 85, damping: 17, mass: 0.9 }}>
             <MousePointer2 size={30} className="-translate-x-1 -translate-y-1 fill-ink text-white drop-shadow-[0_3px_6px_rgba(0,0,0,.35)]" strokeWidth={1.5} />
-            <span className={`absolute -left-3 -top-3 h-8 w-8 rounded-full bg-accent/40 transition-transform duration-200 ${d.cur.down ? 'scale-100' : 'scale-0'}`} />
-          </div>}
+            <motion.span className="absolute -left-3 -top-3 h-8 w-8 rounded-full bg-accent/40" animate={{ scale: d.cur.down ? 1 : 0, opacity: d.cur.down ? 1 : 0 }} transition={{ duration: 0.18 }} />
+          </motion.div>}
         </>
       )}
     </>

@@ -59,13 +59,7 @@ export function CostCard() {
         <div className="flex items-center gap-3 border-t border-line bg-surface px-4 py-3 text-[15px]"><span className="font-semibold text-ink">Hourly rate</span><span className="text-mute">$</span><input type="number" min={1} max={500} value={rate} onChange={(e) => setRate(Math.max(1, Number(e.target.value) || 1))} aria-label="Hourly rate in US dollars" className="tnum h-9 w-24 rounded-xl border border-line bg-white px-2 text-right text-ink outline-none focus:border-faint" /><span className="text-mute">per hour, for both sides</span></div>
       </div>
 
-      <div className="flex gap-3 rounded-[20px] bg-surface p-4 text-[14.5px] leading-snug text-mute">
-        <Info size={18} className="mt-0.5 flex-none text-faint" />
-        <div>
-          <p><b className="font-semibold text-ink">What is measured:</b> Picked's times are medians of runs saved on this machine ({m ? `${m.xray.n} site X-rays, ${m.audit.n} full audits of ${m.audit.questions} questions` : '…'}). <b className="font-semibold text-ink">What is assumed:</b> the agency hours and the hourly rate; change them to match a quote you have received.</p>
-          <p className="mt-1.5"><b className="font-semibold text-ink">What still needs a person:</b> you approve what gets published, and link-building, PR and brand strategy are not in this comparison.</p>
-        </div>
-      </div>
+      <div className="flex gap-3 rounded-[20px] bg-surface p-4 text-[14px] leading-snug text-mute"><Info size={17} className="mt-0.5 flex-none text-faint" /><p><b className="font-semibold text-ink">Measured:</b> Picked’s times ({m ? `${m.xray.n} X-rays, ${m.audit.n} audits` : '…'}). <b className="font-semibold text-ink">Assumed:</b> agency hours and rate: change them. Link-building and PR are not included.</p></div>
     </div>
   )
 }

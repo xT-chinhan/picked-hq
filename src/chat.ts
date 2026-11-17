@@ -32,7 +32,8 @@ const asPerson = (b: Bot): Person => ({ id: b.id, name: b.name, role: b.role, av
 export const personOf = (id: string) => (id === 'me' ? null : PEOPLE.find((p) => p.id === id) ?? (botOf(id) ? asPerson(botOf(id)!) : TEAM[0]))
 const serverId = (id: string) => (id.startsWith('scout') ? 'scout' : isCustom(id) ? 'custom' : id)
 export const ENGINE: Record<string, string> = { nan: 'Claude Opus 5.5', lia: 'Gemini 3.8', mina: 'Gemini 3.8', scout1: 'Gemini tabs', ana: 'Gemini 4', sy: 'Gemini 4', mira: 'Sonnet 5.5', theo: 'Gemini 4', quinn: 'Council of 3 models', rhea: 'Fixed rules', pax: 'Fixed rules', tara: 'Scheduler' }
-export const STARTERS: Record<string, string[]> = {
+export const STARTERS: Record<string, string[]> = { // shown only on an empty conversation, three at most
+
   all: ['This is my store: locknlock.vn, do GEO for it', 'Analyze highlandscoffee.com.vn', 'Audit Elmich, quick', 'How much does this save versus an SEO agency?', 'Ask Gemini: nồi chiên không dầu loại nào tốt?', 'Open elmich.vn and review it'],
   nan: ['Analyze elmich.vn', 'Audit Elmich, quick', 'What can you do?', 'Explain what is on screen'],
   lia: ['Translate: tôi muốn bán nồi cơm điện', 'Restore diacritics: noi com dien tu'],
@@ -47,10 +48,7 @@ export const STARTERS: Record<string, string[]> = {
   pax: ['What gets published?', 'Open the shop page'],
   tara: ['What do you track?', 'When do you re-measure?'],
 }
-const GREET: Record<string, string> = {
-  all: 'Everyone is here. Ask anything about SEO or AI recommendations, or give a real job: NaN hands it to the right colleague and you watch it run.',
-  nan: 'I route your requests to the team and run real jobs: site X-rays, audits, Gemini questions, browser reviews, connected apps.',
-}
+const GREET: Record<string, string> = { all: 'Ask anything, or give the team a job.', nan: 'I route your requests and run real jobs.' }
 
 const KEY = 'picked.chat.v2'
 const load = (): Record<string, CMsg[]> => {
@@ -64,7 +62,7 @@ export const patch = (thread: string, id: number, p: Partial<CMsg>) => { useChat
 /** Empties one conversation (the agent stays). Jobs already running keep running; only the messages go. */
 export function clearThread(id: string) { useChat.setState((s) => { const t = { ...s.threads }; delete t[id]; const l = { ...s.last }; delete l[id]; return { threads: t, last: l } }); save() }
 export const drop = (thread: string, id: number) => { useChat.setState((s) => ({ threads: { ...s.threads, [thread]: (s.threads[thread] ?? []).filter((m) => m.id !== id) } })); save() }
-export const greeting = (thread: string) => GREET[thread] ?? botOf(thread)?.greeting ?? `${personOf(thread)?.line ?? 'Hello.'} Ask me anything in my field, or give me a real job.`
+export const greeting = (thread: string) => GREET[thread] ?? botOf(thread)?.greeting ?? personOf(thread)?.line ?? 'Hello.'
 
 const post = async (url: string, body: any, ms = 70000) => {
   const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(ms) })
@@ -80,14 +78,14 @@ const OWNER: Record<string, string> = { copilot: 'nan', savings: 'ana', analyze:
 const CANVAS = new Set(['goto', 'overview', 'stop'])
 const ACK = (a: Act) => {
   switch (a.type) {
-    case 'analyze': return a.q ? `On it. Sy will read ${a.q}, score it for AI readiness and inspect the live page.` : 'Which business should we look at? Give me a website or a name.'
-    case 'audit': return `Starting the ${a.fresh ? 'fresh' : 'quick'} audit for ${a.brand}.`
-    case 'replay': return `Replaying the recorded Gemini answers, scored for ${a.brand || 'the brand'}.`
-    case 'ask': return 'Scout is opening a fresh Gemini tab with your question.'
-    case 'browse': return `Opening ${a.url} in the browser${a.review ? ' and reviewing it' : ''}.`
-    case 'apps': return 'Using the connected apps, one tool at a time.'
-    case 'copilot': return a.q ? `Starting the GEO Copilot for ${a.q}: first I find where the business lives online, then you confirm, then I check every place against the others and draft the fixes.` : 'Which business? Send its website (best) or its name and city.'
-    case 'savings': return 'Here is what this work costs through an agency, set against what the team just did. The agency hours and the rate are assumptions you can change; the Picked times are measured.'
+    case 'analyze': return a.q ? `Analyzing ${a.q}.` : 'Which business? Send a website or a name.'
+    case 'audit': return `Auditing ${a.brand}.`
+    case 'replay': return 'Replaying the saved answers.'
+    case 'ask': return 'Asking Gemini.'
+    case 'browse': return `Opening ${a.url}.`
+    case 'apps': return 'Using the connected apps.'
+    case 'copilot': return a.q ? `GEO Copilot for ${a.q}.` : 'Which business? Send its website or name and city.'
+    case 'savings': return 'Here is the comparison.'
     default: return ''
   }
 }

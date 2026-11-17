@@ -52,8 +52,8 @@ function Confirm({ st, setSrc, add, onCheck, busy }: { st: State; setSrc: (id: s
   return (
     <div>
       <Eyebrow>Is this you? · {st.host}</Eyebrow>
-      <p className="mt-1.5 text-[15.5px] leading-snug text-mute">These are the places the website points to. Untick anything that is not yours and add what is missing. Nothing is checked until you confirm.</p>
-      {st.blocked && <div className="mt-3 flex gap-2 rounded-2xl bg-surface p-3 text-[14.5px] text-warn"><AlertTriangle size={16} className="mt-0.5 flex-none" />The website turned our reader away, so the places it links to are unknown. Add them by hand.</div>}
+      <p className="mt-1.5 text-[15.5px] leading-snug text-mute">Untick what is not yours, add what is missing.</p>
+      {st.blocked && <div className="mt-3 flex gap-2 rounded-2xl bg-surface p-3 text-[14.5px] text-warn"><AlertTriangle size={16} className="mt-0.5 flex-none" />The site turned our reader away. Add its places by hand.</div>}
       <div className="mt-3 divide-y divide-line overflow-hidden rounded-[18px] ring-1 ring-line">
         {st.sources!.map((s) => <SourceRow key={s.id} s={s} setSrc={setSrc} />)}
       </div>
@@ -90,9 +90,9 @@ function SourceRow({ s, setSrc }: { s: Source; setSrc: (id: string, p: Partial<S
       </div>
       {plan && (
         <div className="ml-7 mt-2.5 rounded-2xl bg-surface p-3.5 text-[14.5px] leading-snug">
-          <div className="font-semibold text-ink">Sign in on the right, then approve what the agent will do</div>
-          <ol className="mt-1.5 list-decimal space-y-0.5 pl-5 text-mute"><li>Open {s.url.replace(/^https?:\/\//, '').slice(0, 50)} in your own signed-in profile</li><li>Read that page and up to 2 more pages on the same site</li><li>Read only: no posting, no messages, no clicks on your behalf</li></ol>
-          <div className="mt-2 text-[13px] text-faint">Your password stays in the browser; Picked never sees it. The profile is kept on this machine only; Sign out deletes it. Platforms forbid automated access in their terms, so use your own account at your own risk.</div>
+          <div className="font-semibold text-ink">Sign in on the right, then approve</div>
+          <ol className="mt-1.5 list-decimal space-y-0.5 pl-5 text-mute"><li>Open {s.url.replace(/^https?:\/\//, '').slice(0, 50)} in your own signed-in profile</li><li>Read that page and up to 2 more on the same site</li><li>Read only: no posting, no messages</li></ol>
+          <div className="mt-2 text-[13px] text-faint">Your password stays in the browser. Sign out deletes the profile. Platforms limit automated access: use your own account.</div>
           <div className="mt-2.5 flex gap-2"><button onClick={read} disabled={s.session === 'reading'} className="flex h-9 items-center gap-1.5 rounded-full bg-accent px-4 text-[14px] font-semibold text-white disabled:opacity-60">{s.session === 'reading' ? <><Loader2 size={14} className="animate-spin" />Reading…</> : <><Check size={14} strokeWidth={3} />Approve and read</>}</button><button onClick={() => { setPlan(false); setSrc(s.id, { session: undefined }) }} className="h-9 rounded-full px-4 text-[14px] font-semibold text-mute hover:bg-white">Cancel</button></div>
         </div>
       )}
@@ -151,7 +151,7 @@ function Result({ st, save, thread }: { st: State; save: (s: State) => void; thr
               </div>
             ) })}
           </div>
-          <div className="mt-2 text-[13px] text-faint">The files are built only from what the website says and the places you confirmed. Approving marks a fix as yours to publish; nothing is changed on your site from here.</div>
+          <div className="mt-2 text-[13px] text-faint">Built only from your site and the places you confirmed. Nothing is changed on your site from here.</div>
         </section>
       )}
       <div className="flex flex-wrap gap-2">
@@ -167,10 +167,10 @@ function Criteria({ st }: { st: State }) {
   const c = st.criteria, n = { fail: 0, warn: 0 }; (st.checks ?? []).forEach((x) => { if (x.status !== 'pass') n[x.status]++ })
   const ex = c?.bench.examples ?? []
   const rows: { name: string; status: 'pass' | 'warn' | 'fail' | 'todo'; now: string; why: string }[] = [
-    { name: '1. Recognised as one business', status: n.fail ? 'fail' : n.warn ? 'warn' : 'pass', now: `${st.score}/100 on the checks above`, why: 'An assistant only recommends what it can pin down: the same name, phone, address and profiles everywhere, declared in the site’s data.' },
-    { name: '2. Readable by AI assistants', status: c?.xray?.score == null ? 'todo' : c.xray.score >= 75 ? 'pass' : c.xray.score >= 50 ? 'warn' : 'fail', now: c?.xray?.score == null ? 'Not measured yet: the plan runs the X-ray' : `${c.xray.score}/100 agent-readiness`, why: 'Crawlers must get in, see the text without JavaScript and find structured data. Needed, but not enough on its own (see below).' },
-    { name: '3. Talked about where AI looks', status: 'todo', now: c?.sources.length ? `For ${c.bench.category ?? 'this category'} Gemini cites ${c.sources.slice(0, 4).map((x) => x.domain).join(', ')}` : 'Measured by the plan', why: 'Assistants recommend what trusted third parties write about: review sites, news, marketplaces. Being there is what moves the needle.' },
-    { name: '4. Answers the buyer questions', status: 'todo', now: 'Measured by the plan: which buyer questions name you, and which do not', why: 'An FAQ that answers the real questions in plain, sourced sentences is what an assistant can quote.' },
+    { name: '1. Recognised as one business', status: n.fail ? 'fail' : n.warn ? 'warn' : 'pass', now: `${st.score}/100 on the checks above`, why: 'The same name, phone and address everywhere, declared in the site’s data.' },
+    { name: '2. Readable by AI assistants', status: c?.xray?.score == null ? 'todo' : c.xray.score >= 75 ? 'pass' : c.xray.score >= 50 ? 'warn' : 'fail', now: c?.xray?.score == null ? 'Measured by the plan' : `${c.xray.score}/100 agent-readiness`, why: 'Crawlers can get in, read the text and find structured data.' },
+    { name: '3. Talked about where AI looks', status: 'todo', now: c?.sources.length ? `For ${c.bench.category ?? 'this category'} Gemini cites ${c.sources.slice(0, 4).map((x) => x.domain).join(', ')}` : 'Measured by the plan', why: 'Assistants recommend what trusted sites write about.' },
+    { name: '4. Answers the buyer questions', status: 'todo', now: 'Measured by the plan', why: 'Plain, sourced answers to the real buyer questions.' },
   ]
   const ico = (s: string) => (s === 'todo' ? <span className="h-2.5 w-2.5 rounded-full bg-line" /> : icon(s))
   return (
@@ -222,7 +222,7 @@ function Plan({ st, save, thread }: { st: State; save: (s: State) => void; threa
         <div className="mt-3 flex flex-wrap items-center gap-2.5">
           <label className="flex h-11 min-w-[260px] flex-1 items-center gap-2 rounded-full border border-line px-4 text-[14.5px] text-mute">What do you sell?<input value={cat} onChange={(e) => setCat(e.target.value)} placeholder="e.g. bình sữa cho bé" className="min-w-0 flex-1 bg-transparent text-ink outline-none" /></label>
           <button onClick={start} disabled={busy || !cat.trim()} className="flex h-11 items-center gap-2 rounded-full bg-accent px-5 text-[15.5px] font-semibold text-white hover:bg-[#0057b8] disabled:opacity-60">{busy ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} strokeWidth={3} />}Approve the plan and start</button>
-          <span className="w-full text-[13px] text-faint">Starting runs steps 2–6 now, one job at a time, and schedules step 10. Steps 7–9 wait for your approval inside the run. Your identity fixes (step 1) are below: approve and publish them yourself.</span>
+          <span className="w-full text-[13px] text-faint">Runs steps 2–6 now and schedules step 10. Steps 7–9 wait for your approval.</span>
         </div>
       ) : (
         <div className="mt-3 flex items-start gap-2.5 rounded-2xl bg-surface p-3.5 text-[14.5px] leading-snug text-ink"><Check size={17} strokeWidth={3} className="mt-0.5 flex-none text-ok" /><span>Started {new Date(st.started.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} for “{st.started.category}”. The run is working below. {st.started.routine ? 'Weekly re-measure scheduled for Mondays at 09:00.' : `Weekly re-measure not scheduled${st.started.err ? `: ${st.started.err}` : ''}.`}</span></div>

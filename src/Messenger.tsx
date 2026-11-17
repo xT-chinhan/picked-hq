@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { Play, ArrowUp, BookOpen, Eraser, MoreHorizontal, Check, ChevronUp, Globe, LayoutGrid, Loader2, Menu, MessageSquare, PanelLeftClose, PanelLeftOpen, Pencil, Plus, ScanSearch, Search, Sparkles, Trash2, Users, Workflow, X, Zap } from 'lucide-react'
 import { BENCH, Face } from './avatars'
 import { TypedMd } from './Typed'
-import { useDemo } from './demo'
+import { playScene, useDemo } from './demo'
 import { BrowserPanel, useBrowser } from './BrowserPanel'
 import { useStory } from './Story'
 import { useApps } from './Apps'
@@ -59,15 +59,15 @@ function Bubble({ m, group }: { m: CMsg; group: boolean }) {
   )
 }
 
-const RUN_ITEMS: { icon: any; label: string; hint: string; fill?: string; run?: () => void }[] = [
-  { icon: Sparkles, label: 'GEO Copilot for a business', hint: 'Find it online, check one story everywhere, draft the fixes', fill: 'GEO for ' },
-  { icon: ScanSearch, label: 'Analyze any business', hint: 'Site read, readiness checks, live-page inspection', fill: 'Analyze ' },
-  { icon: Zap, label: 'Audit Elmich, quick', hint: 'Full pipeline on the saved Gemini answers', run: () => openRun(useChat.getState().active, { type: 'audit', brand: 'Elmich', fresh: false }) },
-  { icon: Globe, label: 'Audit Elmich, fresh', hint: '40 new questions on real Gemini, about 4 minutes', run: () => openRun(useChat.getState().active, { type: 'audit', brand: 'Elmich', fresh: true }) },
-  { icon: MessageSquare, label: 'Ask Gemini a buyer question', hint: 'One real answer from an anonymous Gemini tab', fill: 'Ask Gemini: ' },
-  { icon: Search, label: 'Review a page in the browser', hint: 'Open it on the right and score it for AI', fill: 'Open elmich.vn and review it' },
-  { icon: Zap, label: 'Compare with an SEO agency', hint: 'What this work costs through an agency, with measured times', run: () => openRun(useChat.getState().active, { type: 'savings' }) },
-  { icon: Sparkles, label: 'Use the connected apps', hint: 'Let the agents call your MCP apps', fill: 'Use apps: ' },
+const RUN_ITEMS: { icon: any; label: string; hint: string; fill?: string; run?: () => void; scene?: string }[] = [
+  { icon: Sparkles, label: 'GEO Copilot for a business', hint: 'Find it online, check, draft fixes', fill: 'GEO for ', scene: 'copilot' },
+  { icon: ScanSearch, label: 'Analyze any business', hint: 'X-ray of a website', fill: 'Analyze ', scene: 'xray' },
+  { icon: Zap, label: 'Audit Elmich, quick', hint: 'On the saved Gemini answers', run: () => openRun(useChat.getState().active, { type: 'audit', brand: 'Elmich', fresh: false }), scene: 'audit' },
+  { icon: Globe, label: 'Audit Elmich, fresh', hint: 'Real Gemini, about 4 minutes', run: () => openRun(useChat.getState().active, { type: 'audit', brand: 'Elmich', fresh: true }) },
+  { icon: MessageSquare, label: 'Ask Gemini a buyer question', hint: 'One real Gemini answer', fill: 'Ask Gemini: ', scene: 'gemini' },
+  { icon: Search, label: 'Review a page in the browser', hint: 'Open it on the right, score it', fill: 'Open elmich.vn and review it', scene: 'browser' },
+  { icon: Zap, label: 'Compare with an SEO agency', hint: 'Measured times vs agency hours', run: () => openRun(useChat.getState().active, { type: 'savings' }), scene: 'cost' },
+  { icon: Sparkles, label: 'Use the connected apps', hint: 'Agents call your MCP apps', fill: 'Use apps: ', scene: 'apps' },
 ]
 
 function Composer({ thread }: { thread: string }) {
@@ -84,11 +84,12 @@ function Composer({ thread }: { thread: string }) {
           <>
             <div className="fixed inset-0 z-20" onClick={() => setMenu(false)} />
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 6 }} transition={{ duration: 0.14 }} className="absolute bottom-[calc(100%+10px)] left-0 z-30 w-[min(460px,100%)] rounded-3xl border border-line bg-white p-2 shadow-[0_20px_60px_-30px_rgba(17,17,18,.35)]">
-              <div className="px-3 pb-1 pt-1.5 text-[12.5px] font-semibold uppercase tracking-[.14em] text-faint">Real jobs · they run in this chat</div>
+              
               {RUN_ITEMS.map((it) => (
                 <button key={it.label} onClick={() => { setMenu(false); if (it.fill) { set(it.fill); input.current?.focus() } else it.run?.() }} className="flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-left hover:bg-surface">
                   <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-surface text-ink"><it.icon size={17} /></span>
-                  <span className="min-w-0"><span className="block text-[15.5px] font-semibold leading-tight text-ink">{it.label}</span><span className="block text-[13.5px] leading-tight text-mute">{it.hint}</span></span>
+                  <span className="min-w-0 flex-1"><span className="block text-[15.5px] font-semibold leading-tight text-ink">{it.label}</span><span className="block text-[13.5px] leading-tight text-mute">{it.hint}</span></span>
+                  {it.scene && <span role="button" tabIndex={0} title="Play it automatically" onClick={(e) => { e.stopPropagation(); setMenu(false); void playScene(it.scene!) }} className="grid h-8 w-8 flex-none place-items-center rounded-full bg-surface text-ink hover:bg-line"><Play size={13} /></span>}
                 </button>
               ))}
             </motion.div>
@@ -129,6 +130,7 @@ function Chat({ thread, onEdit }: { thread: string; onEdit: (b: Bot) => void }) 
         <div className="min-w-0 flex-1"><div className="text-[17.5px] font-semibold leading-tight text-ink">{p ? p.name : ALL.name}</div><div className="truncate text-[14px] text-mute">{p ? `${p.role} · ${bot ? 'Custom agent' : ENGINE[p.id] ?? ''}` : ALL.role}</div></div>
         {bot && <button onClick={() => onEdit(bot)} title="Edit this agent" className="grid h-10 w-10 place-items-center rounded-full text-mute hover:bg-surface hover:text-ink"><Pencil size={17} /></button>}
         <button onClick={() => { if (!msgs.length || confirm(`Clear this conversation with ${p ? p.name : 'everyone'}?`)) clearThread(thread) }} disabled={!msgs.length} title="Clear conversation" aria-label="Clear conversation" className="flex h-10 items-center gap-2 rounded-full px-3.5 text-[14.5px] font-semibold text-mute hover:bg-surface hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent"><Eraser size={16} />Clear</button>
+        <button onClick={() => useDemo.setState({ panel: true })} className="flex h-10 items-center gap-2 rounded-full bg-ink px-4 text-[14.5px] font-semibold text-white hover:bg-black"><Play size={14} />Demo</button>
         <button onClick={() => useBrowser.setState((s) => ({ open: !s.open, control: false }))} className="flex h-10 items-center gap-2 rounded-full bg-surface px-4 text-[14.5px] font-semibold text-ink hover:bg-line"><Globe size={16} />Browser</button>
       </header>
       <div ref={box} onScroll={(e) => { const el = e.currentTarget; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80 }} className="min-h-0 flex-1 overflow-y-auto px-5 py-5 [scrollbar-width:thin]">
@@ -137,7 +139,8 @@ function Chat({ thread, onEdit }: { thread: string; onEdit: (b: Bot) => void }) 
             <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center py-12 text-center">
               {p ? <Face av={p.av} size={88} plain /> : <GroupFaces size={88} />}
               <div className="mt-4 text-[26px] font-semibold tracking-[-0.03em] text-ink">{p ? p.name : 'Everyone'}</div>
-              <div className="mt-1.5 max-w-[540px] text-[16.5px] leading-snug text-mute">{greeting(thread)}</div>
+              <div className="mt-1.5 max-w-[480px] text-[16.5px] leading-snug text-mute">{greeting(thread)}</div>
+              <div className="mt-5 flex flex-wrap justify-center gap-2">{starters.slice(0, 3).map((x, i) => <motion.button key={x} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 + 0.07 * i }} onClick={() => void sendTurn(thread, x)} className="rounded-full border border-line bg-white px-3.5 py-1.5 text-[14.5px] text-mute hover:border-faint hover:text-ink">{x}</motion.button>)}</div>
             </motion.div>
           )}
           {msgs.map((m) => (m.run ? <div key={m.id} data-mid={m.id} className="flex gap-3"><span className="w-[34px] flex-none" /><RunCard thread={thread} m={m} /></div> : <Bubble key={m.id} m={m} group={group} />))}
@@ -145,7 +148,6 @@ function Chat({ thread, onEdit }: { thread: string; onEdit: (b: Bot) => void }) 
       </div>
       <div className="px-5 pb-4 pt-1">
         <div className="mx-auto max-w-[900px]">
-          <div className="mb-2.5 flex gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none]">{starters.map((s, i) => <motion.button key={s} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.04 * i }} onClick={() => void sendTurn(thread, s)} className="flex-none rounded-full border border-line bg-white px-3.5 py-1.5 text-[14.5px] text-mute hover:border-faint hover:text-ink">{s}</motion.button>)}</div>
           <Composer thread={thread} />
         </div>
       </div>
@@ -216,14 +218,14 @@ export function Messenger({ onWorkflow }: { onWorkflow: () => void }) {
     const preview = m ? (m.run ? (m.run.kind === 'xray' ? `X-ray of ${m.run.input}` : m.run.kind === 'audit' ? `Audit ${m.run.act.brand ?? ''}` : m.run.kind === 'copilot' ? `GEO Copilot · ${m.run.input}` : 'Real job') : (m.who === 'me' ? 'You: ' : '') + m.text) : id === 'all' ? greeting('all') : (personOf(id)?.role ?? '')
     return { preview, ts: m?.ts ?? last[id], working }
   }
-  const items: { icon: any; label: string; run: () => void }[] = [
+  const items: { icon: any; label: string; run: () => void; scene?: string }[] = [
     { icon: Play, label: 'Stage demo (autopilot)', run: () => useDemo.setState({ panel: true }) },
-    { icon: Plus, label: 'New agent', run: () => setEditor({}) },
-    { icon: ScanSearch, label: 'Business X-ray', run: () => { useChat.setState({ draft: 'Analyze ' }); setTimeout(() => document.querySelector<HTMLInputElement>('input[placeholder^="Message"]')?.focus(), 0) } },
-    { icon: Globe, label: 'Browser', run: () => useBrowser.setState({ open: true, control: false }) },
-    { icon: LayoutGrid, label: 'Connected apps', run: () => useApps.setState({ open: true }) },
-    { icon: Workflow, label: 'Workflow (simulation)', run: onWorkflow },
-    { icon: BookOpen, label: 'Story', run: () => useStory.setState({ open: true, slide: 0 }) },
+    { icon: Plus, label: 'New agent', run: () => setEditor({}), scene: 'agent' },
+    { icon: ScanSearch, label: 'Business X-ray', run: () => { useChat.setState({ draft: 'Analyze ' }); setTimeout(() => document.querySelector<HTMLInputElement>('input[placeholder^="Message"]')?.focus(), 0) }, scene: 'xray' },
+    { icon: Globe, label: 'Browser', run: () => useBrowser.setState({ open: true, control: false }), scene: 'browser' },
+    { icon: LayoutGrid, label: 'Connected apps', run: () => useApps.setState({ open: true }), scene: 'apps' },
+    { icon: Workflow, label: 'Workflow (simulation)', run: onWorkflow, scene: 'workflow' },
+    { icon: BookOpen, label: 'Story', run: () => useStory.setState({ open: true, slide: 0 }), scene: 'story' },
   ]
   return (
     <motion.main className="absolute inset-0 z-50 flex gap-3 overflow-hidden bg-surface p-3 text-ink" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
@@ -246,7 +248,7 @@ export function Messenger({ onWorkflow }: { onWorkflow: () => void }) {
               <>
                 <div className="fixed inset-0 z-20" onClick={() => setMenu(false)} />
                 <motion.div initial={{ opacity: 0, y: 8, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 6 }} transition={{ duration: 0.14 }} className="absolute bottom-[calc(100%+8px)] left-0 z-30 w-[250px] rounded-3xl border border-line bg-white p-2 shadow-[0_20px_60px_-30px_rgba(17,17,18,.35)]">
-                  {items.map((it) => <button key={it.label} onClick={() => { setMenu(false); it.run() }} className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-[15.5px] font-medium text-ink hover:bg-surface"><it.icon size={18} className="text-mute" />{it.label}</button>)}
+                  {items.map((it) => <button key={it.label} onClick={() => { setMenu(false); it.run() }} className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-[15.5px] font-medium text-ink hover:bg-surface"><it.icon size={18} className="text-mute" /><span className="flex-1">{it.label}</span>{it.scene && <span role="button" tabIndex={0} title="Play it automatically" onClick={(e) => { e.stopPropagation(); setMenu(false); void playScene(it.scene!) }} className="grid h-7 w-7 flex-none place-items-center rounded-full bg-surface text-ink hover:bg-line"><Play size={12} /></span>}</button>)}
                 </motion.div>
               </>
             )}

@@ -42,9 +42,9 @@ const CREW: Partial<Record<Phase, string[]>> = { intake: ['nan', 'lia'], mining:
 export const crew = (phase: Phase) => (CREW[phase] ?? []).map((id) => person(id)!).filter(Boolean)
 
 /** A round face for small spaces: the top of the character, on a soft tinted disc. */
-export function Face({ av, size = 28, ring, className = '' }: { av: string; size?: number; ring?: string; className?: string }) {
+export function Face({ av, size = 28, ring, className = '', plain }: { av: string; size?: number; ring?: string; className?: string; plain?: boolean }) {
   return (
-    <span className={`relative inline-block flex-none overflow-hidden rounded-full ${className}`} style={{ width: size, height: size, background: `${tint(av)}22`, boxShadow: ring ? `0 0 0 2px #fff, 0 0 0 4px ${ring}` : undefined }}>
+    <span className={`relative inline-block flex-none overflow-hidden rounded-full ${className}`} style={{ width: size, height: size, background: plain ? '#eef0f2' : `${tint(av)}22`, boxShadow: ring ? `0 0 0 2px #fff, 0 0 0 4px ${ring}` : undefined }}>
       <img src={src(av)} alt="" draggable={false} style={{ position: 'absolute', left: '50%', top: '6%', width: '112%', maxWidth: 'none', transform: 'translateX(-50%)' }} />
     </span>
   )

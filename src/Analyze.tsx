@@ -24,10 +24,10 @@ const set = useAnalyze.setState
 
 const ORDER: StepId[] = ['scrape', 'audit', 'rea', 'synth']
 const TOOLS: { id: StepId; name: string; what: string; color: string }[] = [
-  { id: 'scrape', name: 'Reading the website', what: 'Pages, prices, contacts, the note for AI', color: '#10b981' },
-  { id: 'audit', name: 'Checking AI readiness', what: '39 checks an assistant cares about', color: '#0891b2' },
-  { id: 'rea', name: 'Inspecting the live page', what: 'What really loads, in a real browser', color: '#6366f1' },
-  { id: 'synth', name: 'Writing the verdict', what: 'Findings, each tied to evidence', color: '#7c3aed' },
+  { id: 'scrape', name: 'Reading the website', what: 'Pages, prices, contacts, the note for AI', color: '#0064d4' },
+  { id: 'audit', name: 'Checking AI readiness', what: '39 checks an assistant cares about', color: '#0064d4' },
+  { id: 'rea', name: 'Inspecting the live page', what: 'What really loads, in a real browser', color: '#0064d4' },
+  { id: 'synth', name: 'Writing the verdict', what: 'Findings, each tied to evidence', color: '#0064d4' },
 ]
 const SRC_NAME: Record<string, string> = { Scrapling: 'Site read', REA: 'Live page', 'Site audit': 'Readiness check' }
 
@@ -196,7 +196,7 @@ export function Scanner({ host, steps, done, replay, t0, ms }: { host: string; s
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_40px_-26px_rgba(15,23,42,.45)]">
         <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50 px-3 py-2.5">
           <span className="flex gap-1.5">{['#f87171', '#fbbf24', '#34d399'].map((c) => <span key={c} className="h-2.5 w-2.5 rounded-full" style={{ background: c }} />)}</span>
-          <span className="ml-1 flex min-w-0 flex-1 items-center gap-1.5 rounded-full bg-white px-3 py-1 text-[13px] text-slate-600 ring-1 ring-slate-200"><Lock size={11} className="flex-none text-emerald-600" /><span className="truncate">{host}</span></span>
+          <span className="ml-1 flex min-w-0 flex-1 items-center gap-1.5 rounded-full bg-white px-3 py-1 text-[13px] text-slate-600 ring-1 ring-slate-200"><Lock size={11} className="flex-none text-ok" /><span className="truncate">{host}</span></span>
         </div>
         <div className="relative h-[196px] overflow-hidden px-4 py-4">
           <div className="flex items-center gap-2"><div className="h-5 w-5 rounded-md bg-slate-200" /><div className="h-3 w-24 rounded bg-slate-200" /><div className="ml-auto flex gap-2">{[0, 1, 2].map((i) => <div key={i} className="h-2.5 w-10 rounded bg-slate-100" />)}</div></div>
@@ -209,7 +209,7 @@ export function Scanner({ host, steps, done, replay, t0, ms }: { host: string; s
           </div>
           <div className="mt-3 grid grid-cols-3 gap-2">{[0, 1, 2].map((i) => <motion.div key={i} animate={{ backgroundColor: lit > 3 ? `${TOOLS[3].color}22` : '#f8fafc' }} className="h-9 rounded-lg ring-1 ring-slate-100" />)}</div>
           {!done && <div className="scanbeam pointer-events-none absolute inset-x-0 h-14" style={{ background: `linear-gradient(180deg, transparent, ${color}2e 70%, ${color})`, borderBottom: `2px solid ${color}`, boxShadow: `0 6px 18px -4px ${color}` }} />}
-          {done && <motion.div initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="absolute inset-0 grid place-items-center bg-white/55 backdrop-blur-[1px]"><span className="grid h-14 w-14 place-items-center rounded-full bg-emerald-500 text-white shadow-lg"><Check size={28} strokeWidth={3} /></span></motion.div>}
+          {done && <motion.div initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="absolute inset-0 grid place-items-center bg-white/55 backdrop-blur-[1px]"><span className="grid h-14 w-14 place-items-center rounded-full bg-ink text-white shadow-lg"><Check size={28} strokeWidth={3} /></span></motion.div>}
         </div>
       </div>
       <div className="mt-4 space-y-1">
@@ -220,7 +220,7 @@ export function Scanner({ host, steps, done, replay, t0, ms }: { host: string; s
               <span className="grid h-6 w-6 flex-none place-items-center">
                 {run ? <span className="relative grid h-3 w-3 place-items-center"><span className="absolute h-3 w-3 animate-ping rounded-full opacity-60" style={{ background: t.color }} /><span className="h-2.5 w-2.5 rounded-full" style={{ background: t.color }} /></span>
                   : st === 'done' ? <span className="grid h-5 w-5 place-items-center rounded-full text-white" style={{ background: t.color }}><Check size={12} strokeWidth={3.5} /></span>
-                  : st === 'failed' || st === 'skipped' ? <AlertTriangle size={16} className="text-amber-500" /> : <span className="h-2.5 w-2.5 rounded-full bg-slate-200" />}
+                  : st === 'failed' || st === 'skipped' ? <AlertTriangle size={16} className="text-warn" /> : <span className="h-2.5 w-2.5 rounded-full bg-slate-200" />}
               </span>
               <span className={`text-[15px] ${run ? 'shimmer font-semibold' : st === 'idle' ? 'text-slate-400' : 'font-medium text-slate-800'}`}>{t.name}</span>
             </div>
@@ -246,7 +246,7 @@ export function Feed({ feed, live, tall }: { feed: Line[]; live: boolean; tall?:
   return (
     <div className="relative">
       <div className="mb-3 flex items-center gap-3">
-        <span className="relative"><Face av="a26" size={40} />{live && <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" />}</span>
+        <span className="relative"><Face av="a26" size={40} />{live && <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-ink" />}</span>
         <div><div className="text-[16px] font-semibold leading-tight text-slate-900">Ana</div><div className="text-[13px] text-slate-500">{live ? <span className="shimmer">thinking out loud…</span> : 'done'}</div></div>
       </div>
       <div ref={box} className={`${tall ? 'h-[330px]' : 'max-h-[300px]'} overflow-y-auto pr-2 [mask-image:linear-gradient(180deg,transparent,#000_28px)]`}>
@@ -258,9 +258,9 @@ export function Feed({ feed, live, tall }: { feed: Line[]; live: boolean; tall?:
             return (
               <motion.div key={l.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }} className="flex items-start gap-2.5">
                 <span className="mt-[3px] grid h-5 w-5 flex-none place-items-center">
-                  {l.kind === 'find' ? <Sparkles size={15} style={{ color }} /> : l.kind === 'warn' ? <AlertTriangle size={15} className="text-amber-500" /> : isLive ? <Loader2 size={14} className="animate-spin text-slate-400" /> : <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />}
+                  {l.kind === 'find' ? <Sparkles size={15} style={{ color }} /> : l.kind === 'warn' ? <AlertTriangle size={15} className="text-warn" /> : isLive ? <Loader2 size={14} className="animate-spin text-slate-400" /> : <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />}
                 </span>
-                <Typed k={`${l.id}`} text={l.text} caret={l === last && live} className={`text-[15.5px] leading-snug ${l.kind === 'act' ? (isLive ? 'shimmer' : 'text-slate-400') : l.kind === 'warn' ? 'font-medium text-amber-800' : 'font-medium text-slate-900'}`} />
+                <Typed k={`${l.id}`} text={l.text} caret={l === last && live} className={`text-[15.5px] leading-snug ${l.kind === 'act' ? (isLive ? 'shimmer' : 'text-slate-400') : l.kind === 'warn' ? 'font-medium text-warn' : 'font-medium text-slate-900'}`} />
               </motion.div>
             )
           })}
@@ -293,21 +293,21 @@ export function Result({ r, compact }: { r: Report; compact?: boolean }) {
         <div className="mt-5 text-[13px] leading-snug text-slate-400">{r.partial ? 'Partial: some steps did not finish. ' : ''}{(r.ms / 1000).toFixed(0)} s · {r.evidence.length} pieces of evidence</div>
       </div>
       <div className="min-w-0">
-        <div className="flex items-start gap-3"><Sparkles size={22} className="mt-1 flex-none text-indigo-600" /><Typed k={`h${r.id}`} text={r.headline || `${r.brand}: what stands in the way`} caret className="text-[22px] font-semibold leading-snug tracking-tight text-slate-900" /></div>
+        <div className="flex items-start gap-3"><Sparkles size={22} className="mt-1 flex-none text-accent" /><Typed k={`h${r.id}`} text={r.headline || `${r.brand}: what stands in the way`} caret className="text-[22px] font-semibold leading-snug tracking-tight text-slate-900" /></div>
         <div className="mt-3 space-y-2.5">
           {r.findings.map((f, i) => (
             <motion.div key={i} initial={{ opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.25 + i * 0.1 }} className="rounded-2xl border border-slate-200 bg-white p-4" style={{ borderLeft: `5px solid ${LAYER_COLOR[f.layer] ?? '#94a3b8'}` }}>
               <div className="flex items-center gap-2"><span className="rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-[.1em] text-white" style={{ background: LAYER_COLOR[f.layer] ?? '#94a3b8' }}>{LAYER_NAME[f.layer] ?? f.layer}</span><span className="text-[17px] font-semibold leading-snug text-slate-900">{f.title}</span></div>
               {f.why && <div className="mt-1.5 text-[14.5px] leading-snug text-slate-600">{f.why}</div>}
-              {f.fix && <div className="mt-1 text-[14.5px] leading-snug text-slate-800"><b className="font-semibold text-emerald-700">Fix · </b>{f.fix}</div>}
-              <div className="mt-2 flex flex-wrap gap-1.5">{f.evidence.map((id) => <button key={id} onClick={() => setOpen(open === `${i}${id}` ? '' : `${i}${id}`)} className={`rounded-full px-2.5 py-0.5 font-mono text-[11.5px] font-semibold ${byId.get(id)?.source === 'REA' ? 'bg-indigo-100 text-indigo-700' : byId.get(id)?.source === 'Scrapling' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{id.replace('A:', '')}</button>)}</div>
-              {f.evidence.map((id) => open === `${i}${id}` && byId.get(id) && <div key={id} className="mt-2 rounded-xl bg-slate-50 px-3 py-2 text-[13px] leading-snug text-slate-600"><b className="text-slate-800">{SRC_NAME[byId.get(id)!.source] ?? byId.get(id)!.source} · {byId.get(id)!.label}</b><br />{byId.get(id)!.detail}{byId.get(id)!.ref && <><br /><span className="font-mono text-[11px] text-indigo-600">{byId.get(id)!.ref}</span></>}</div>)}
+              {f.fix && <div className="mt-1 text-[14.5px] leading-snug text-slate-800"><b className="font-semibold text-ok">Fix · </b>{f.fix}</div>}
+              <div className="mt-2 flex flex-wrap gap-1.5">{f.evidence.map((id) => <button key={id} onClick={() => setOpen(open === `${i}${id}` ? '' : `${i}${id}`)} className={`rounded-full px-2.5 py-0.5 font-mono text-[11.5px] font-semibold ${byId.get(id)?.source === 'REA' ? 'bg-surface text-accent' : byId.get(id)?.source === 'Scrapling' ? 'bg-surface text-ok' : 'bg-slate-100 text-slate-600'}`}>{id.replace('A:', '')}</button>)}</div>
+              {f.evidence.map((id) => open === `${i}${id}` && byId.get(id) && <div key={id} className="mt-2 rounded-xl bg-slate-50 px-3 py-2 text-[13px] leading-snug text-slate-600"><b className="text-slate-800">{SRC_NAME[byId.get(id)!.source] ?? byId.get(id)!.source} · {byId.get(id)!.label}</b><br />{byId.get(id)!.detail}{byId.get(id)!.ref && <><br /><span className="font-mono text-[11px] text-accent">{byId.get(id)!.ref}</span></>}</div>)}
             </motion.div>
           ))}
           {!r.findings.length && <div className="rounded-2xl bg-slate-50 p-4 text-[15px] text-slate-500">Nothing blocking was found in the evidence collected.</div>}
         </div>
-        {r.strengths.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{r.strengths.map((s) => <span key={s.title} className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-[14px] font-medium text-emerald-800"><Check size={14} strokeWidth={3} />{s.title}</span>)}</div>}
-        {reaIds.length > 0 && <div className="mt-4 text-[12.5px] text-slate-500"><span className="font-semibold text-slate-700">Evidence fingerprints</span> (anyone can re-check them): {reaIds.map((e) => <span key={e.id} className="mr-2 font-mono text-[11px] text-indigo-600">{e.ref!.slice(0, 18)}…</span>)}</div>}
+        {r.strengths.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{r.strengths.map((s) => <span key={s.title} className="flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-[14px] font-medium text-ok"><Check size={14} strokeWidth={3} />{s.title}</span>)}</div>}
+        {reaIds.length > 0 && <div className="mt-4 text-[12.5px] text-slate-500"><span className="font-semibold text-slate-700">Evidence fingerprints</span> (anyone can re-check them): {reaIds.map((e) => <span key={e.id} className="mr-2 font-mono text-[11px] text-accent">{e.ref!.slice(0, 18)}…</span>)}</div>}
       </div>
     </motion.div>
   )
@@ -324,27 +324,27 @@ export function Analyze() {
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => set({ open: false })} className="fixed inset-0 z-[70] grid place-items-center bg-slate-900/30 backdrop-blur-sm">
           <motion.div initial={{ y: 28, scale: 0.97 }} animate={{ y: 0, scale: 1 }} exit={{ y: 28 }} onClick={(e) => e.stopPropagation()} className="max-h-[calc(100dvh-40px)] w-[1180px] max-w-[96vw] overflow-y-auto rounded-[28px] border border-slate-200 bg-white p-7 shadow-[0_50px_120px_-30px_rgba(15,23,42,.5)]">
             <div className="flex items-center gap-3">
-              <span className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white"><ScanSearch size={22} /></span>
+              <span className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-accent to-accent text-white"><ScanSearch size={22} /></span>
               <div><div className="text-[24px] font-semibold leading-none tracking-tight text-slate-900">Business X-ray</div><div className="mt-1 text-[14.5px] text-slate-500">Pick any business. Our agents read it live and report back.</div></div>
               <button onClick={() => set({ open: false })} className="ml-auto grid h-9 w-9 place-items-center rounded-full text-slate-400 hover:bg-slate-100"><X size={18} /></button>
             </div>
 
             <form onSubmit={(e) => { e.preventDefault(); void startAnalyze(val) }} className="mt-5 flex gap-3">
-              <input ref={box} value={val} onChange={(e) => setVal(e.target.value)} placeholder="A website or a company name, e.g. highlandscoffee.com.vn" disabled={busy} className="h-14 min-w-0 flex-1 rounded-2xl border border-slate-200 px-5 text-[17px] outline-none focus:border-indigo-400 disabled:bg-slate-50" />
+              <input ref={box} value={val} onChange={(e) => setVal(e.target.value)} placeholder="A website or a company name, e.g. highlandscoffee.com.vn" disabled={busy} className="h-14 min-w-0 flex-1 rounded-2xl border border-slate-200 px-5 text-[17px] outline-none focus:border-accent disabled:bg-slate-50" />
               <button disabled={busy || !val.trim()} className="flex h-14 items-center gap-2 rounded-2xl bg-slate-900 px-7 text-[17px] font-semibold text-white hover:bg-slate-800 disabled:bg-slate-200 disabled:text-slate-400">Analyze<ArrowRight size={18} /></button>
             </form>
             {s.presets.length > 0 && (
-              <div className="mt-3 flex flex-wrap items-center gap-2 text-[13.5px] text-slate-500"><span>Saved runs</span>{s.presets.slice(0, 8).map((p) => <button key={p.id} onClick={() => void replayAnalysis(p.id)} disabled={busy} className="rounded-full border border-slate-200 bg-white px-3 py-1 font-medium text-slate-700 hover:border-indigo-300 hover:text-indigo-600 disabled:opacity-50">{p.brand.slice(0, 22)}{p.siteScore != null ? ` · ${p.siteScore}` : ''}</button>)}</div>
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-[13.5px] text-slate-500"><span>Saved runs</span>{s.presets.slice(0, 8).map((p) => <button key={p.id} onClick={() => void replayAnalysis(p.id)} disabled={busy} className="rounded-full border border-slate-200 bg-white px-3 py-1 font-medium text-slate-700 hover:border-accent hover:text-accent disabled:opacity-50">{p.brand.slice(0, 22)}{p.siteScore != null ? ` · ${p.siteScore}` : ''}</button>)}</div>
             )}
 
             {s.phase === 'confirm' && s.resolved && (
-              <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mt-5 flex items-center gap-4 rounded-2xl border border-amber-200 bg-amber-50/60 px-5 py-4">
-                <div className="min-w-0 flex-1"><div className="text-[13px] font-semibold uppercase tracking-[.1em] text-amber-700">Is this the one?</div><div className="mt-0.5 truncate text-[18px] font-semibold text-slate-900">{s.resolved.name} · {s.resolved.url.replace(/^https?:\/\//, '')}</div><div className="truncate text-[14px] text-slate-500">{s.resolved.verified ? `Page title: ${s.resolved.title}` : `The page title does not mention the name${s.resolved.title ? ` ("${s.resolved.title}")` : ''}: check before going on.`}</div></div>
-                <button onClick={() => void confirmAnalyze()} className="h-12 rounded-xl bg-indigo-600 px-6 text-[16px] font-semibold text-white hover:bg-indigo-700">Yes, analyze</button>
+              <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mt-5 flex items-center gap-4 rounded-2xl border border-surface bg-surface px-5 py-4">
+                <div className="min-w-0 flex-1"><div className="text-[13px] font-semibold uppercase tracking-[.1em] text-warn">Is this the one?</div><div className="mt-0.5 truncate text-[18px] font-semibold text-slate-900">{s.resolved.name} · {s.resolved.url.replace(/^https?:\/\//, '')}</div><div className="truncate text-[14px] text-slate-500">{s.resolved.verified ? `Page title: ${s.resolved.title}` : `The page title does not mention the name${s.resolved.title ? ` ("${s.resolved.title}")` : ''}: check before going on.`}</div></div>
+                <button onClick={() => void confirmAnalyze()} className="h-12 rounded-xl bg-accent px-6 text-[16px] font-semibold text-white hover:bg-accent">Yes, analyze</button>
               </motion.div>
             )}
             {s.phase === 'resolving' && <div className="mt-5 flex items-center gap-3 text-[16px] text-slate-500"><Loader2 size={20} className="animate-spin" />Looking up the official website…</div>}
-            {s.phase === 'error' && <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-[16px] text-amber-900">{s.err}</div>}
+            {s.phase === 'error' && <div className="mt-5 rounded-2xl border border-surface bg-surface px-5 py-4 text-[16px] text-warn">{s.err}</div>}
 
             {s.phase === 'running' && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-6 grid grid-cols-[360px_1fr] gap-7">
@@ -357,7 +357,7 @@ export function Analyze() {
                 <button onClick={() => set({ showLog: !s.showLog })} className="flex w-full items-center gap-3 text-left">
                   <Face av="a26" size={30} />
                   <span className="min-w-0 flex-1 truncate text-[14.5px] text-slate-600"><b className="font-semibold text-slate-900">Ana read {s.report.tools?.scrape?.pages ?? '–'} pages, ran 39 checks and inspected the live page</b> · {(s.report.ms / 1000).toFixed(0)} s · {s.report.evidence.length} pieces of evidence</span>
-                  <span className="flex flex-none items-center gap-1 text-[13px] font-semibold text-indigo-600">{s.showLog ? 'Hide' : 'Show'} the log<ChevronDown size={15} className={`transition-transform ${s.showLog ? 'rotate-180' : ''}`} /></span>
+                  <span className="flex flex-none items-center gap-1 text-[13px] font-semibold text-accent">{s.showLog ? 'Hide' : 'Show'} the log<ChevronDown size={15} className={`transition-transform ${s.showLog ? 'rotate-180' : ''}`} /></span>
                 </button>
                 {s.showLog && <div className="mt-3 border-t border-slate-200 pt-3"><Feed feed={s.feed} live={false} /></div>}
               </div>

@@ -101,6 +101,7 @@ http.createServer(async (req, res) => {
       const ip = String(req.headers['x-picked-ip'] || 'unknown')
       if (req.method === 'POST' && p.startsWith('/api/audit/') && p.endsWith('/stop')) return json(res, 403, { error: 'local only' })
       if (p === '/api/one/ask' && limited(ip, 'ask', 4, 600000)) return json(res, 429, { error: 'Too many questions, try again later.' })
+      if (p === '/api/bots/draft' && limited(ip, 'bots', 3, 600000)) return json(res, 429, { error: 'Too many new agents, try again later.' })
       if (/^\/api\/(one\/(chat|prompt)|translate\/refine)/.test(p) && limited(ip, 'llm', 12, 60000)) return json(res, 429, { error: 'Too many requests, slow down.' })
       if ((p === '/api/analyze' || p === '/api/analyze/resolve') && limited(ip, 'analyze', p === '/api/analyze' ? 3 : 8, 600000)) return json(res, 429, { error: 'Too many analyses, try again later.' })
       if (req.method === 'POST' && limited(ip, 'post', 30, 60000)) return json(res, 429, { error: 'Too many requests, slow down.' })

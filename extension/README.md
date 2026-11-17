@@ -31,7 +31,7 @@ Tiện ích không đọc cookie, không theo dõi phím gõ, không đọc nộ
 Chạy từ thư mục gốc repo (Node 24, `linkedom` đã cài):
 
 ```sh
-node --test extension/__tests__/*.test.mjs
+node --test extension/tests/*.test.mjs
 ```
 
 Kiểm thử dùng DOM giả, storage giả và fetch giả; không truy cập Internet. Thử thủ công trên Chrome: mở bảng từ biểu tượng, phím tắt và menu; đánh giá một trang thường; gửi tin nhắn; đổi máy chủ; kiểm tra thông báo khi máy chủ dừng.

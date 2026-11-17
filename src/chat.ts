@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { PEOPLE, type Person } from './avatars'
+import { BENCH, PEOPLE, tint, type Person } from './avatars'
 import { intent, snap, type Act } from './SystemOne'
 import { OFFLINE_MSG, probe } from './edge'
 
@@ -12,8 +12,23 @@ export type Run =
 export type CMsg = { id: number; who: string; text: string; ts: number; run?: Run; res?: any; thinking?: boolean; old?: boolean; flow?: boolean }
 
 export const TEAM: Person[] = ['nan', 'lia', 'mina', 'scout1', 'ana', 'sy', 'mira', 'theo', 'quinn', 'rhea', 'pax', 'tara'].map((id) => PEOPLE.find((p) => p.id === id)!)
-export const personOf = (id: string) => (id === 'me' ? null : PEOPLE.find((p) => p.id === id) ?? TEAM[0])
-const serverId = (id: string) => (id.startsWith('scout') ? 'scout' : id)
+/* Agents the operator made: a short description is rewritten by the model into a full prompt (its "soul"), then kept in this browser. */
+export type Bot = { id: string; name: string; role: string; soul: string; greeting: string; starters: string[]; av: string }
+const BKEY = 'picked.bots.v1'
+const loadBots = (): Bot[] => { try { return JSON.parse(localStorage.getItem(BKEY) || '[]') } catch { return [] } }
+export const useBots = create<{ bots: Bot[] }>(() => ({ bots: loadBots() }))
+const keepBots = () => { try { localStorage.setItem(BKEY, JSON.stringify(useBots.getState().bots)) } catch { /* full */ } }
+export const isCustom = (id: string) => id.startsWith('bot-')
+export const botOf = (id: string) => useBots.getState().bots.find((b) => b.id === id)
+export const freeFaces = () => { const used = new Set(useBots.getState().bots.map((b) => b.av)); return BENCH.filter((a) => !used.has(a)) }
+export function saveBot(b: Omit<Bot, 'id'> & { id?: string }) {
+  const bot: Bot = { ...b, id: b.id ?? `bot-${Date.now().toString(36)}` }
+  useBots.setState((s) => ({ bots: s.bots.some((x) => x.id === bot.id) ? s.bots.map((x) => (x.id === bot.id ? bot : x)) : [...s.bots, bot] })); keepBots(); return bot
+}
+export function removeBot(id: string) { useBots.setState((s) => ({ bots: s.bots.filter((b) => b.id !== id) })); keepBots(); useChat.setState((s) => { const t = { ...s.threads }; delete t[id]; return { threads: t, active: s.active === id ? 'all' : s.active } }); save() }
+const asPerson = (b: Bot): Person => ({ id: b.id, name: b.name, role: b.role, av: b.av, color: tint(b.av), phase: 'any', line: b.greeting })
+export const personOf = (id: string) => (id === 'me' ? null : PEOPLE.find((p) => p.id === id) ?? (botOf(id) ? asPerson(botOf(id)!) : TEAM[0]))
+const serverId = (id: string) => (id.startsWith('scout') ? 'scout' : isCustom(id) ? 'custom' : id)
 export const ENGINE: Record<string, string> = { nan: 'Claude Opus 5.5', lia: 'Gemini 3.8', mina: 'Gemini 3.8', scout1: 'Gemini tabs', ana: 'Gemini 4', sy: 'Gemini 4', mira: 'Sonnet 5.5', theo: 'Gemini 4', quinn: 'Council of 3 models', rhea: 'Fixed rules', pax: 'Fixed rules', tara: 'Scheduler' }
 export const STARTERS: Record<string, string[]> = {
   all: ['Analyze highlandscoffee.com.vn', 'Audit Elmich, quick', 'Ask Gemini: nồi chiên không dầu loại nào tốt?', 'Open elmich.vn and review it'],
@@ -45,7 +60,7 @@ const save = () => { try { const t = useChat.getState().threads; localStorage.se
 export const add = (thread: string, m: Omit<CMsg, 'id' | 'ts'>) => { const id = ++nextId; useChat.setState((s) => ({ threads: { ...s.threads, [thread]: [...(s.threads[thread] ?? []), { ...m, id, ts: Date.now() }] }, last: { ...s.last, [thread]: Date.now() } })); save(); return id }
 export const patch = (thread: string, id: number, p: Partial<CMsg>) => { useChat.setState((s) => ({ threads: { ...s.threads, [thread]: (s.threads[thread] ?? []).map((m) => (m.id === id ? { ...m, ...p } : m)) } })); save() }
 export const drop = (thread: string, id: number) => { useChat.setState((s) => ({ threads: { ...s.threads, [thread]: (s.threads[thread] ?? []).filter((m) => m.id !== id) } })); save() }
-export const greeting = (thread: string) => GREET[thread] ?? `${personOf(thread)?.line ?? 'Hello.'} Ask me anything in my field, or give me a real job.`
+export const greeting = (thread: string) => GREET[thread] ?? botOf(thread)?.greeting ?? `${personOf(thread)?.line ?? 'Hello.'} Ask me anything in my field, or give me a real job.`
 
 const post = async (url: string, body: any, ms = 70000) => {
   const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(ms) })
@@ -89,7 +104,8 @@ export async function sendTurn(thread: string, raw: string) {
     const a = intent(text)
     if (a) { acts = [a]; reply = ACK(a) }
     else {
-      const j = await post('/api/one/chat', { text, original: text, agent: serverId(speaker), history, state: snap() })
+      const cb = botOf(speaker)
+      const j = await post('/api/one/chat', { text, original: text, agent: serverId(speaker), history, state: snap(), ...(cb ? { persona: { name: cb.name, role: cb.role, soul: cb.soul } } : {}) })
       reply = j.reply || ''; acts = (j.actions ?? []).filter((x: Act) => x.type && x.type !== 'none').slice(0, 3)
     }
   } catch (e: any) {
@@ -101,3 +117,5 @@ export async function sendTurn(thread: string, raw: string) {
   for (const a of acts) openRun(thread, a)
 }
 export const idle = (thread: string) => !(useChat.getState().threads[thread] ?? []).some((m) => m.run && !m.res)
+
+export const draftBot = (description: string) => post('/api/bots/draft', { description }, 100000).then((j) => j.bot as { name: string; role: string; greeting: string; soul: string; starters: string[] })

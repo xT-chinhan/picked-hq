@@ -172,7 +172,7 @@ test('HTTP routes and status mapping on loopback', async t => {
   assert.equal((await request('/api/mcp/servers')).body.servers.length, 1);
   local = false;
   assert.equal((await request('/api/mcp/servers')).status, 200);
-  assert.deepEqual(await request('/api/mcp/call', 'POST', '{}'), { status: 403, body: { error: 'local only' } });
+  assert.deepEqual(await request('/api/mcp/call', 'POST', '{}'), { status: 403, body: { error: 'owner only' } });
   local = true;
   for (const body of ['{', 'null', '[]', JSON.stringify({ huge: 'x'.repeat(21000) })]) {
     assert.equal((await request('/api/mcp/servers', 'POST', body)).status, 400);

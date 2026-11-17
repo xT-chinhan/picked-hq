@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Play, ArrowUp, BookOpen, Eraser, MoreHorizontal, Check, ChevronUp, Globe, LayoutGrid, Loader2, Menu, MessageSquare, PanelLeftClose, PanelLeftOpen, Pencil, Plus, ScanSearch, Search, Sparkles, Trash2, Users, Workflow, X, Zap } from 'lucide-react'
+import { Lock, Unlock, Play, ArrowUp, BookOpen, Eraser, MoreHorizontal, Check, ChevronUp, Globe, LayoutGrid, Loader2, Menu, MessageSquare, PanelLeftClose, PanelLeftOpen, Pencil, Plus, ScanSearch, Search, Sparkles, Trash2, Users, Workflow, X, Zap } from 'lucide-react'
 import { BENCH, Face } from './avatars'
 import { TypedMd } from './Typed'
 import { playScene, useDemo } from './demo'
@@ -105,6 +105,23 @@ function Composer({ thread }: { thread: string }) {
   )
 }
 
+/* Owner mode: the project is public; the controls that act on the server machine open with the owner's password. */
+function OwnerBox({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const [pw, setPw] = useState(''), [err, setErr] = useState(''), [busy, setBusy] = useState(false)
+  const go = async () => { setBusy(true); setErr(''); try { const r = await fetch('/api/owner/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ password: pw }) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`); onDone() } catch (e: any) { setErr(e.message) } setBusy(false) }
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 z-[80] grid place-items-center bg-ink/30 p-4">
+      <motion.form initial={{ y: 14 }} animate={{ y: 0 }} onClick={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); void go() }} className="w-[420px] max-w-full rounded-[26px] border border-line bg-white p-6">
+        <div className="flex items-center gap-2 text-[20px] font-semibold tracking-[-0.03em] text-ink"><Lock size={19} />Owner mode</div>
+        <p className="mt-1 text-[15px] text-mute">Unlocks sign-in, the agent browser, schedules and stopping runs.</p>
+        <input autoFocus type="password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="Owner password" className="mt-4 h-12 w-full rounded-2xl border border-line px-4 text-[16px] outline-none focus:border-faint" />
+        {err && <div className="mt-2 text-[14.5px] text-bad">{err}</div>}
+        <div className="mt-4 flex justify-end gap-2"><button type="button" onClick={onClose} className="h-11 rounded-full px-5 text-[15px] font-semibold text-mute hover:bg-surface">Cancel</button><button disabled={!pw || busy} className="h-11 rounded-full bg-ink px-6 text-[15px] font-semibold text-white disabled:bg-line disabled:text-faint">{busy ? 'Checking…' : 'Unlock'}</button></div>
+      </motion.form>
+    </motion.div>
+  )
+}
+
 function Chat({ thread, onEdit }: { thread: string; onEdit: (b: Bot) => void }) {
   const msgs = useChat((s) => s.threads[thread] ?? NONE), box = useRef<HTMLDivElement>(null), inner = useRef<HTMLDivElement>(null), stick = useRef(true)
   const p = thread === 'all' ? null : personOf(thread), group = thread === 'all', bot = botOf(thread)
@@ -199,6 +216,9 @@ function NewBot({ edit, onClose }: { edit?: Bot; onClose: () => void }) {
 export function Messenger({ onWorkflow }: { onWorkflow: () => void }) {
   const active = useChat((s) => s.active), threads = useChat((s) => s.threads), q = useChat((s) => s.q), last = useChat((s) => s.last)
   const bots = useBots((s) => s.bots), br = useBrowser((s) => s.open)
+  const [own, setOwn] = useState<{ owner: boolean; viaTunnel: boolean } | null>(null), [ownBox, setOwnBox] = useState(false)
+  const loadOwn = () => fetch('/api/owner').then((r) => r.json()).then(setOwn).catch(() => setOwn(null))
+  useEffect(() => { void loadOwn() }, [])
   const [rowMenu, setRowMenu] = useState<{ id: string; x: number; y: number } | null>(null)
   const openRowMenu = (id: string, el: HTMLElement) => { const r = el.getBoundingClientRect(); setRowMenu({ id, x: Math.min(r.right - 12, window.innerWidth - 250), y: Math.min(r.top + 8, window.innerHeight - 140) }) }
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1'), [menu, setMenu] = useState(false), [editor, setEditor] = useState<{ edit?: Bot } | null>(null)
@@ -221,6 +241,7 @@ export function Messenger({ onWorkflow }: { onWorkflow: () => void }) {
   const items: { icon: any; label: string; run: () => void; scene?: string }[] = [
     { icon: Play, label: 'Stage demo (autopilot)', run: () => useDemo.setState({ panel: true }) },
     { icon: Plus, label: 'New agent', run: () => setEditor({}), scene: 'agent' },
+    ...(own?.viaTunnel ? [{ icon: own.owner ? Unlock : Lock, label: own.owner ? 'Owner mode: on (lock)' : 'Unlock owner mode', run: () => (own.owner ? void fetch('/api/owner/logout', { method: 'POST' }).then(loadOwn) : setOwnBox(true)) }] : []),
     { icon: ScanSearch, label: 'Business X-ray', run: () => { useChat.setState({ draft: 'Analyze ' }); setTimeout(() => document.querySelector<HTMLInputElement>('input[placeholder^="Message"]')?.focus(), 0) }, scene: 'xray' },
     { icon: Globe, label: 'Browser', run: () => useBrowser.setState({ open: true, control: false }), scene: 'browser' },
     { icon: LayoutGrid, label: 'Connected apps', run: () => useApps.setState({ open: true }), scene: 'apps' },
@@ -270,6 +291,7 @@ export function Messenger({ onWorkflow }: { onWorkflow: () => void }) {
             </motion.div>
           </>) })()}
       </AnimatePresence>
+      <AnimatePresence>{ownBox && <OwnerBox key="ob" onClose={() => setOwnBox(false)} onDone={() => { setOwnBox(false); void loadOwn() }} />}</AnimatePresence>
       <AnimatePresence>{editor && <NewBot key="nb" edit={editor.edit} onClose={() => setEditor(null)} />}</AnimatePresence>
     </motion.main>
   )

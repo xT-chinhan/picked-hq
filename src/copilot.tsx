@@ -69,7 +69,7 @@ function SourceRow({ s, setSrc }: { s: Source; setSrc: (id: string, p: Partial<S
   const [plan, setPlan] = useState(false), [err, setErr] = useState('')
   const social = ['facebook', 'instagram', 'tiktok', 'zalo', 'youtube', 'linkedin', 'x', 'shopee', 'lazada', 'tiki', 'maps'].includes(s.kind)
   const slug = s.kind === 'link' ? s.label : s.kind
-  const signIn = async () => { setErr(''); try { const { id } = await post(`/api/sessions/${encodeURIComponent(slug.replace(/[^\w-]/g, '-'))}/open`, { url: s.url }); useBrowser.setState({ open: true, tab: id, control: true, review: null }); setSrc(s.id, { session: 'open' }); setPlan(true) } catch (e: any) { setErr(/local only/.test(e.message) ? 'Signing in works on the machine running Picked only.' : e.message) } }
+  const signIn = async () => { setErr(''); try { const { id } = await post(`/api/sessions/${encodeURIComponent(slug.replace(/[^\w-]/g, '-'))}/open`, { url: s.url }); useBrowser.setState({ open: true, tab: id, control: true, review: null }); setSrc(s.id, { session: 'open' }); setPlan(true) } catch (e: any) { setErr(/only/.test(e.message) ? 'Unlock Owner mode (menu ☰) to sign in.' : e.message) } }
   const read = async () => {
     setErr(''); setSrc(s.id, { session: 'reading' })
     try { const r = await post(`/api/sessions/${encodeURIComponent(slug.replace(/[^\w-]/g, '-'))}/read`, { url: s.url, approved: true, more: 2 }); const p0 = r.pages?.[0]; setSrc(s.id, { session: 'read', status: r.signedIn ? 'read' : 'login needed', facts: { title: p0?.title || '', words: (r.pages || []).reduce((n: number, p: any) => n + String(p.text || '').split(/\s+/).filter(Boolean).length, 0) } }); setPlan(false) }

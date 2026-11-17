@@ -290,7 +290,7 @@ export async function handleMcpRequest(req, res, { hub, local }) {
     res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify(body));
   };
-  if (!local && !list) { reply(403, { error: 'local only' }); return true; }
+  if (!local && !list) { reply(403, { error: 'owner only' }); return true; }
   try {
     let name;
     try { name = match ? decodeURIComponent(match[1]) : undefined; }

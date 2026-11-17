@@ -59,7 +59,7 @@ async function office() { if (!useOffice.getState().open) { useOffice.setState({
 async function everyone() { await office(); if (useChat.getState().active !== 'all') await click(row('Everyone')) }
 async function ask(text: string) { await everyone(); await type(composer, text, { enter: true }) }
 
-type Scene = { id: string; title: string; about: string; mins: string; run: () => Promise<void> }
+type Scene = { id: string; title: string; about: string; mins: string; owner?: boolean; run: () => Promise<void> }
 export const SCENES: Scene[] = [
   { id: 'team', title: 'The AI company', about: 'Agents as rows, group chat, direct chat', mins: '0.5', run: async () => {
     await office(); await say('This is Picked: a company of AI agents. Each row is an agent you can talk to; “Everyone” is the group chat.', 3500)
@@ -101,7 +101,7 @@ export const SCENES: Scene[] = [
     await show('The fixes'); await say('Each fix is a real file built from the site’s own facts, shown before and after.', 3500)
     await click('text=Approve'); await say('Approved fixes are counted as agency hours not paid for.', 3000)
   } },
-  { id: 'browser', title: 'The agent’s browser', about: 'Opens a page on the right and scores it for AI', mins: '0.7', run: async () => {
+  { id: 'browser', owner: true, title: 'The agent’s browser', about: 'Opens a page on the right and scores it for AI', mins: '0.7', run: async () => {
     await ask('Open elmich.vn and review it'); await say('The agent opens the page in its own browser, on the right, and scores how readable it is for AI.')
     await until('The page is open in the browser on the right', 120000, 'the review'); await sleep(6000)
     useBrowser.setState({ open: false }); await sleep(600)
@@ -115,7 +115,7 @@ export const SCENES: Scene[] = [
     await say('What this work costs through an agency, set against the times measured on this machine.'); await glide(400); await sleep(2500)
     await type('input[aria-label="Hourly rate in US dollars"]', '20'); await say('Change the rate or the hours to match a real quote: the totals follow.', 3500)
   } },
-  { id: 'audit', title: 'Audit a brand (in the chat)', about: 'Stages tick off live; the run stops at the owner approval', mins: '1.5', run: async () => {
+  { id: 'audit', owner: true, title: 'Audit a brand (in the chat)', about: 'Stages tick off live; the run stops at the owner approval', mins: '1.5', run: async () => {
     await ask('Audit Elmich'); await say('A full audit of Elmich: 40 saved Gemini answers re-scored, then analysis, the website, facts, content and the council.')
     await until(() => { const L = useLive.getState(); return L.status !== 'running' || L.approval?.status === 'pending' }, 240000, 'the audit')
     await say('It stops at the owner’s approval: nothing is published without it.', 4500)
@@ -134,14 +134,14 @@ export const SCENES: Scene[] = [
     await click(kim()!.parentElement!.querySelector('button[aria-label^="Options"]') as HTMLElement | null ? () => kim()!.parentElement!.querySelector('button[aria-label^="Options"]') : 'text=Kim'); await say('Hover an agent for its menu: clear the conversation or delete the agent.', 3200)
     esc(); await sleep(400)
   } },
-  { id: 'signin', title: 'Sign in to read a social page', about: 'The owner signs in; the agent reads only after approval', mins: '1.2', run: async () => {
+  { id: 'signin', owner: true, title: 'Sign in to read a social page', about: 'The owner signs in; the agent reads only after approval', mins: '1.2', run: async () => {
     await ask('GEO for locknlock.vn'); await until('These are mine', 60000, 'the places'); await sleep(1500)
     await say('A social page can be read from the owner’s own signed-in profile.')
     await click(() => [...document.querySelectorAll<HTMLElement>('main div')].find((d) => /^Youtube/i.test(d.innerText.trim()) && d.querySelector('button'))?.querySelector('button:not([type=button]):last-of-type, button'))
     await sleep(2500); await say('Signing in happens on the right, in the real page. Picked never sees the password.', 3500)
     await click('text=Approve and read'); await until('Read: ', 60000, 'the read'); await say('Read only, and only after approval. Sign out deletes the profile.', 3500)
   } },
-  { id: 'plan', title: 'Approve the plan: the team starts', about: 'One approval starts the audit and schedules the weekly re-measure', mins: '2', run: async () => {
+  { id: 'plan', owner: true, title: 'Approve the plan: the team starts', about: 'One approval starts the audit and schedules the weekly re-measure', mins: '2', run: async () => {
     await ask('GEO for elmich.vn'); await until('These are mine', 60000, 'the places'); await sleep(1200); await click('text=These are mine, check them')
     await until('The plan', 60000, 'the plan'); await show('The plan'); await say('Ten steps: who does what, and which ones wait for the owner.', 3500)
     await type('input[placeholder^="e.g."]', 'hộp cơm giữ nhiệt'); await click('text=Approve the plan and start'); await say('One approval: the audit starts and the weekly re-measure is scheduled.')
@@ -152,7 +152,7 @@ export const SCENES: Scene[] = [
     for (const r of rts.routines ?? []) if (/weekly re-measure/.test(r.title)) await fetch(`/api/routines/${r.id}`, { method: 'DELETE' }).catch(() => {})
     await say('(Demo only: the run and the schedule were cleaned up.)', 2500)
   } },
-  { id: 'workflow', title: 'Workflow: audit a brand', about: 'The animated company, then a real audit on the canvas', mins: '2', run: async () => {
+  { id: 'workflow', owner: true, title: 'Workflow: audit a brand', about: 'The animated company, then a real audit on the canvas', mins: '2', run: async () => {
     await say('The workflow view: the whole company at work. First the animated walkthrough…', 1500)
     ;(window as any).__picked_workflow?.(); await sleep(20000)
     await say('…now a real audit of Elmich on the same canvas: 40 saved Gemini answers re-scored, then analysis, site audit, facts, content and the fact-check council.')
@@ -176,6 +176,7 @@ export async function play(ids: string[]) {
   try {
     for (const s of SCENES.filter((x) => ids.includes(x.id))) {
       set({ scene: s.title })
+      if (s.owner && !(await fetch('/api/owner').then((r) => r.json()).then((o) => o.owner).catch(() => false))) { await say(`${s.title}: unlock Owner mode (menu ☰) to play this one.`, 4500); continue }
       try { await s.run() } catch (e: any) { if (e instanceof Stopped) throw e; await say(`${s.title}: ${e.message}`, 4500) }
     }
     await say('That is the whole demo.', 2500)

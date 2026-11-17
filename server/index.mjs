@@ -11,6 +11,7 @@ import { roster, lockSouls } from './agents.mjs'
 import { ledger } from './engines.mjs'
 import { probeLlmsTxt, reviewPage } from './pagereview.mjs'
 import { hub } from './browserhub.mjs'
+import * as owner from './owner.mjs'
 import { measured } from './measured.mjs'
 import { analyzeBenchmark } from './criteria.mjs'
 import * as profiles from './profiles.mjs'
@@ -113,23 +114,35 @@ function start(o, mode) {
 http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://x'), p = u.pathname
   const viaTunnel = !!(req.headers['cf-ray'] || req.headers['cf-connecting-ip'])
-  const local = !viaTunnel && /^(::1|127\.|::ffff:127\.)/.test(req.socket.remoteAddress || '')
+  const ownerTok = owner.tokenFrom(req.headers.cookie), isOwner = viaTunnel && owner.valid(ownerTok)
+  // the machine itself, or the owner who unlocked Owner mode through the public address: the same powers
+  const local = (!viaTunnel && /^(::1|127\.|::ffff:127\.)/.test(req.socket.remoteAddress || '')) || isOwner
   res.setHeader('x-picked', '1')
   try {
     if (viaTunnel) {
       if (!EDGE || req.headers['x-picked-edge'] !== EDGE.secret) return json(res, 403, { error: 'forbidden' })
       const ip = String(req.headers['x-picked-ip'] || 'unknown')
-      if (req.method === 'POST' && p.startsWith('/api/audit/') && p.endsWith('/stop')) return json(res, 403, { error: 'local only' })
-      if (p === '/api/one/ask' && limited(ip, 'ask', 4, 600000)) return json(res, 429, { error: 'Too many questions, try again later.' })
-      if (p === '/api/bots/draft' && limited(ip, 'bots', 3, 600000)) return json(res, 429, { error: 'Too many new agents, try again later.' })
-      if (/^\/api\/(one\/(chat|prompt)|translate\/refine)/.test(p) && limited(ip, 'llm', 12, 60000)) return json(res, 429, { error: 'Too many requests, slow down.' })
-      if ((p === '/api/analyze' || p === '/api/analyze/resolve') && limited(ip, 'analyze', p === '/api/analyze' ? 3 : 8, 600000)) return json(res, 429, { error: 'Too many analyses, try again later.' })
-      if (req.method === 'POST' && limited(ip, 'post', 30, 60000)) return json(res, 429, { error: 'Too many requests, slow down.' })
-      if (req.method === 'POST' && p === '/api/audit' && limited(ip, 'audit', 4, 600000)) return json(res, 429, { error: 'Too many audits, try again later.' })
+      if (req.method === 'POST' && p.startsWith('/api/audit/') && p.endsWith('/stop') && !isOwner) return json(res, 403, { error: 'owner only' })
+      if (p === '/api/one/ask' && !isOwner && limited(ip, 'ask', 4, 600000)) return json(res, 429, { error: 'Too many questions, try again later.' })
+      if (p === '/api/bots/draft' && !isOwner && limited(ip, 'bots', 3, 600000)) return json(res, 429, { error: 'Too many new agents, try again later.' })
+      if (/^\/api\/(one\/(chat|prompt)|translate\/refine)/.test(p) && !isOwner && limited(ip, 'llm', 12, 60000)) return json(res, 429, { error: 'Too many requests, slow down.' })
+      if ((p === '/api/analyze' || p === '/api/analyze/resolve') && !isOwner && limited(ip, 'analyze', p === '/api/analyze' ? 3 : 8, 600000)) return json(res, 429, { error: 'Too many analyses, try again later.' })
+      if (req.method === 'POST' && !isOwner && limited(ip, 'post', 30, 60000)) return json(res, 429, { error: 'Too many requests, slow down.' })
+      if (req.method === 'POST' && p === '/api/audit' && !isOwner && limited(ip, 'audit', 4, 600000)) return json(res, 429, { error: 'Too many audits, try again later.' })
     }
     if (p === '/api/health') return json(res, 200, { ok: true, edge: !!EDGE })
+    // Owner mode: log in with the owner password (public address only; the machine itself is already the owner)
+    if (p === '/api/owner' && req.method === 'GET') return json(res, 200, { owner: local, viaTunnel, configured: owner.configured() })
+    if (p === '/api/owner/login' && req.method === 'POST') {
+      if (!viaTunnel) return json(res, 200, { owner: true })
+      if (limited(String(req.headers['x-picked-ip'] || 'unknown'), 'login', 5, 600000)) return json(res, 429, { error: 'Too many attempts. Try again in ten minutes.' })
+      const b = await body(req)
+      if (!owner.configured() || !owner.check(String(b.password ?? ''))) { await new Promise((r) => setTimeout(r, 700)); return json(res, 401, { error: 'Wrong password.' }) }
+      res.setHeader('set-cookie', owner.cookie(owner.issue())); return json(res, 200, { owner: true })
+    }
+    if (p === '/api/owner/logout' && req.method === 'POST') { owner.revoke(ownerTok); res.setHeader('set-cookie', owner.cookie('', 0)); return json(res, 200, { owner: false }) }
     // phones on the LAN may only reach the approval page and published shop pages
-    if (!local && !viaTunnel && !/^\/(approve\/|api\/approve\/|shop\/)/.test(p)) return json(res, 403, { error: 'local only' })
+    if (!local && !viaTunnel && !/^\/(approve\/|api\/approve\/|shop\/)/.test(p)) return json(res, 403, { error: 'owner only' })
     if (await handleApprovalRequest(req, res, { onDecision: (a) => pending.get(a.id)?.(a) })) return
     if (await handleSystemOne(req, res, { apps: () => mcp.list().filter((x) => x.status === 'ready').map((x) => x.name) })) return
     let m
@@ -165,7 +178,7 @@ http.createServer(async (req, res) => {
     if ((m = p.match(/^\/api\/audit\/([\w-]+)\/stop$/)) && req.method === 'POST') { const r = live.get(m[1]); if (r) stopRun(r); return json(res, 200, { ok: true }) }
     if (p === '/api/mcp/catalog' && req.method === 'GET') return json(res, 200, { catalog: publicCatalog(), servers: mcp.list(), scopes: Object.fromEntries(['nan'].map((a) => [a, scopesFor(a)])) })
     if (p === '/api/mcp/install' && req.method === 'POST') {
-      if (!local) return json(res, 403, { error: 'local only' })
+      if (!local) return json(res, 403, { error: 'owner only' })
       try {
         const b = await body(req), e = entry(String(b.id || ''))
         if (!e) return json(res, 404, { error: 'unknown app' })
@@ -178,7 +191,7 @@ http.createServer(async (req, res) => {
       } catch (e) { return json(res, 502, { error: String(e.message || e).slice(0, 200) }) }
     }
     if (p === '/api/mcp/scopes' && req.method === 'PUT') {
-      if (!local) return json(res, 403, { error: 'local only' })
+      if (!local) return json(res, 403, { error: 'owner only' })
       try { const b = await body(req); return json(res, 200, { agent: b.agent, scopes: setScopes(String(b.agent), b.scopes) }) } catch (e) { return json(res, 400, { error: String(e.message || e) }) }
     }
     if (p === '/api/one/agent' && req.method === 'POST') {
@@ -248,25 +261,25 @@ http.createServer(async (req, res) => {
       return json(res, 200, { ...copilotCheck(hit.f, sources), patches: copilotPatches(hit.f, sources), criteria: copilotCriteria(hit.f.host) })
     }
     // sign-in profiles: this machine only, never through the tunnel; reading a page needs the owner's approval in the chat
-    if (p === '/api/sessions' && req.method === 'GET') { if (!local) return json(res, 403, { error: 'local only' }); return json(res, 200, { profiles: profiles.list() }) }
+    if (p === '/api/sessions' && req.method === 'GET') { if (!local) return json(res, 403, { error: 'owner only' }); return json(res, 200, { profiles: profiles.list() }) }
     if ((m = p.match(/^\/api\/sessions\/([\w-]+)\/(open|read)$/)) && req.method === 'POST') {
-      if (!local) return json(res, 403, { error: 'local only' })
+      if (!local) return json(res, 403, { error: 'owner only' })
       const b = await body(req)
       if (m[2] === 'open') { const id = await hub.openSession(m[1], String(b.url || '')); return json(res, 200, { id }) }
       if (b.approved !== true) return json(res, 400, { error: 'the owner must approve the read first' })
       try { return json(res, 200, await profiles.read(m[1], String(b.url || ''), { more: Math.min(4, Number(b.more) || 3) })) } catch (e) { return json(res, 502, { error: String(e.message || e).split('\n')[0].slice(0, 160) }) }
     }
-    if ((m = p.match(/^\/api\/sessions\/([\w-]+)$/)) && req.method === 'DELETE') { if (!local) return json(res, 403, { error: 'local only' }); await profiles.signOut(m[1]); return json(res, 200, { ok: true }) }
+    if ((m = p.match(/^\/api\/sessions\/([\w-]+)$/)) && req.method === 'DELETE') { if (!local) return json(res, 403, { error: 'owner only' }); await profiles.signOut(m[1]); return json(res, 200, { ok: true }) }
     if (p === '/api/browser/tabs' && req.method === 'GET') return json(res, 200, { tabs: hub.list().filter((t) => local || t.kind === 'gemini') })
     if (p === '/api/browser/stream' && req.method === 'GET') {
       const tab = u.searchParams.get('tab') || ''
       // the public address may watch the Gemini tabs of an audit, but never a page NaN opened, and never type into anything
-      if (viaTunnel && tab && hub.list().find((t) => t.id === tab)?.kind !== 'gemini') return json(res, 403, { error: 'local only' })
+      if (viaTunnel && !isOwner && tab && hub.list().find((t) => t.id === tab)?.kind !== 'gemini') return json(res, 403, { error: 'owner only' })
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' })
       const off = hub.watch(res, tab); req.on('close', off); return
     }
     if (p.startsWith('/api/browser/') && req.method !== 'GET') {
-      if (!local) return json(res, 403, { error: 'local only' })
+      if (!local) return json(res, 403, { error: 'owner only' })
       try {
         let mm
         if (p === '/api/browser/open' && req.method === 'POST') { const b = await body(req); return json(res, 200, { id: await hub.openWeb(String(b.url || '')) }) }
@@ -284,12 +297,12 @@ http.createServer(async (req, res) => {
       return json(res, 200, review)
     }
     if (p === '/api/page/reviews' && req.method === 'GET') {
-      if (!local) return json(res, 403, { error: 'local only' })
+      if (!local) return json(res, 403, { error: 'owner only' })
       const since = Number(new URL(req.url, 'http://x').searchParams.get('since')) || 0
       return json(res, 200, { reviews: pageReviews.filter((r) => r.ts > since) })
     }
     if (p === '/api/agents' && req.method === 'GET') return json(res, 200, { agents: roster() })
-    if (p === '/api/agents/lock' && req.method === 'POST') { if (viaTunnel) return json(res, 403, { error: 'local only' }); lockSouls(); return json(res, 200, { agents: roster() }) }
+    if (p === '/api/agents/lock' && req.method === 'POST') { if (viaTunnel && !isOwner) return json(res, 403, { error: 'owner only' }); lockSouls(); return json(res, 200, { agents: roster() }) }
     if (p === '/api/engines' && req.method === 'GET') return json(res, 200, ledger())
     if (p === '/api/inbox') {
       // everything that is waiting for a person: an owner decision on the running audit, and routine results nobody has looked at yet
@@ -299,7 +312,7 @@ http.createServer(async (req, res) => {
     }
     if (p === '/api/routines' && req.method === 'GET') return json(res, 200, { routines: routines.list(), brands: BRANDS.map((b) => b.name) })
     if (p.startsWith('/api/routines') && req.method !== 'GET') {
-      if (viaTunnel) return json(res, 403, { error: 'local only' })
+      if (viaTunnel && !isOwner) return json(res, 403, { error: 'owner only' })
       try {
         if (p === '/api/routines' && req.method === 'POST') return json(res, 200, routines.create(await body(req)))
         if (p === '/api/routines/seen' && req.method === 'POST') { routines.markSeen((await body(req)).runId); return json(res, 200, { ok: true }) }

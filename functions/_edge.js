@@ -18,7 +18,9 @@ export async function proxy({ request, env }) {
   const headers = new Headers(request.headers)
   headers.set('x-picked-edge', env.EDGE_SECRET)
   headers.set('x-picked-ip', request.headers.get('cf-connecting-ip') || '')
-  headers.delete('cookie')
+  // only the owner's login cookie goes through; every other cookie stays in the browser
+  const owner = /(?:^|;\s*)(picked_owner=[\w-]+)/.exec(request.headers.get('cookie') || '')
+  if (owner) headers.set('cookie', owner[1]); else headers.delete('cookie')
   let res
   try {
     res = await fetch(new Request(entry.url + url.pathname + url.search, { method: request.method, headers, body: ['GET', 'HEAD'].includes(request.method) ? undefined : request.body, redirect: 'manual' }))

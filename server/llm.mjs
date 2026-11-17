@@ -27,16 +27,28 @@ function run(cmd, args, { env = {}, timeoutMs = 150000 } = {}) {
     let out = '', err = ''
     const t = setTimeout(() => { p.kill('SIGKILL'); reject(new Error(`${cmd} timed out after ${timeoutMs / 1000}s`)) }, timeoutMs)
     p.stdout.on('data', (d) => (out += d)); p.stderr.on('data', (d) => (err += d))
-    p.on('close', (code) => { clearTimeout(t); code === 0 ? resolve(out) : reject(new Error(`${cmd} exited ${code}: ${err.slice(-200)}`)) })
+    p.on('close', (code) => { clearTimeout(t); code === 0 ? resolve(out) : reject(new Error(`${cmd} exited ${code}: ${(err || out).slice(-400)}`)) })
     p.on('error', (e) => { clearTimeout(t); reject(e) })
   })
 }
 
 async function agyEnv() { return (await portOpen(PROXY_PORT)) ? { CLOUD_CODE_URL: `http://127.0.0.1:${PROXY_PORT}` } : {} }
 
+/* Each agyxt account sees its own model list: some have Claude 5.5, others only 4.6. A 5.5 request that the account in use does not know is retried once as
+   the 4.6 model of the same family, and the choice is remembered for ten minutes so the next calls do not repeat the miss. */
+export const olderClaude = (model) => { const m = /^claude-(sonnet|opus)-5-5(?:-(?:low|medium|high|max))?$/.exec(String(model)); return m ? `claude-${m[1]}-4-6-thinking` : null }
+const unknownModel = (e) => /not recognized as a known model/i.test(String(e?.message))
+const fallbackUntil = new Map()
+async function agyRun(args, env, timeoutMs) { return gates.agy.run(async () => run('agy', args, { env, timeoutMs })) }
 async function agyCall(prompt, model, schemaPath, timeoutMs) {
-  const args = ['-p', prompt, '--model', model, '--output-format', 'json', ...(schemaPath ? ['--json-schema', schemaPath] : [])]
-  const raw = await gates.agy.run(async () => run('agy', args, { env: await agyEnv(), timeoutMs }))
+  const mk = (m) => ['-p', prompt, '--model', m, '--output-format', 'json', ...(schemaPath ? ['--json-schema', schemaPath] : [])]
+  const alt = olderClaude(model), env = await agyEnv()
+  let raw
+  if (alt && (fallbackUntil.get(model) ?? 0) > Date.now()) raw = await agyRun(mk(alt), env, timeoutMs)
+  else {
+    try { raw = await agyRun(mk(model), env, timeoutMs) }
+    catch (e) { if (!alt || !unknownModel(e)) throw e; fallbackUntil.set(model, Date.now() + 600000); raw = await agyRun(mk(alt), env, timeoutMs) }
+  }
   const d = JSON.parse(raw)
   if (d.status && d.status !== 'SUCCESS') throw new Error(`agy status ${d.status}`)
   return String(d.response ?? '')

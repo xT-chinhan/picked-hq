@@ -10,7 +10,7 @@
 
 <br>
 
-<img src="docs/readme/hero.jpg" alt="AI's shop window has only 4 seats" width="100%">
+<img src="docs/readme/title.jpg" alt="Get small shops picked by AI" width="100%">
 
 </div>
 
@@ -18,11 +18,25 @@
 
 ## The problem
 
-Buyers ask AI which product to buy. The answer names about four brands, and every other shop is simply not there. The shop owner never finds out.
+SEO was already hard for a small shop. AI search made it harder: buyers ask ChatGPT and Gemini, the answer names a few brands, and nothing tells the owner they were left out.
 
-<img src="docs/readme/share.jpg" alt="4 brands took 81% of all mentions" width="100%">
+<img src="docs/readme/pains.jpg" alt="Six pains of SEO for small businesses" width="100%">
 
-We asked Gemini 40 real buyer questions about thermal lunch boxes and counted every brand it named. Four brands took **81%** of the mentions; 8 of 13 brands were named three times or fewer.
+<br>
+
+## Today's options
+
+Agencies do the work but rarely check real AI answers. SEO suites are built for Google rankings and need an expert. AI visibility trackers measure mentions and leave the fixing to you. Picked measures **and** fixes, with the owner approving every change.
+
+<img src="docs/readme/rivals.jpg" alt="Picked against agencies, SEO suites and AI trackers" width="100%">
+
+<sub>Our reading of each category from public product descriptions, Nov 2026. Individual agencies and tools vary.</sub>
+
+<br>
+
+## Our promise
+
+<img src="docs/readme/promise.jpg" alt="Six problems, one team that solves them" width="100%">
 
 <br>
 

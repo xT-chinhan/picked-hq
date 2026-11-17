@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { runAudit } from './audit.mjs'
-import { buildQuestions } from './questions.mjs'
+import { buildQuestions, toEnglish } from './questions.mjs'
 import { aliasesOf, norm, parseAnswer, summarize } from './parse.mjs'
 import { auditSites } from './vendor/site-audit.mjs'
 import { extractFacts, fetchSiteText } from './facts.mjs'
@@ -23,13 +23,13 @@ export const lanIp = () => { for (const l of Object.values(os.networkInterfaces(
 async function reuseResearch(id, brand, total, emit) {
   const file = RUNS.map((d) => path.join(d, id + '.json')).find((f) => fs.existsSync(f))
   if (!file) throw new Error(`saved run ${id} not found`)
-  const saved = JSON.parse(fs.readFileSync(file, 'utf8')), qs = saved.events.find((e) => e.type === 'run.start').questions.slice(0, total)
+  const saved = JSON.parse(fs.readFileSync(file, 'utf8')), qs = saved.events.find((e) => e.type === 'run.start').questions.slice(0, total).map(toEnglish) // saved runs were asked in Vietnamese; show the English twin
   emit({ type: 'run.start', brand, category: saved.category, total: qs.length, tabs: 5, questions: qs, reused: id })
   const results = new Array(qs.length).fill(null), done = saved.events.filter((e) => e.type === 'q.done' && e.qi < qs.length)
   for (const e of done) {
-    emit({ type: 'q.start', qi: e.qi, slot: e.qi % 5, q: e.q })
+    emit({ type: 'q.start', qi: e.qi, slot: e.qi % 5, q: toEnglish(e.q) })
     await sleep(140)
-    results[e.qi] = { qi: e.qi, q: e.q, text: e.text, ms: e.ms, ...parseAnswer({ text: e.text, heads: [], cells: [], chips: e.domains }, brand) }
+    results[e.qi] = { qi: e.qi, q: toEnglish(e.q), text: e.text, ms: e.ms, ...parseAnswer({ text: e.text, heads: [], cells: [], chips: e.domains }, brand) }
     emit({ type: 'q.done', ...results[e.qi] })
     emit({ type: 'run.progress', summary: summarize(results, brand, qs.length) })
   }

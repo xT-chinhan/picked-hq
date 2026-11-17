@@ -1,13 +1,13 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { ArrowUp, BookOpen, Check, ChevronUp, Globe, LayoutGrid, Loader2, Menu, MessageSquare, PanelLeftClose, PanelLeftOpen, Pencil, Plus, ScanSearch, Search, Sparkles, Trash2, Users, Workflow, X, Zap } from 'lucide-react'
+import { ArrowUp, BookOpen, Eraser, MoreHorizontal, Check, ChevronUp, Globe, LayoutGrid, Loader2, Menu, MessageSquare, PanelLeftClose, PanelLeftOpen, Pencil, Plus, ScanSearch, Search, Sparkles, Trash2, Users, Workflow, X, Zap } from 'lucide-react'
 import { BENCH, Face } from './avatars'
 import { TypedMd } from './Typed'
 import { BrowserPanel, useBrowser } from './BrowserPanel'
 import { useStory } from './Story'
 import { useApps } from './Apps'
 import { RunCard } from './runcards'
-import { ENGINE, STARTERS, TEAM, botOf, draftBot, freeFaces, greeting, openRun, personOf, removeBot, saveBot, sendTurn, useBots, useChat, type Bot, type CMsg } from './chat'
+import { ENGINE, STARTERS, TEAM, botOf, clearThread, isCustom, draftBot, freeFaces, greeting, openRun, personOf, removeBot, saveBot, sendTurn, useBots, useChat, type Bot, type CMsg } from './chat'
 
 /* The office is a messenger: every agent is one row, you can talk to one of them or to everyone,
    real jobs run live inside the conversation, and a browser opens in the right column.
@@ -22,18 +22,21 @@ function GroupFaces({ size = 44 }: { size?: number }) {
   return <span className="relative block flex-none rounded-full bg-surface" style={{ width: size, height: size }}>{f.map((av, i) => <span key={av} className="absolute" style={{ left: (i % 2) * h + 1, top: Math.floor(i / 2) * h + 1 }}><Face av={av} size={h - 1} plain /></span>)}</span>
 }
 
-function Row({ id, name, preview, ts, working, active, collapsed, onClick }: { id: string; name: string; preview: string; ts?: number; working: boolean; active: boolean; collapsed: boolean; onClick: () => void }) {
+function Row({ id, name, preview, ts, working, active, collapsed, onClick, onMenu }: { id: string; name: string; preview: string; ts?: number; working: boolean; active: boolean; collapsed: boolean; onClick: () => void; onMenu: (el: HTMLElement) => void }) {
   const p = id === 'all' ? null : personOf(id)
   const face = p ? <span className="relative flex-none"><Face av={p.av} size={collapsed ? 44 : 40} plain />{working && <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-ink" />}</span> : <GroupFaces size={collapsed ? 44 : 40} />
-  if (collapsed) return <button onClick={onClick} title={name} className={`mx-auto flex h-[52px] w-[52px] items-center justify-center rounded-2xl transition-colors ${active ? 'bg-surface' : 'hover:bg-surface/70'}`}>{face}</button>
+  if (collapsed) return <button onClick={onClick} onContextMenu={(e) => { e.preventDefault(); onMenu(e.currentTarget) }} title={name} className={`mx-auto flex h-[52px] w-[52px] items-center justify-center rounded-2xl transition-colors ${active ? 'bg-surface' : 'hover:bg-surface/70'}`}>{face}</button>
   return (
-    <button onClick={onClick} className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-left transition-colors ${active ? 'bg-surface' : 'hover:bg-surface/70'}`}>
-      {face}
-      <span className="min-w-0 flex-1">
-        <span className="flex items-baseline gap-2"><span className="truncate text-[16px] font-semibold text-ink">{name}</span><span className="ml-auto flex-none text-[13px] text-faint">{ts ? clock(ts) : ''}</span></span>
-        <span className={`block truncate text-[14.5px] ${working ? 'shimmer font-medium' : 'text-mute'}`}>{working ? 'Working…' : preview}</span>
-      </span>
-    </button>
+    <div className="group relative">
+      <button onClick={onClick} onContextMenu={(e) => { e.preventDefault(); onMenu(e.currentTarget) }} className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-left transition-colors ${active ? 'bg-surface' : 'hover:bg-surface/70'}`}>
+        {face}
+        <span className="min-w-0 flex-1">
+          <span className="flex items-baseline gap-2"><span className="truncate text-[16px] font-semibold text-ink">{name}</span><span className="ml-auto flex-none text-[13px] text-faint transition-opacity group-hover:opacity-0">{ts ? clock(ts) : ''}</span></span>
+          <span className={`block truncate text-[14.5px] ${working ? 'shimmer font-medium' : 'text-mute'}`}>{working ? 'Working…' : preview}</span>
+        </span>
+      </button>
+      <button onClick={(e) => { e.stopPropagation(); onMenu(e.currentTarget) }} aria-label={`Options for ${name}`} title="Options" className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full text-mute opacity-0 transition-opacity hover:bg-white hover:text-ink focus:opacity-100 group-hover:opacity-100"><MoreHorizontal size={18} /></button>
+    </div>
   )
 }
 
@@ -61,6 +64,7 @@ const RUN_ITEMS: { icon: any; label: string; hint: string; fill?: string; run?: 
   { icon: Globe, label: 'Audit Elmich, fresh', hint: '40 new questions on real Gemini, about 4 minutes', run: () => openRun(useChat.getState().active, { type: 'audit', brand: 'Elmich', fresh: true }) },
   { icon: MessageSquare, label: 'Ask Gemini a buyer question', hint: 'One real answer from an anonymous Gemini tab', fill: 'Ask Gemini: ' },
   { icon: Search, label: 'Review a page in the browser', hint: 'Open it on the right and score it for AI', fill: 'Open elmich.vn and review it' },
+  { icon: Zap, label: 'Compare with an SEO agency', hint: 'What this work costs through an agency, with measured times', run: () => openRun(useChat.getState().active, { type: 'savings' }) },
   { icon: Sparkles, label: 'Use the connected apps', hint: 'Let the agents call your MCP apps', fill: 'Use apps: ' },
 ]
 
@@ -121,7 +125,8 @@ function Chat({ thread, onEdit }: { thread: string; onEdit: (b: Bot) => void }) 
       <header className="flex items-center gap-3 border-b border-line px-5 py-3">
         {p ? <Face av={p.av} size={40} plain /> : <GroupFaces size={40} />}
         <div className="min-w-0 flex-1"><div className="text-[17.5px] font-semibold leading-tight text-ink">{p ? p.name : ALL.name}</div><div className="truncate text-[14px] text-mute">{p ? `${p.role} · ${bot ? 'Custom agent' : ENGINE[p.id] ?? ''}` : ALL.role}</div></div>
-        {bot && <><button onClick={() => onEdit(bot)} title="Edit this agent" className="grid h-10 w-10 place-items-center rounded-full text-mute hover:bg-surface hover:text-ink"><Pencil size={17} /></button><button onClick={() => { if (confirm(`Delete ${bot.name}?`)) removeBot(bot.id) }} title="Delete this agent" className="grid h-10 w-10 place-items-center rounded-full text-mute hover:bg-surface hover:text-bad"><Trash2 size={17} /></button></>}
+        {bot && <button onClick={() => onEdit(bot)} title="Edit this agent" className="grid h-10 w-10 place-items-center rounded-full text-mute hover:bg-surface hover:text-ink"><Pencil size={17} /></button>}
+        <button onClick={() => { if (!msgs.length || confirm(`Clear this conversation with ${p ? p.name : 'everyone'}?`)) clearThread(thread) }} disabled={!msgs.length} title="Clear conversation" aria-label="Clear conversation" className="flex h-10 items-center gap-2 rounded-full px-3.5 text-[14.5px] font-semibold text-mute hover:bg-surface hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent"><Eraser size={16} />Clear</button>
         <button onClick={() => useBrowser.setState((s) => ({ open: !s.open, control: false }))} className="flex h-10 items-center gap-2 rounded-full bg-surface px-4 text-[14.5px] font-semibold text-ink hover:bg-line"><Globe size={16} />Browser</button>
       </header>
       <div ref={box} onScroll={(e) => { const el = e.currentTarget; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80 }} className="min-h-0 flex-1 overflow-y-auto px-5 py-5 [scrollbar-width:thin]">
@@ -190,6 +195,8 @@ function NewBot({ edit, onClose }: { edit?: Bot; onClose: () => void }) {
 export function Messenger({ onWorkflow }: { onWorkflow: () => void }) {
   const active = useChat((s) => s.active), threads = useChat((s) => s.threads), q = useChat((s) => s.q), last = useChat((s) => s.last)
   const bots = useBots((s) => s.bots), br = useBrowser((s) => s.open)
+  const [rowMenu, setRowMenu] = useState<{ id: string; x: number; y: number } | null>(null)
+  const openRowMenu = (id: string, el: HTMLElement) => { const r = el.getBoundingClientRect(); setRowMenu({ id, x: Math.min(r.right - 12, window.innerWidth - 250), y: Math.min(r.top + 8, window.innerHeight - 140) }) }
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1'), [menu, setMenu] = useState(false), [editor, setEditor] = useState<{ edit?: Bot } | null>(null)
   // the extension hands a job over with ?ask=...: run it once, then clean the address
   useEffect(() => { const u = new URL(location.href), t = u.searchParams.get('ask'); if (!t) return; u.searchParams.delete('ask'); history.replaceState({}, '', u.pathname + u.search); setTimeout(() => void sendTurn('all', t.slice(0, 500)), 600) }, [])
@@ -224,7 +231,7 @@ export function Messenger({ onWorkflow }: { onWorkflow: () => void }) {
         </div>
         {!collapsed && <label className="mb-2 flex h-10 items-center gap-2.5 rounded-full bg-surface px-3.5 text-faint"><Search size={16} /><input value={q} onChange={(e) => useChat.setState({ q: e.target.value })} placeholder="Search" className="min-w-0 flex-1 bg-transparent text-[15.5px] text-ink outline-none placeholder:text-faint" />{q && <button type="button" onClick={() => useChat.setState({ q: '' })}><X size={14} /></button>}</label>}
         <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto [scrollbar-width:none]">
-          {rows.map((r) => { const i = info(r.id); return <Row key={r.id} id={r.id} name={r.name} preview={i.preview} ts={i.ts} working={i.working} active={active === r.id} collapsed={collapsed} onClick={() => useChat.setState({ active: r.id })} /> })}
+          {rows.map((r) => { const i = info(r.id); return <Row key={r.id} id={r.id} name={r.name} preview={i.preview} ts={i.ts} working={i.working} active={active === r.id} collapsed={collapsed} onClick={() => useChat.setState({ active: r.id })} onMenu={(el) => openRowMenu(r.id, el)} /> })}
           {!rows.length && <div className="px-4 py-8 text-center text-[15px] text-faint">No agent matches “{q}”.</div>}
         </div>
         <div className={`relative mt-2 flex items-center border-t border-line pt-2 ${collapsed ? 'flex-col gap-1.5' : 'justify-between px-1'}`}>
@@ -246,6 +253,17 @@ export function Messenger({ onWorkflow }: { onWorkflow: () => void }) {
       <Chat key={active} thread={active} onEdit={(b) => setEditor({ edit: b })} />
       <AnimatePresence>
         {br && <motion.div key="br" initial={{ width: '0vw', opacity: 0 }} animate={{ width: '38vw', opacity: 1 }} exit={{ width: '0vw', opacity: 0 }} transition={{ type: 'spring', stiffness: 260, damping: 32 }} className="min-h-0 flex-none overflow-hidden"><div className="h-full w-[38vw]"><BrowserPanel docked /></div></motion.div>}
+      </AnimatePresence>
+      <AnimatePresence>
+        {rowMenu && (() => { const id = rowMenu.id, p = id === 'all' ? null : personOf(id), who = p?.name ?? 'Everyone', custom = isCustom(id), has = (threads[id] ?? []).length > 0; return (
+          <>
+            <div className="fixed inset-0 z-[60]" onClick={() => setRowMenu(null)} onContextMenu={(e) => { e.preventDefault(); setRowMenu(null) }} />
+            <motion.div key="rm" initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }} style={{ left: rowMenu.x, top: rowMenu.y }} className="fixed z-[61] w-[236px] rounded-2xl border border-line bg-white p-1.5 shadow-[0_20px_60px_-28px_rgba(17,17,18,.45)]">
+              <button disabled={!has} onClick={() => { setRowMenu(null); if (confirm(`Clear the conversation with ${who}?`)) clearThread(id) }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[15px] font-medium text-ink hover:bg-surface disabled:opacity-40 disabled:hover:bg-transparent"><Eraser size={17} className="text-mute" />Clear conversation</button>
+              {custom && <button onClick={() => { setRowMenu(null); const b = botOf(id); if (b && confirm(`Delete the agent ${b.name} and its conversation? This cannot be undone.`)) removeBot(id) }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[15px] font-medium text-bad hover:bg-surface"><Trash2 size={17} />Delete agent</button>}
+              {!custom && id !== 'all' && <div className="px-3 pb-1.5 pt-1 text-[12.5px] leading-snug text-faint">{who} is part of the core team and cannot be deleted.</div>}
+            </motion.div>
+          </>) })()}
       </AnimatePresence>
       <AnimatePresence>{editor && <NewBot key="nb" edit={editor.edit} onClose={() => setEditor(null)} />}</AnimatePresence>
     </motion.main>

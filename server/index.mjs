@@ -11,6 +11,7 @@ import { roster, lockSouls } from './agents.mjs'
 import { ledger } from './engines.mjs'
 import { probeLlmsTxt, reviewPage } from './pagereview.mjs'
 import { hub } from './browserhub.mjs'
+import { measured } from './measured.mjs'
 import { createMcpHub, handleMcpRequest, isAllowed } from './mcp.mjs'
 import { entry, publicCatalog } from './mcp-catalog.mjs'
 import { runToolLoop } from './toolloop.mjs'
@@ -260,6 +261,7 @@ http.createServer(async (req, res) => {
         if (mm && req.method === 'DELETE') return json(res, routines.remove(mm[1]) ? 200 : 404, { ok: true })
       } catch (e) { return json(res, 400, { error: String(e.message || e) }) }
     }
+    if (p === '/api/measured' && req.method === 'GET') return json(res, 200, measured({ analysesDir: ANALYSES, runDirs: [path.join(DATA, 'runs'), path.join(import.meta.dirname, '..', 'public', 'runs')] }))
     if (p === '/api/runs') return json(res, 200, saved())
     if ((m = p.match(/^\/api\/runs\/([\w-]+)$/))) {
       const f = path.join(DIR, m[1] + '.json')

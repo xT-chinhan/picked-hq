@@ -9,6 +9,7 @@ export type Run =
   | { kind: 'xray'; input: string }
   | { kind: 'audit'; act: Act }
   | { kind: 'exec'; act: Act }
+  | { kind: 'cost' }
 export type CMsg = { id: number; who: string; text: string; ts: number; run?: Run; res?: any; thinking?: boolean; old?: boolean; flow?: boolean }
 
 export const TEAM: Person[] = ['nan', 'lia', 'mina', 'scout1', 'ana', 'sy', 'mira', 'theo', 'quinn', 'rhea', 'pax', 'tara'].map((id) => PEOPLE.find((p) => p.id === id)!)
@@ -31,7 +32,7 @@ export const personOf = (id: string) => (id === 'me' ? null : PEOPLE.find((p) =>
 const serverId = (id: string) => (id.startsWith('scout') ? 'scout' : isCustom(id) ? 'custom' : id)
 export const ENGINE: Record<string, string> = { nan: 'Claude Opus 5.5', lia: 'Gemini 3.8', mina: 'Gemini 3.8', scout1: 'Gemini tabs', ana: 'Gemini 4', sy: 'Gemini 4', mira: 'Sonnet 5.5', theo: 'Gemini 4', quinn: 'Council of 3 models', rhea: 'Fixed rules', pax: 'Fixed rules', tara: 'Scheduler' }
 export const STARTERS: Record<string, string[]> = {
-  all: ['Analyze highlandscoffee.com.vn', 'Audit Elmich, quick', 'Ask Gemini: nồi chiên không dầu loại nào tốt?', 'Open elmich.vn and review it'],
+  all: ['Analyze highlandscoffee.com.vn', 'Audit Elmich, quick', 'How much does this save versus an SEO agency?', 'Ask Gemini: nồi chiên không dầu loại nào tốt?', 'Open elmich.vn and review it'],
   nan: ['Analyze elmich.vn', 'Audit Elmich, quick', 'What can you do?', 'Explain what is on screen'],
   lia: ['Translate: tôi muốn bán nồi cơm điện', 'Restore diacritics: noi com dien tu'],
   mina: ['What would buyers ask about lunch boxes?', 'Ask Gemini: hộp cơm giữ nhiệt nào tốt?'],
@@ -59,6 +60,8 @@ export const useChat = create<{ active: string; threads: Record<string, CMsg[]>;
 const save = () => { try { const t = useChat.getState().threads; localStorage.setItem(KEY, JSON.stringify(Object.fromEntries(Object.entries(t).map(([k, v]) => [k, v.slice(-60).map((m) => ({ ...m, thinking: false }))])))) } catch { /* storage full: the chat still works */ } }
 export const add = (thread: string, m: Omit<CMsg, 'id' | 'ts'>) => { const id = ++nextId; useChat.setState((s) => ({ threads: { ...s.threads, [thread]: [...(s.threads[thread] ?? []), { ...m, id, ts: Date.now() }] }, last: { ...s.last, [thread]: Date.now() } })); save(); return id }
 export const patch = (thread: string, id: number, p: Partial<CMsg>) => { useChat.setState((s) => ({ threads: { ...s.threads, [thread]: (s.threads[thread] ?? []).map((m) => (m.id === id ? { ...m, ...p } : m)) } })); save() }
+/** Empties one conversation (the agent stays). Jobs already running keep running; only the messages go. */
+export function clearThread(id: string) { useChat.setState((s) => { const t = { ...s.threads }; delete t[id]; const l = { ...s.last }; delete l[id]; return { threads: t, last: l } }); save() }
 export const drop = (thread: string, id: number) => { useChat.setState((s) => ({ threads: { ...s.threads, [thread]: (s.threads[thread] ?? []).filter((m) => m.id !== id) } })); save() }
 export const greeting = (thread: string) => GREET[thread] ?? botOf(thread)?.greeting ?? `${personOf(thread)?.line ?? 'Hello.'} Ask me anything in my field, or give me a real job.`
 
@@ -71,7 +74,7 @@ const post = async (url: string, body: any, ms = 70000) => {
 }
 
 /** who does the work when the request comes into the group chat */
-const OWNER: Record<string, string> = { analyze: 'ana', audit: 'scout1', replay: 'scout1', ask: 'scout1', browse: 'scout1', apps: 'nan', profile: 'ana', rivals: 'ana', score: 'ana', explain: 'nan', help: 'nan', shop: 'pax', approve: 'pax', reject: 'pax' }
+const OWNER: Record<string, string> = { savings: 'ana', analyze: 'ana', audit: 'scout1', replay: 'scout1', ask: 'scout1', browse: 'scout1', apps: 'nan', profile: 'ana', rivals: 'ana', score: 'ana', explain: 'nan', help: 'nan', shop: 'pax', approve: 'pax', reject: 'pax' }
 const CANVAS = new Set(['goto', 'overview', 'stop'])
 const ACK = (a: Act) => {
   switch (a.type) {
@@ -81,6 +84,7 @@ const ACK = (a: Act) => {
     case 'ask': return 'Scout is opening a fresh Gemini tab with your question.'
     case 'browse': return `Opening ${a.url} in the browser${a.review ? ' and reviewing it' : ''}.`
     case 'apps': return 'Using the connected apps, one tool at a time.'
+    case 'savings': return 'Here is what this work costs through an agency, set against what the team just did. The agency hours and the rate are assumptions you can change; the Picked times are measured.'
     default: return ''
   }
 }
@@ -88,6 +92,7 @@ const ACK = (a: Act) => {
 export function openRun(thread: string, a: Act, by?: string) {
   const who = by ?? (thread === 'all' ? OWNER[a.type] ?? 'nan' : thread)
   if (CANVAS.has(a.type)) { add(thread, { who: by ?? (thread === 'all' ? 'nan' : thread), text: 'That is a view of the animated workflow. Open the workflow to watch it.', flow: true }); return }
+  if (a.type === 'savings') { add(thread, { who: by ?? (thread === 'all' ? 'ana' : thread), text: '', run: { kind: 'cost' }, res: { shown: true } }); return }
   if (a.type === 'analyze') { if (!a.q) return; add(thread, { who, text: '', run: { kind: 'xray', input: a.q } }); return }
   if (a.type === 'audit' || a.type === 'replay') { add(thread, { who, text: '', run: { kind: 'audit', act: a } }); return }
   add(thread, { who, text: '', run: { kind: 'exec', act: a } })

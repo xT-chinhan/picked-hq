@@ -77,6 +77,7 @@ const SITES: [RegExp, string][] = [
 export function intent(raw: string): Act | null {
   const n = plain(raw)
   let m: RegExpMatchArray | null
+  if (/\b(agency|sav(?:e|es|ing|ings)|roi|cost|chi ph[ií]|ti[eế]t ki[eệ]m)\b/i.test(raw) && /\b(seo|geo|agency|aeo|marketing)\b/i.test(raw)) return { type: 'savings' }
   if ((m = raw.match(/^\s*(?:analy[sz]e|x-?ray|ph[âa]n t[íi]ch|scan)\s*[:,]?\s+(.{3,})$/i))) return { type: 'analyze', q: m[1].trim() }
   if (/^\s*(?:analy[sz]e|x-?ray|ph[âa]n t[íi]ch)\s*$/i.test(raw)) return { type: 'analyze', q: '' }
   if ((m = raw.match(/^\s*(?:apps?|app:|dùng app|dung app|use apps?)\s*[:,]?\s+(.{6,})$/i))) return { type: 'apps', q: m[1].trim() }

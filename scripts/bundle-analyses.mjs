@@ -1,5 +1,6 @@
 // Copies the saved business analyses next to the app so they replay with no backend (the hosted page and a dead network).
 import fs from 'node:fs'
+import { measured } from '../server/measured.mjs'
 const SRC = 'server/data/analyses', DST = 'public/analyses'
 fs.mkdirSync(DST, { recursive: true })
 for (const f of fs.readdirSync(DST)) fs.rmSync(`${DST}/${f}`)
@@ -16,3 +17,5 @@ for (const { f, r } of latest.values()) {
 list.sort((a, b) => b.finishedAt - a.finishedAt)
 fs.writeFileSync(`${DST}/index.json`, JSON.stringify(list))
 console.log(list.map((x) => `${x.brand} ${x.siteScore}`).join(' | '))
+// the timings behind the cost comparison, so the hosted page shows the same measured numbers
+fs.writeFileSync('public/measured.json', JSON.stringify(measured({ analysesDir: 'server/data/analyses', runDirs: ['server/data/runs', 'public/runs'] })))

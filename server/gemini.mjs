@@ -5,8 +5,9 @@ const WALL = /đăng nhập để tiếp tục|sign in to continue|something wen
 
 export async function launch({ headed = false } = {}) {
   const browser = await chromium.launch({ executablePath: process.env.CHROME_BIN || '/usr/bin/google-chrome', headless: !headed, args: ['--no-sandbox', ...(headed ? ['--window-size=1100,820'] : [])] })
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 }, locale: 'vi-VN' })
-  return { ctx, close: () => browser.close() }
+  // a new context is a new anonymous visitor: Gemini limits one visitor, so the audit rotates them
+  const fresh = () => browser.newContext({ viewport: { width: 1280, height: 860 }, locale: 'en-US' })
+  return { ctx: await fresh(), fresh, close: () => browser.close() }
 }
 
 /** Opens a fresh anonymous Gemini chat in its own tab, asks one question, resolves with the finished answer. */

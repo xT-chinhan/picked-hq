@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { Answer, Session } from './sim'
 // the same parser the audit server uses, so a saved run can be re-scored for any brand right in the browser
 import { parseAnswer, summarize } from '../server/parse.mjs'
+import { toEnglish } from '../server/questions.mjs'
 import { OFFLINE_MSG, probe } from './edge'
 
 /* Real audit data: events from the local audit server (or a saved run replayed), shaped for the canvas. */
@@ -57,6 +58,7 @@ export function apply(ev: any) {
     case 'approval.done': useLive.setState((s) => ({ approval: s.approval ? { ...s.approval, status: ev.status, decisions: ev.decisions } : s.approval })); stamp('approved'); say(`Owner ${ev.status}`); break
     case 'publish.done': useLive.setState({ publish: ev }); stamp('publish'); say(ev.skipped ? 'Nothing approved to publish' : 'Shop page published'); break
     case 'track.done': useLive.setState({ track: ev }); stamp('track'); break
+    case 'run.warning': say(ev.text); break
     case 'stage.error': say(`${ev.stage}: ${ev.error}`); break
     case 'run.done':
       useLive.setState({ summary: ev.summary, status: 'done' })
@@ -112,7 +114,9 @@ export async function replayRun(id: string, speed: number, brandOverride?: strin
   const run = await r.json()
   const brand = (brandOverride || '').trim(), rescore = brand && brand !== run.brand
   let results: any[] = []
-  let events: any[] = run.events.filter((e: any) => e.type !== 'q.partial').map((ev: any) => {
+  let events: any[] = run.events.filter((e: any) => e.type !== 'q.partial').map((raw: any) => {
+    // saved runs were asked in Vietnamese: show each question's English twin
+    const ev = raw.type === 'run.start' ? { ...raw, questions: raw.questions.map(toEnglish) } : raw.q ? { ...raw, q: toEnglish(raw.q) } : raw
     if (!rescore) return ev
     if (ev.type === 'run.start') { results = new Array(ev.total).fill(null); return { ...ev, brand } }
     if (ev.type === 'q.done') { const p = parseAnswer({ text: ev.text, heads: [], cells: [], chips: ev.domains }, brand); results[ev.qi] = { ...ev, ...p }; return { ...ev, ...p } }

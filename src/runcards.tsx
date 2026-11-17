@@ -5,6 +5,7 @@ import { Face } from './avatars'
 import { Compass as Chrome } from 'lucide-react'
 import { Feed, Scanner, startAnalyze, confirmAnalyze, useAnalyze, type Report } from './Analyze'
 import { Typed, TypedMd } from './Typed'
+import { CostCard } from './savings'
 import { PageReviewView, Ranking, ReportView, isBlocked, type PageReview } from './report'
 import { useLive } from './live'
 import { Card, exec } from './SystemOne'
@@ -178,7 +179,7 @@ function Summary({ s, site }: { s: any; site: number | null }) {
   return (
     <div className="rounded-2xl bg-surface p-3">
       <div className="flex items-end gap-2"><span className="tnum text-[34px] font-semibold leading-none" style={{ color: rate >= 25 ? '#16a34a' : '#e11d48' }}>{s.mentioned}<span className="text-slate-300">/{s.total}</span></span><span className="pb-1 text-[14px] text-mute">answers name {s.brand}</span></div>
-      <div className="mt-2 grid grid-cols-3 gap-2 text-center">{[['Top 3', s.top3], ['Avg rank', s.avgRank ?? '–'], ['Website', site != null ? `${site}/100` : '–']].map(([k, v]) => <div key={k as string} className="rounded-xl bg-white py-1.5"><div className="tnum text-[17px] font-semibold text-ink">{v}</div><div className="text-[12.5px] text-mute">{k}</div></div>)}</div>
+      <div className="mt-2 grid grid-cols-3 gap-2 text-center">{[['Top 3', s.top3], ['Avg rank', s.avgRank != null ? Number(s.avgRank).toFixed(1) : '–'], ['Website', site != null ? `${site}/100` : '–']].map(([k, v]) => <div key={k as string} className="rounded-xl bg-white py-1.5"><div className="tnum text-[17px] font-semibold text-ink">{v}</div><div className="text-[12.5px] text-mute">{k}</div></div>)}</div>
       <div className="mt-2 space-y-1">{(s.competitors ?? []).slice(0, 3).map((r: any) => <div key={r.name} className="flex items-center gap-2 text-[13.5px]"><span className="w-24 truncate text-mute">{r.name}</span><div className="h-2 flex-1 overflow-hidden rounded-full bg-white"><motion.div initial={{ width: 0 }} animate={{ width: `${(r.count / (s.answered || 1)) * 100}%` }} className="h-full rounded-full bg-slate-400" /></div><span className="tnum w-6 text-right text-mute">{r.count}</span></div>)}</div>
     </div>
   )
@@ -224,5 +225,6 @@ function Exec({ thread, m }: { thread: string; m: CMsg }) {
 
 export function RunCard({ thread, m }: { thread: string; m: CMsg }) {
   const k = m.run!.kind
+  if (k === 'cost') return <Shell m={m} title="What this replaces" state="done"><CostCard /></Shell>
   return k === 'xray' ? <Xray thread={thread} m={m} /> : k === 'audit' ? <Audit thread={thread} m={m} /> : <Exec thread={thread} m={m} />
 }

@@ -238,6 +238,7 @@ const REEL: { id: string; title: string; run: () => Promise<void> }[] = [
     await say('Measured times against agency hours.'); await zoom(() => [...document.querySelectorAll<HTMLElement>('main .tnum')].reverse().find((x) => /\$/.test(x.innerText))?.closest('.rounded-\[22px\]'), 1.5, 1700); await unzoom()
   } },
   { id: 'browser', title: 'The agent’s browser', run: async () => {
+    if (!(await fetch('/api/owner').then((r) => r.json()).then((o) => o.owner).catch(() => false))) return // needs Owner mode: skipped at once, so the reel keeps its time
     await type(composer, 'Open elmich.vn', { enter: true }); await say('The agent opens the page on the right.')
     await until('The page is open in the browser', 30000, 'the page'); await sleep(1700); useBrowser.setState({ open: false }); await sleep(300)
   } },

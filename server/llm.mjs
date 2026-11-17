@@ -36,7 +36,7 @@ async function agyEnv() { return (await portOpen(PROXY_PORT)) ? { CLOUD_CODE_URL
 
 /* Each agyxt account sees its own model list: some have Claude 5.5, others only 4.6. A 5.5 request that the account in use does not know is retried once as
    the 4.6 model of the same family, and the choice is remembered for ten minutes so the next calls do not repeat the miss. */
-export const olderClaude = (model) => { const m = /^claude-(sonnet|opus)-5-5(?:-(?:low|medium|high|max))?$/.exec(String(model)); return m ? `claude-${m[1]}-4-6-thinking` : null }
+export const olderClaude = (model) => { const m = /^claude-(sonnet|opus)-5-5(?:-(?:low|medium|high|max))?$/.exec(String(model)), n = /^claude-(sonnet|opus)-4-6(?:-thinking)?$/.exec(String(model)); return m ? `claude-${m[1]}-4-6-thinking` : n ? `claude-${n[1]}-5-5-medium` : null } // 5.5 -> 4.6, and 4.6 -> 5.5 for accounts that only have the newer one
 const unknownModel = (e) => /not recognized as a known model/i.test(String(e?.message))
 const fallbackUntil = new Map()
 async function agyRun(args, env, timeoutMs) { return gates.agy.run(async () => run('agy', args, { env, timeoutMs })) }

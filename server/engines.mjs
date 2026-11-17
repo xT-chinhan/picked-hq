@@ -27,6 +27,8 @@ export const ENGINES = [
   { id: 'sonnet-low', label: 'Claude Sonnet 5.5 · low', driver: 'agy', model: 'claude-sonnet-5-5-low', tier: 'write' },
   { id: 'sonnet-med', label: 'Claude Sonnet 5.5 · medium', driver: 'agy', model: 'claude-sonnet-5-5-medium', tier: 'write' },
   { id: 'sonnet-high', label: 'Claude Sonnet 5.5 · high', driver: 'agy', model: 'claude-sonnet-5-5-high', tier: 'deep' },
+  { id: 'sonnet46', label: 'Claude Sonnet 4.6 · thinking', driver: 'agy', model: 'claude-sonnet-4-6-thinking', tier: 'write' }, // only on accounts whose list has 4.6; 5.5 requests fall back to these
+  { id: 'opus46', label: 'Claude Opus 4.6 · thinking', driver: 'agy', model: 'claude-opus-4-6-thinking', tier: 'deep' },
   { id: 'opus-low', label: 'Claude Opus 5.5 · low', driver: 'agy', model: 'claude-opus-5-5-low', tier: 'deep' },
   { id: 'opus-med', label: 'Claude Opus 5.5 · medium', driver: 'agy', model: 'claude-opus-5-5-medium', tier: 'deep' },
   { id: 'opus-high', label: 'Claude Opus 5.5 · high', driver: 'agy', model: 'claude-opus-5-5-high', tier: 'deep' },

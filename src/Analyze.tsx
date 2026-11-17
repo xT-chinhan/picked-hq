@@ -12,13 +12,13 @@ type StepId = 'scrape' | 'audit' | 'rea' | 'synth'
 type Step = { status: 'idle' | 'running' | 'done' | 'failed' | 'skipped'; ms?: number; data?: any; error?: string; note?: string }
 type Evidence = { id: string; source: string; label: string; detail: string; ref?: string }
 type Finding = { layer: string; title: string; why: string; fix: string; evidence: string[] }
-type Report = { id: string; url: string; brand: string; ms: number; partial: boolean; siteScore: number | null; blocked: boolean; layers: { id: string; name: string; score: number | null; counted: number; passed: number }[]; evidence: Evidence[]; headline: string; findings: Finding[]; strengths: { title: string; evidence: string[] }[]; by: string; status: Record<string, string>; tools?: { scrape: { pages: number; robots: string; llms: string } | null; rea: { domNodes: number; scripts: number; thirdParty: number; evidence: any } | null } }
-type Line = { id: number; kind: 'head' | 'act' | 'find' | 'warn'; step: StepId; text: string }
+export type Report = { id: string; url: string; brand: string; ms: number; partial: boolean; siteScore: number | null; blocked: boolean; layers: { id: string; name: string; score: number | null; counted: number; passed: number }[]; evidence: Evidence[]; headline: string; findings: Finding[]; strengths: { title: string; evidence: string[] }[]; by: string; status: Record<string, string>; tools?: { scrape: { pages: number; robots: string; llms: string } | null; rea: { domNodes: number; scripts: number; thirdParty: number; evidence: any } | null } }
+export type Line = { id: number; kind: 'head' | 'act' | 'find' | 'warn'; step: StepId; text: string }
 type Phase = 'idle' | 'resolving' | 'confirm' | 'running' | 'done' | 'error'
 type Preset = { id: string; brand: string; url: string; siteScore: number | null }
 
 const BLANK: Record<StepId, Step> = { scrape: { status: 'idle' }, audit: { status: 'idle' }, rea: { status: 'idle' }, synth: { status: 'idle' } }
-export const useAnalyze = create<{ open: boolean; phase: Phase; input: string; resolved: { url: string; name: string; title?: string; verified?: boolean } | null; steps: Record<StepId, Step>; report: Report | null; err: string; replay: boolean; presets: Preset[]; showEvidence: boolean; feed: Line[]; t0: number; showLog: boolean }>(() => ({ open: false, phase: 'idle', input: '', resolved: null, steps: BLANK, report: null, err: '', replay: false, presets: [], showEvidence: false, feed: [], t0: 0, showLog: false }))
+export const useAnalyze = create<{ open: boolean; phase: Phase; input: string; resolved: { url: string; name: string; title?: string; verified?: boolean } | null; steps: Record<StepId, Step>; report: Report | null; err: string; replay: boolean; presets: Preset[]; showEvidence: boolean; feed: Line[]; t0: number; showLog: boolean; owner: number }>(() => ({ open: false, phase: 'idle', input: '', resolved: null, steps: BLANK, report: null, err: '', replay: false, presets: [], showEvidence: false, feed: [], t0: 0, showLog: false, owner: 0 }))
 const set = useAnalyze.setState
 
 const ORDER: StepId[] = ['scrape', 'audit', 'rea', 'synth']
@@ -178,7 +178,7 @@ function briefOf(k: StepId, r: Report) {
 const fmt = (n?: number | null) => (n == null ? '–' : n.toLocaleString())
 /* Text that streams in a word at a time, like a model answering. Lines already typed once show whole on a re-render. */
 const typed = new Set<string>()
-function Typed({ k, text, className = '', caret }: { k: string; text: string; className?: string; caret?: boolean }) {
+export function Typed({ k, text, className = '', caret }: { k: string; text: string; className?: string; caret?: boolean }) {
   const ref = useRef<HTMLSpanElement>(null), [end, setEnd] = useState(typed.has(k))
   useEffect(() => {
     const el = ref.current; if (!el) return
@@ -198,7 +198,7 @@ function Clock({ t0, frozen }: { t0: number; frozen?: number }) {
 }
 
 /* Left: the page the agents are looking at, a scan beam in the colour of the current step, and the four steps. */
-function Scanner({ host, steps, done, replay, t0, ms }: { host: string; steps: Record<StepId, Step>; done: boolean; replay: boolean; t0: number; ms?: number }) {
+export function Scanner({ host, steps, done, replay, t0, ms }: { host: string; steps: Record<StepId, Step>; done: boolean; replay: boolean; t0: number; ms?: number }) {
   const cur = TOOLS.find((t) => steps[t.id].status === 'running')
   done = done || (!cur && steps.synth.status !== 'idle')
   const color = cur?.color ?? '#10b981'
@@ -245,7 +245,7 @@ function Scanner({ host, steps, done, replay, t0, ms }: { host: string; steps: R
 }
 
 /* Right: the agent's running commentary, streamed. */
-function Feed({ feed, live, tall }: { feed: Line[]; live: boolean; tall?: boolean }) {
+export function Feed({ feed, live, tall }: { feed: Line[]; live: boolean; tall?: boolean }) {
   const box = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const el = box.current; if (!el) return
@@ -284,13 +284,13 @@ function Feed({ feed, live, tall }: { feed: Line[]; live: boolean; tall?: boolea
 
 const LAYER_COLOR: Record<string, string> = { reach: '#0891b2', understand: '#7c3aed', trust: '#d97706' }
 const LAYER_NAME: Record<string, string> = { reach: 'Reachable', understand: 'Understandable', trust: 'Quotable' }
-function Result({ r }: { r: Report }) {
+export function Result({ r, compact }: { r: Report; compact?: boolean }) {
   const [open, setOpen] = useState<string>('')
   const byId = new Map(r.evidence.map((e) => [e.id, e]))
   const tone = (v: number | null) => (v == null ? '#cbd5e1' : v >= 75 ? '#16a34a' : v >= 50 ? '#d97706' : '#e11d48')
   const reaIds = r.evidence.filter((e) => e.ref)
   return (
-    <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="mt-5 grid grid-cols-[300px_1fr] gap-6">
+    <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className={`mt-5 grid gap-6 ${compact ? 'grid-cols-1' : 'grid-cols-[300px_1fr]'}`}>
       <div>
         <div className="flex items-end gap-2"><span className="tnum text-[84px] font-semibold leading-none tracking-tight" style={{ color: tone(r.siteScore) }}>{r.siteScore ?? '–'}</span><span className="pb-3 text-[20px] text-slate-300">/100</span></div>
         <div className="mt-1 text-[14px] text-slate-500">{r.blocked ? 'This site blocks automated audits.' : 'Agent-readiness of the site'}</div>

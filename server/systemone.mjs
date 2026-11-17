@@ -1,5 +1,5 @@
 // NaN: the operator chat. Translation, prompt structuring, free-form intent and a single real Gemini question.
-import { agentLlm } from './agents.mjs'
+import { agentLlm, agent as findAgent } from './agents.mjs'
 import { launch, ask } from './gemini.mjs'
 import { parseAnswer } from './parse.mjs'
 import { handleTranslateRequest, makeAgyRestorer } from './translate.mjs'
@@ -20,7 +20,7 @@ const CHAT = {
   },
   required: ['prompt', 'reply', 'actions'],
 }
-const ABOUT = `Picked is a company of AI agents that measures and improves how AI assistants (Gemini) recommend a small brand.
+const ABOUT = `Picked is a company of AI agents and an all-round SEO and GEO assistant: it measures and improves how search engines and AI assistants (Gemini) recommend a small brand.
 Departments: mining (buyer questions), research (asks Gemini 40 buyer questions in parallel tabs), analysis (why the brand is skipped, rivals, cited sources),
 sync (website audit + sourced facts), content (FAQ, about page, outreach pitch), citations, qa (each sentence checked against facts), risk (claims + personal data gate),
 approve (the owner approves from a phone), publish (shop page, llms.txt, JSON-LD), track, impact.`
@@ -52,9 +52,13 @@ export async function handleSystemOne(req, res, ctx = {}) {
     if (route === '/api/one/chat') {
       const text = clip(b.text, 1500)
       if (!text.trim()) return send(res, 400, { error: 'empty' }), true
+      // a direct chat with one agent speaks in that agent's voice; the group chat is answered by NaN, who routes the work
+      const who = findAgent(String(b.agent || 'nan')) ?? findAgent('nan')
+      const history = Array.isArray(b.history) ? b.history.slice(-8).map((m) => `${m.who === 'me' ? 'Operator' : clip(m.name, 20)}: ${clip(m.text, 300)}`).join('\n') : ''
+      const persona = who.id === 'nan' ? 'You are NaN, the operator console and chief of staff of Picked.' : `You are ${who.name}, ${who.role} at Picked. ${who.soul}\nAnswer as ${who.name} in the first person and stay within your role; for work outside it, hand over to the right colleague by name. You may still run the actions below when the operator asks for them.`
       const out = await nan.agyJson({
         schema: CHAT, timeoutMs: 60000,
-        prompt: `You are NaN, the operator console of Picked.\n${ABOUT}\n\nScreen state (JSON): ${state}\n\nOperator request (English): ${text}\nOriginal wording: ${clip(b.original, 600)}\n
+        prompt: `${persona}\n${ABOUT}\n\n${history ? `Conversation so far:\n${history}\n\n` : ''}Screen state (JSON): ${state}\n\nOperator request (English): ${text}\nOriginal wording: ${clip(b.original, 600)}\n
 Return three things.
 1. prompt: ${STRUCT}
 2. reply: answer the operator in English, at most 3 short sentences, using only numbers found in the state. If the state lacks the data, say so and name the action that would get it.

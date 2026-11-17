@@ -21,7 +21,7 @@ export type Prompt = { role: string; context: string; task: string; constraints:
 type Tr = { src: string; en: string; ms: number; provider: string; refined?: boolean }
 type Step = { t: string; done: boolean }
 export type Msg = { id: number; who: 'me' | 'one'; text: string; busy?: boolean; steps?: Step[]; tr?: Tr; pr?: Prompt & { by: 'rules' | 'llm' }; card?: any }
-type Act = { type: string; brand?: string; website?: string; q?: string; phase?: Phase; fresh?: boolean; url?: string; review?: boolean }
+export type Act = { type: string; brand?: string; website?: string; q?: string; phase?: Phase; fresh?: boolean; url?: string; review?: boolean }
 
 export const useOne = create<{ open: boolean; msgs: Msg[]; team: boolean; info: boolean }>(() => ({ open: false, msgs: [], team: false, info: false }))
 let mid = 0
@@ -84,12 +84,12 @@ export function intent(raw: string): Act | null {
   if (/(go to|goto|jump|den|nhay|chuyen|phong|department|show me the|mo phong|xem phong)/.test(n)) for (const [re, ph] of DEPT) if (re.test(n)) return { type: 'goto', phase: ph }
   if (/^(reject|tu choi|khong duyet)/.test(n)) return { type: 'reject' }
   if (/^(approve|duyet|dong y|ok duyet)/.test(n)) return { type: 'approve' }
-  if ((m = n.match(/(?:profile|ho so|tra cuu|look up)\s*(.*)$/))) { const b = brandIn(n, m[1]); if (b) return { type: 'profile', ...b } }
-  if ((m = n.match(/(?:replay|phat lai|chieu lai|cham lai|re-?score)\s*(.*)$/))) return { type: 'replay', ...(brandIn(n, m[1]) ?? {}) }
-  if ((m = n.match(/(?:audit|kiem tra|chay|run|do|quet)\s+(.*)$/))) { const b = brandIn(n, m[1]); if (b) return { type: 'audit', ...b, fresh: /\b(moi|fresh|from scratch|that|real)\b/.test(n) } }
-  if (/(explain|giai thich|dang lam gi|what.*(happening|going on)|status|tinh hinh|man hinh)/.test(n)) return { type: 'explain' }
-  if (/(doi thu|competitor|rival|opponent)/.test(n)) return { type: 'rivals' }
-  if (/(diem|score|bao nhieu lan|how many times|visibility)/.test(n)) return { type: 'score' }
+  if ((m = n.match(/^(?:profile|ho so|tra cuu|look up)\s*(.*)$/))) { const b = brandIn(n, m[1]); if (b) return { type: 'profile', ...b } }
+  if ((m = n.match(/^(?:replay|phat lai|chieu lai|cham lai|re-?score)\s*(.*)$/))) return { type: 'replay', ...(brandIn(n, m[1]) ?? {}) }
+  if ((m = n.match(/^(?:audit|kiem tra|chay|run|quet)\s+(.*)$/))) { const b = brandIn(n, m[1]); if (b) return { type: 'audit', ...b, fresh: /\b(moi|fresh|from scratch|that|real)\b/.test(n) } }
+  if (n.length < 40 && /(explain|giai thich|dang lam gi|what.*(happening|going on)|status|tinh hinh|man hinh)/.test(n)) return { type: 'explain' }
+  if (n.length < 40 && /(doi thu|competitor|rival|opponent)/.test(n)) return { type: 'rivals' }
+  if (n.length < 40 && /(diem|score|bao nhieu lan|how many times|visibility)/.test(n)) return { type: 'score' }
   return null
 }
 
@@ -121,7 +121,7 @@ function explain(vi: boolean) {
 }
 
 /** runs one action for real; resolves with the line to show (and an optional card) */
-async function exec(a: Act, vi: boolean, id: number): Promise<{ text: string; card?: any }> {
+export async function exec(a: Act, vi: boolean, id: number): Promise<{ text: string; card?: any }> {
   const T = (v: string, e: string) => (vi ? v : e)
   switch (a.type) {
     case 'goto': if (!a.phase) break; jump(a.phase); return { text: T(`Đã chuyển tới phòng ${NAME[a.phase]}.`, `Moved to ${NAME[a.phase]}.`) }

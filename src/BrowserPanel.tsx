@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { create } from 'zustand'
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowLeft, Globe, Hand, RotateCw, ScanSearch, X } from 'lucide-react'
+import { useOffice } from './Office'
 
 /* Browser room: watch the real pages the agents drive (Gemini tabs, pages NaN opens) and take control when needed. */
 type Tab = { id: string; kind: 'gemini' | 'web'; q: string; url: string; title: string; status: string; help: string | null }
@@ -49,15 +50,16 @@ function Frame({ id, control }: { id: string; control: boolean }) {
   )
 }
 
-export function BrowserPanel() {
+export function BrowserPanel({ docked = false }: { docked?: boolean }) {
+  const office = useOffice((s) => s.open)
   const { open, tab, tabs, control, review, err } = useBrowser()
   const [url, setUrl] = useState(''), [busy, setBusy] = useState(false)
   useEffect(() => {
-    if (!open) return
+    if (!open || (!docked && office)) return
     const es = new EventSource('/api/browser/stream') // tab list only
     es.onmessage = (m) => { const ev = JSON.parse(m.data); if (ev.type === 'tabs') useBrowser.setState((s) => ({ tabs: ev.tabs, tab: ev.tabs.some((t: Tab) => t.id === s.tab) ? s.tab : ev.tabs[0]?.id ?? '' })) }
     return () => es.close()
-  }, [open])
+  }, [open, office, docked])
   const cur = tabs.find((t) => t.id === tab)
   useEffect(() => { setUrl(cur?.url ?? '') }, [cur?.id])
   const go = async () => {
@@ -76,10 +78,8 @@ export function BrowserPanel() {
     setBusy(false)
   }
   const icon = { pass: '#16a34a', warn: '#d97706', fail: '#e11d48' }
-  return (
-    <AnimatePresence>
-      {open && (
-        <motion.aside initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }} transition={{ type: 'spring', stiffness: 300, damping: 32 }} className="absolute bottom-[68px] left-1/2 z-30 flex max-h-[calc(100%-84px)] w-[760px] -translate-x-1/2 flex-col overflow-hidden rounded-[22px] border border-slate-200 bg-white/97 shadow-[0_40px_100px_-30px_rgba(15,23,42,.5)] backdrop-blur-xl">
+  const inner = (
+    <>
           <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-2.5"><Globe size={16} className="text-sky-600" /><span className="text-[14px] font-semibold tracking-tight">Browser</span>
             <div className="ml-2 flex min-w-0 flex-1 gap-1 overflow-x-auto">{tabs.map((t) => <button key={t.id} onClick={() => useBrowser.setState({ tab: t.id, control: false, review: null })} className={`flex max-w-[190px] flex-none items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-medium ${t.id === tab ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{t.status === 'needs-help' ? <Hand size={11} className="text-amber-400" /> : <span className={`h-1.5 w-1.5 rounded-full ${t.status === 'working' ? 'bg-indigo-400' : 'bg-emerald-400'}`} />}<span className="truncate">{t.kind === 'gemini' ? `Gemini · ${t.q.slice(0, 22) || t.id}` : t.title || t.url.replace(/^https?:\/\//, '')}</span></button>)}</div>
             <button onClick={() => useBrowser.setState({ open: false, control: false })} className="grid h-7 w-7 flex-none place-items-center rounded-full text-slate-400 hover:bg-slate-100"><X size={15} /></button></div>
@@ -100,6 +100,15 @@ export function BrowserPanel() {
               </div>
             )}
           </div>
+    </>
+  )
+  if (docked) return open ? <motion.aside initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} transition={{ type: 'spring', stiffness: 300, damping: 32 }} className="flex h-full min-h-0 flex-col overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-[0_30px_80px_-40px_rgba(15,23,42,.45)]">{inner}</motion.aside> : null
+  // the floating panel belongs to the workflow canvas; the office docks the browser in its right column instead
+  return (
+    <AnimatePresence>
+      {open && !office && (
+        <motion.aside initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }} transition={{ type: 'spring', stiffness: 300, damping: 32 }} className="absolute bottom-[68px] left-1/2 z-30 flex max-h-[calc(100%-84px)] w-[760px] -translate-x-1/2 flex-col overflow-hidden rounded-[22px] border border-slate-200 bg-white/97 shadow-[0_40px_100px_-30px_rgba(15,23,42,.5)] backdrop-blur-xl">
+          {inner}
         </motion.aside>
       )}
     </AnimatePresence>

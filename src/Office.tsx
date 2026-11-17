@@ -89,5 +89,5 @@ function OfficeBar({ callAll }: { callAll: () => void }) {
 
 export function Office() {
   const open = useOffice((s) => s.open)
-  return <AnimatePresence>{open && <OfficeStage onWorkflow={playStory} bar={<OfficeBar callAll={() => window.dispatchEvent(new Event('picked:replay-office'))} />} />}</AnimatePresence>
+  return <AnimatePresence>{open && <OfficeStage onWorkflow={playStory} onBrowser={() => { useOffice.setState({ open: false }); useBrowser.setState({ open: true, control: false }) }} bar={<OfficeBar callAll={() => window.dispatchEvent(new Event('picked:replay-office'))} />} />}</AnimatePresence>
 }

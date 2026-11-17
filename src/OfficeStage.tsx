@@ -1,18 +1,17 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ArrowRight, Check, CheckCheck, FileText, GitBranch, Globe, LayoutGrid, Pause, Play, RotateCcw, ScanSearch, ShieldCheck, Terminal, BookOpen } from 'lucide-react'
 import { Avatar, PEOPLE, COUNCIL, type Person } from './avatars'
 import { openAnalyze } from './Analyze'
 import { useStory } from './Story'
 import { useApps } from './Apps'
-import { useBrowser } from './BrowserPanel'
 import './office-stage.css'
 
 /* The office home: the whole company on one screen, no scrolling. Agents are scattered like people working a floor, not a parade in a row;
    the demo on the right is a simulation (labelled), the real actions live in the Run menu. Every text is 13 px or larger. */
 const TEAM: Person[] = [...PEOPLE, ...COUNCIL]
 const SLOT = ['lia', 'nan', 'mina', 'scout1', 'scout2', 'ana', 'scout3', 'scout4', 'scout5', 'sy', 'mira', 'theo', 'quinn', 'g4', 'astra', 'opus', 'rhea', 'owner', 'pax', 'tara']
-const COLS = 5, ROWS = 4
+const COLS = 4, ROWS = 5
 const nameOf = (p: Person) => (p.id.startsWith('scout') ? `Scout ${p.id.slice(5)}` : p.name.replace(/^Claude /, ''))
 
 /** A hand-feel floor plan: a honeycomb of desks, each pushed off its grid point so no two neighbours line up. */
@@ -50,20 +49,20 @@ const get = (id: string) => TEAM.find((p) => p.id === id)!
 function Desk({ p, x, y, size, active, speaking, text, onSelect, reduced, below }: { p: Person; x: number; y: number; size: number; active: boolean; speaking: boolean; text: string; onSelect: () => void; reduced: boolean; below: boolean }) {
   return (
     <button className={`os-agent ${active ? 'is-active' : ''}`} onClick={onSelect} style={{ left: `${x * 100}%`, top: `${y * 100}%`, '--agent': p.color } as CSSProperties} aria-label={`Meet ${p.name}, ${p.role}`}>
-      <AnimatePresence>{speaking && <motion.span className={`os-bubble ${below ? 'is-below' : ''}`} initial={{ opacity: 0, y: reduced ? 0 : 8, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0 }}><b>{nameOf(p)} · {p.role}</b>{text}</motion.span>}</AnimatePresence>
+      <AnimatePresence>{speaking && <motion.span className={`os-bubble ${below ? 'is-below' : ''} ${x < 0.38 ? 'is-left' : x > 0.62 ? 'is-right' : ''}`} initial={{ opacity: 0, y: reduced ? 0 : 8, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0 }}><b>{nameOf(p)} · {p.role}</b>{text}</motion.span>}</AnimatePresence>
       <span className="os-pad"><Avatar av={p.av} size={size} state={active && !reduced ? 'called' : 'idle'} delay={(x * 7 + y * 5) % 3} color={p.color} /></span>
       <strong>{nameOf(p)}</strong>
     </button>
   )
 }
 
-export function OfficeStage({ onWorkflow, bar }: { onWorkflow: () => void; bar: ReactNode }) {
+export function OfficeStage({ onWorkflow, onBrowser, bar }: { onWorkflow: () => void; onBrowser: () => void; bar: ReactNode }) {
   const reduced = !!useReducedMotion()
   const [tick, setTick] = useState(0), [selected, setSelected] = useState<string | null>(null), [paused, setPaused] = useState(false)
   const index = Math.floor(tick / 100) % SCENES.length, progress = tick % 100, scene = SCENES[index], Icon = scene.icon
   const moving = !reduced && !paused
   const floor = useBox()
-  const size = Math.max(38, Math.min(76, floor.w / (COLS + 0.9) / 0.78, floor.h / ROWS - 46))
+  const size = Math.max(30, Math.min(54, floor.w / (COLS + 0.5) / 0.78, floor.h / ROWS - 34))
   useEffect(() => {
     if (!moving) return
     const id = window.setInterval(() => { if (!document.hidden) setTick((t) => t + 1) }, 100)
@@ -72,13 +71,6 @@ export function OfficeStage({ onWorkflow, bar }: { onWorkflow: () => void; bar: 
   useEffect(() => { const replay = () => { setTick(0); setSelected(null); setPaused(false) }; window.addEventListener('picked:replay-office', replay); return () => window.removeEventListener('picked:replay-office', replay) }, [])
   useEffect(() => { if (!selected) return; const id = window.setTimeout(() => setSelected(null), 4200); return () => clearTimeout(id) }, [selected])
   const visible = reduced ? scene.words.length : Math.min(scene.words.length, Math.floor(progress * 2.4))
-  const link = useMemo(() => {
-    const a = SPOT.get(scene.agent), b = SPOT.get(scene.to); if (!a || !b || !floor.w) return ''
-    const ax = a.x * floor.w, ay = a.y * floor.h - size * 0.1, bx = b.x * floor.w, by = b.y * floor.h - size * 0.1
-    const mx = (ax + bx) / 2 + (by - ay) * 0.22, my = (ay + by) / 2 - Math.abs(bx - ax) * 0.18
-    return `M${ax},${ay} Q${mx},${my} ${bx},${by}`
-  }, [scene, floor.w, floor.h, size])
-
   return (
     <motion.main className={`os-root ${!moving ? 'os-paused' : ''}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, y: reduced ? 0 : -12 }} transition={{ duration: 0.35 }}>
       <header className="os-nav">
@@ -87,7 +79,7 @@ export function OfficeStage({ onWorkflow, bar }: { onWorkflow: () => void; bar: 
           <span className="os-nav-current">The office</span>
           <a href="/workflow" onClick={(e) => { e.preventDefault(); onWorkflow() }}>Workflow <ArrowRight size={15} /></a>
           <button onClick={() => useStory.setState({ open: true, slide: 0 })}><BookOpen size={16} />Story</button>
-          <button onClick={() => useBrowser.setState({ open: true, control: false })}><Terminal size={16} />Browser</button>
+          <button onClick={onBrowser}><Terminal size={16} />Browser</button>
           <button onClick={() => useApps.setState({ open: true })}><LayoutGrid size={16} />Apps</button>
         </nav>
         <button className="os-xray" onClick={() => openAnalyze()}><ScanSearch size={18} />Business X-ray<ArrowRight size={15} /></button>
@@ -99,7 +91,6 @@ export function OfficeStage({ onWorkflow, bar }: { onWorkflow: () => void; bar: 
           <aside className="os-team" aria-label="Your agent team">
             <div className="os-panel-title"><span><span className="os-online" />Your AI company</span><small>{TEAM.length} agents on the floor</small></div>
             <div ref={floor.ref} className="os-floor">
-              <svg className="os-link" width={floor.w} height={floor.h} aria-hidden>{link && <><path d={link} className="os-link-base" /><path d={link} className="os-link-flow" /></>}</svg>
               {SLOT.map((id) => {
                 const p = get(id), s = SPOT.get(id)!
                 const lead = id === scene.agent, receiver = id === scene.to

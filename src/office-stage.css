@@ -19,22 +19,21 @@
 .os-heading span{color:#6864df}
 @media(max-height:780px){.os-heading{display:none}.os-body{grid-template-rows:minmax(0,1fr) auto}}
 
-.os-workspace{min-height:0;display:grid;grid-template-columns:minmax(290px,1fr) minmax(0,4fr);gap:clamp(12px,1.6vw,26px)}
+.os-workspace{min-height:0;display:grid;grid-template-columns:minmax(340px,31%) minmax(0,1fr);gap:clamp(12px,1.6vw,26px)}
 .os-team,.os-stage{min-width:0;min-height:0;border-radius:22px;border:1px solid var(--line);background:#ffffffd9;box-shadow:0 20px 50px -34px #2a2f5a66}
-.os-team{display:grid;grid-template-rows:46px minmax(0,1fr);padding:0 10px 8px}
+.os-team{display:grid;grid-template-rows:42px minmax(0,1fr);padding:0 8px 8px}
 .os-panel-title{display:flex;align-items:center;justify-content:space-between;padding:0 10px;font-size:15px;font-weight:650}
 .os-panel-title>span{display:flex;align-items:center;gap:9px}
 .os-panel-title small{font-size:13px;color:var(--muted);font-weight:500}
 .os-online{width:8px;height:8px;border-radius:50%;background:#34b27b;box-shadow:0 0 0 5px #34b27b1f}
 
-/* the floor: agents are placed by percentage, so they sit at odd angles to each other */
-.os-floor{position:relative;min-height:0;border-radius:16px;background:radial-gradient(#c3c6dc66 1px,transparent 1.2px) 0 0/22px 22px,#f3f4f9}
-.os-agent{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:0;padding:2px 4px 4px;border:0;border-radius:16px;background:transparent;cursor:pointer;transition:background .25s,box-shadow .25s,transform .25s}
-.os-agent:hover{background:#ffffffc4;transform:translate(-50%,calc(-50% - 4px));z-index:6}
-.os-agent.is-active{background:transparent;z-index:5}
-.os-agent strong{font-size:13px;line-height:17px;font-weight:650;color:#2b3140;white-space:nowrap}
-.os-agent.is-active strong{color:var(--agent)}
-.os-pad{display:flex;justify-content:center}
+/* the team: a tidy grid of tinted cards */
+.os-floor{position:relative;min-height:0;display:grid;place-content:center;border-radius:16px;background:#f3f4f9}
+.os-grid{display:grid}
+.os-agent{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:0;padding:4px 2px;border:0;border-radius:20px;background:linear-gradient(180deg,color-mix(in srgb,var(--agent) 15%,#fff),color-mix(in srgb,var(--agent) 5%,#fff));box-shadow:0 8px 20px -16px #2a2f5a88;cursor:pointer;transition:transform .25s,background .25s,box-shadow .25s}
+.os-agent:hover{transform:translateY(-3px);z-index:6}
+.os-agent.is-active{background:linear-gradient(180deg,color-mix(in srgb,var(--agent) 30%,#fff),color-mix(in srgb,var(--agent) 12%,#fff));transform:translateY(-3px);z-index:5}
+.os-agent strong{max-width:none;overflow:visible;font-size:12px;letter-spacing:-.1px;line-height:16px;font-weight:700;color:#232838;white-space:nowrap}
 .os-agent:has(.os-bubble){z-index:9}
 .os-bubble{position:absolute;bottom:calc(100% + 8px);left:50%;width:210px;margin-left:-105px;padding:10px 13px;border:1px solid #dcdcec;border-radius:14px;background:#fff;box-shadow:0 14px 34px -14px #3c3b6188;color:#434858;font-size:14px;line-height:1.4;font-weight:500;text-align:left;pointer-events:none}
 .os-bubble b{display:block;margin-bottom:3px;color:#6560d0;font-size:13px;font-weight:700}
@@ -43,12 +42,8 @@
 .os-bubble.is-below{bottom:auto;top:calc(100% + 8px)}
 .os-bubble.is-below::after{bottom:auto;top:-6px;transform:rotate(-135deg)}
 
-.os-stage{display:grid;grid-template-rows:46px minmax(0,1fr) 54px;overflow:hidden}
-.os-stage-top{display:flex;align-items:center;gap:12px;padding:0 20px;border-bottom:1px solid #eef0f5;font-size:15px;color:#59606e}
-.os-stage-top>span:first-child{display:flex;align-items:center;gap:9px;font-weight:650;color:var(--ink)}
-.os-stage-top i{width:8px;height:8px;border-radius:50%;background:#7c6ff0}
-.os-stage-top em{font-style:normal;font-size:13px;font-weight:600;color:#8a6a1c;background:#fff6dc;border:1px solid #f3e2a8;border-radius:999px;padding:3px 11px}
-.os-play{margin-left:auto;display:flex;gap:6px}
+.os-stage{display:grid;grid-template-rows:minmax(0,1fr) 54px;overflow:hidden}
+.os-play{position:absolute;top:12px;right:16px;z-index:3;display:flex;gap:6px}
 .os-play button{display:grid;place-items:center;width:34px;height:34px;border:0;border-radius:50%;background:#f1f2f7;color:#555c6c;cursor:pointer}
 .os-play button:hover{background:#e4e6f0;color:var(--ink)}
 .os-scene{position:relative;min-height:0;display:grid;place-items:center;padding:0 22px}

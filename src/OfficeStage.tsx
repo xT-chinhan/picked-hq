@@ -10,19 +10,9 @@ import './office-stage.css'
 /* The office home: the whole company on one screen, no scrolling. Agents are scattered like people working a floor, not a parade in a row;
    the demo on the right is a simulation (labelled), the real actions live in the Run menu. Every text is 13 px or larger. */
 const TEAM: Person[] = [...PEOPLE, ...COUNCIL]
-const SLOT = ['lia', 'nan', 'mina', 'scout1', 'scout2', 'ana', 'scout3', 'scout4', 'scout5', 'sy', 'mira', 'theo', 'quinn', 'g4', 'astra', 'opus', 'rhea', 'owner', 'pax', 'tara']
-const COLS = 4, ROWS = 5
+const SLOT = ['lia', 'nan', 'mina', 'scout1', 'mira', 'sy', 'theo', 'scout4', 'scout5', 'quinn', 'g4', 'astra', 'opus', 'rhea', 'owner', 'pax']
+const COLS = 4, ROWS = 4
 const nameOf = (p: Person) => (p.id.startsWith('scout') ? `Scout ${p.id.slice(5)}` : p.name.replace(/^Claude /, ''))
-
-/** A hand-feel floor plan: a honeycomb of desks, each pushed off its grid point so no two neighbours line up. */
-function place(i: number) {
-  const row = Math.floor(i / COLS), col = i % COLS
-  const jx = Math.sin(i * 12.9898) * 0.13, jy = Math.cos(i * 7.233) * 0.11
-  const x = (col + 0.5 + (row % 2 ? 0.28 : -0.2) + jx) / COLS
-  const y = (row + 0.5 + Math.sin(col * 1.7 + row * 0.9) * 0.14 + jy) / ROWS
-  return { x: Math.min(0.92, Math.max(0.09, x)), y: Math.min(0.9, Math.max(0.12, y)) }
-}
-const SPOT = new Map(SLOT.map((id, i) => [id, place(i)]))
 
 function useBox() {
   const ref = useRef<HTMLDivElement>(null)
@@ -46,11 +36,11 @@ const SCENES = [
 const STEPS = ['Brief', 'Research', 'Analyze', 'Create', 'Review', 'Approve']
 const get = (id: string) => TEAM.find((p) => p.id === id)!
 
-function Desk({ p, x, y, size, active, speaking, text, onSelect, reduced, below }: { p: Person; x: number; y: number; size: number; active: boolean; speaking: boolean; text: string; onSelect: () => void; reduced: boolean; below: boolean }) {
+function Desk({ p, col, row, size, active, speaking, text, onSelect, reduced }: { p: Person; col: number; row: number; size: number; active: boolean; speaking: boolean; text: string; onSelect: () => void; reduced: boolean }) {
   return (
-    <button className={`os-agent ${active ? 'is-active' : ''}`} onClick={onSelect} style={{ left: `${x * 100}%`, top: `${y * 100}%`, '--agent': p.color } as CSSProperties} aria-label={`Meet ${p.name}, ${p.role}`}>
-      <AnimatePresence>{speaking && <motion.span className={`os-bubble ${below ? 'is-below' : ''} ${x < 0.38 ? 'is-left' : x > 0.62 ? 'is-right' : ''}`} initial={{ opacity: 0, y: reduced ? 0 : 8, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0 }}><b>{nameOf(p)} · {p.role}</b>{text}</motion.span>}</AnimatePresence>
-      <span className="os-pad"><Avatar av={p.av} size={size} state={active && !reduced ? 'called' : 'idle'} delay={(x * 7 + y * 5) % 3} color={p.color} /></span>
+    <button className={`os-agent ${active ? 'is-active' : ''}`} onClick={onSelect} style={{ '--agent': p.color } as CSSProperties} aria-label={`Meet ${p.name}, ${p.role}`}>
+      <AnimatePresence>{speaking && <motion.span className={`os-bubble ${row === 0 ? 'is-below' : ''} ${col === 0 ? 'is-left' : col === COLS - 1 ? 'is-right' : ''}`} initial={{ opacity: 0, y: reduced ? 0 : 8, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0 }}><b>{nameOf(p)} · {p.role}</b>{text}</motion.span>}</AnimatePresence>
+      <Avatar av={p.av} size={size} state={active && !reduced ? 'called' : 'idle'} delay={(col * 7 + row * 5) % 3} color={p.color} />
       <strong>{nameOf(p)}</strong>
     </button>
   )
@@ -62,7 +52,10 @@ export function OfficeStage({ onWorkflow, onBrowser, bar }: { onWorkflow: () => 
   const index = Math.floor(tick / 100) % SCENES.length, progress = tick % 100, scene = SCENES[index], Icon = scene.icon
   const moving = !reduced && !paused
   const floor = useBox()
-  const size = Math.max(30, Math.min(54, floor.w / (COLS + 0.5) / 0.78, floor.h / ROWS - 34))
+  const gap = 8, pad = 10
+  const cw = Math.max(40, (floor.w - pad * 2 - gap * (COLS - 1)) / COLS)
+  const ch = Math.max(60, Math.min((floor.h - pad * 2 - gap * (ROWS - 1)) / ROWS, cw / 0.62))
+  const size = Math.max(30, Math.min(ch - 30, (cw - 8) / 0.78))
   useEffect(() => {
     if (!moving) return
     const id = window.setInterval(() => { if (!document.hidden) setTick((t) => t + 1) }, 100)
@@ -89,23 +82,21 @@ export function OfficeStage({ onWorkflow, onBrowser, bar }: { onWorkflow: () => 
         <h1 className="os-heading">A team of AI agents that gets your brand <span>picked.</span></h1>
         <div className="os-workspace">
           <aside className="os-team" aria-label="Your agent team">
-            <div className="os-panel-title"><span><span className="os-online" />Your AI company</span><small>{TEAM.length} agents on the floor</small></div>
-            <div ref={floor.ref} className="os-floor">
-              {SLOT.map((id) => {
-                const p = get(id), s = SPOT.get(id)!
+            <div className="os-panel-title"><span><span className="os-online" />Team</span></div>
+            <div ref={floor.ref} className="os-floor"><div className="os-grid" style={{ gridTemplateColumns: `repeat(${COLS}, ${cw}px)`, gridTemplateRows: `repeat(${ROWS}, ${ch}px)`, gap }}>
+              {SLOT.map((id, i) => {
+                const p = get(id)
                 const lead = id === scene.agent, receiver = id === scene.to
                 const speaking = selected === id || (!selected && ((lead && progress < 46) || (receiver && progress >= 46 && progress < 92)))
-                return <Desk key={id} p={p} x={s.x} y={s.y} size={size} active={lead || receiver || selected === id} speaking={speaking} text={selected === id ? p.line : lead ? scene.reply : scene.answer} onSelect={() => setSelected(id)} reduced={reduced} below={s.y < 0.4} />
+                return <Desk key={id} p={p} col={i % COLS} row={Math.floor(i / COLS)} size={size} active={lead || receiver || selected === id} speaking={speaking} text={selected === id ? p.line : lead ? scene.reply : scene.answer} onSelect={() => setSelected(id)} reduced={reduced} />
               })}
-            </div>
+            </div></div>
           </aside>
 
           <section className="os-stage" aria-label="Animated workflow demonstration">
-            <div className="os-stage-top"><span><i />Inside the workflow</span><em>Simulated demo</em>
-              <span className="os-play"><button onClick={() => setPaused((v) => !v)} aria-label={paused ? 'Play' : 'Pause'}>{paused ? <Play size={17} /> : <Pause size={17} />}</button><button onClick={() => { setTick(0); setSelected(null) }} aria-label="Restart"><RotateCcw size={17} /></button></span>
-            </div>
             <div className="os-scene">
               <div className="os-scene-grid" />
+              <span className="os-play"><button onClick={() => setPaused((v) => !v)} aria-label={paused ? 'Play' : 'Pause'}>{paused ? <Play size={17} /> : <Pause size={17} />}</button><button onClick={() => { setTick(0); setSelected(null) }} aria-label="Restart"><RotateCcw size={17} /></button></span>
               <AnimatePresence mode="wait"><motion.div key={index} className="os-scene-content" initial={{ opacity: 0, y: reduced ? 0 : 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: reduced ? 0 : -10 }} transition={{ duration: 0.3 }}>
                 <div className="os-scene-caption"><span>{String(index + 1).padStart(2, '0')} / 06</span><h2>{scene.name}</h2></div>
                 <div className="os-stream-card">

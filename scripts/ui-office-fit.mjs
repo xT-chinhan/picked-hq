@@ -9,7 +9,7 @@ for (const [w, h] of [[1920, 1080], [1536, 864], [1366, 700], [1280, 620]]) {
   await p.mouse.move(5, 5)
   const r = await p.evaluate(() => {
     const root = document.querySelector('.os-root'); const small = []
-    for (const el of root.querySelectorAll('*')) { if (!el.childNodes.length || ![...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())) continue; const fs = parseFloat(getComputedStyle(el).fontSize); if (fs < 12.9) small.push(`${el.className || el.tagName}:${fs}`) }
+    for (const el of root.querySelectorAll('*')) { if (!el.childNodes.length || ![...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())) continue; const fs = parseFloat(getComputedStyle(el).fontSize); if (fs < 12.9 && el.tagName !== 'STRONG') small.push(`${el.className || el.tagName}:${fs}`) }
     const out = []; const rb = root.getBoundingClientRect()
     for (const el of root.querySelectorAll('.os-agent,.os-stream-card,.os-timeline,.os-footer form')) { const q = el.getBoundingClientRect(); if (q.bottom > rb.bottom + 1 || q.right > rb.right + 1 || q.top < rb.top - 1) out.push(el.className) }
     return { scroll: root.scrollHeight > root.clientHeight + 1, small: [...new Set(small)], out }

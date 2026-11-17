@@ -68,6 +68,7 @@ function Composer({ thread }: { thread: string }) {
   const draft = useChat((s) => s.draft), [menu, setMenu] = useState(false), input = useRef<HTMLInputElement>(null)
   const set = (v: string) => useChat.setState({ draft: v })
   useEffect(() => { input.current?.focus() }, [thread])
+  useEffect(() => { if (!menu) return; const k = (e: KeyboardEvent) => e.key === 'Escape' && setMenu(false); window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k) }, [menu])
   const send = () => { const t = draft.trim(); if (!t) return; set(''); setMenu(false); void sendTurn(thread, t) }
   const target = thread === 'all' ? ALL.name : personOf(thread)?.name
   return (
@@ -191,6 +192,7 @@ export function Messenger({ onWorkflow }: { onWorkflow: () => void }) {
   const bots = useBots((s) => s.bots), br = useBrowser((s) => s.open)
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1'), [menu, setMenu] = useState(false), [editor, setEditor] = useState<{ edit?: Bot } | null>(null)
   useEffect(() => { (window as any).__picked_workflow = onWorkflow; return () => { delete (window as any).__picked_workflow } }, [onWorkflow])
+  useEffect(() => { if (!menu) return; const k = (e: KeyboardEvent) => e.key === 'Escape' && setMenu(false); window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k) }, [menu])
   const flip = () => setCollapsed((v) => { localStorage.setItem(COLLAPSE_KEY, v ? '0' : '1'); return !v })
   const rows = useMemo(() => {
     const all = [{ id: 'all', name: ALL.name }, ...TEAM.map((p) => ({ id: p.id, name: p.name })), ...bots.map((b) => ({ id: b.id, name: b.name }))]

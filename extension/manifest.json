@@ -1,10 +1,12 @@
 {
   "manifest_version": 3,
   "name": "NaN for Picked",
-  "version": "0.1.0",
+  "version": "0.2.0",
+  "description": "Let NaN read the page you are on and tell you how AI assistants will see it.",
   "minimum_chrome_version": "114",
   "permissions": ["sidePanel", "activeTab", "scripting", "storage", "contextMenus"],
   "host_permissions": ["http://127.0.0.1:5198/*", "https://pickedhq.pages.dev/*"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
   "background": { "service_worker": "background.js", "type": "module" },
   "side_panel": { "default_path": "panel.html" },
   "action": { "default_title": "NaN" },

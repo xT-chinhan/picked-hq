@@ -35,3 +35,10 @@ node --test extension/tests/*.test.mjs
 ```
 
 Kiểm thử dùng DOM giả, storage giả và fetch giả; không truy cập Internet. Thử thủ công trên Chrome: mở bảng từ biểu tượng, phím tắt và menu; đánh giá một trang thường; gửi tin nhắn; đổi máy chủ; kiểm tra thông báo khi máy chủ dừng.
+
+
+## 0.2: the side panel reads the page for the AI
+- **NaN can read this browser** is a switch in the panel. It asks Chrome for page access (optional host permissions) only when you turn it on, and you can turn it off at any time. Until then NaN reads nothing, and a card explains how to turn it on.
+- **The tab chip** above the message box shows the page NaN will read with your next message. Press × to send a message without the page.
+- When you send a message with the page attached, the extension extracts the title, description, headings, structured data and the first 6,000 characters of visible text and sends them with the question, so NaN answers about the page. Page text is only ever shown as text, never as HTML.
+- **+ menu**: attach this tab, review this page for AI (score, checks, a gauge), or analyze the site in Picked. Real jobs run in Picked: “Run this in Picked” opens it with `?ask=...`.

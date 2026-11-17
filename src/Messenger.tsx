@@ -191,6 +191,8 @@ export function Messenger({ onWorkflow }: { onWorkflow: () => void }) {
   const active = useChat((s) => s.active), threads = useChat((s) => s.threads), q = useChat((s) => s.q), last = useChat((s) => s.last)
   const bots = useBots((s) => s.bots), br = useBrowser((s) => s.open)
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1'), [menu, setMenu] = useState(false), [editor, setEditor] = useState<{ edit?: Bot } | null>(null)
+  // the extension hands a job over with ?ask=...: run it once, then clean the address
+  useEffect(() => { const u = new URL(location.href), t = u.searchParams.get('ask'); if (!t) return; u.searchParams.delete('ask'); history.replaceState({}, '', u.pathname + u.search); setTimeout(() => void sendTurn('all', t.slice(0, 500)), 600) }, [])
   useEffect(() => { (window as any).__picked_workflow = onWorkflow; return () => { delete (window as any).__picked_workflow } }, [onWorkflow])
   useEffect(() => { if (!menu) return; const k = (e: KeyboardEvent) => e.key === 'Escape' && setMenu(false); window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k) }, [menu])
   const flip = () => setCollapsed((v) => { localStorage.setItem(COLLAPSE_KEY, v ? '0' : '1'); return !v })

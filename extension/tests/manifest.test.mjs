@@ -8,3 +8,10 @@ test('no file or folder name in the extension starts with an underscore (Chrome 
   walk(root)
   assert.deepEqual(bad, [])
 })
+
+test('broad page access is optional (asked for when the visitor turns it on), never granted at install', () => {
+  const m = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json')))
+  assert.deepEqual(m.optional_host_permissions, ['http://*/*', 'https://*/*'])
+  assert.equal(m.host_permissions.some((h) => /\*/.test(h.replace(/\/\*$/, '')) ), false)
+  assert.equal(JSON.stringify(m).includes('<all_urls>'), false)
+})

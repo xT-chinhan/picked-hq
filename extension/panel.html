@@ -1,15 +1,54 @@
 <!doctype html>
-<html lang="vi">
+<html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NaN · Picked</title><link rel="stylesheet" href="panel.css"></head>
 <body>
-  <header><h1>NaN <span>cho Picked</span></h1><p id="status" role="status"><span id="status-dot"></span><span id="status-text">Đang kết nối…</span></p></header>
-  <main>
-    <p id="tab-title" class="chip">Chưa chọn trang</p>
-    <div class="actions"><button id="review" type="button">Review this page</button><button id="send-page" type="button">Send page to chat</button></div>
-    <section id="messages" aria-label="Cuộc trò chuyện" aria-live="polite" aria-relevant="additions"></section>
-    <form id="chat"><label for="input">Nhắn cho NaN</label><div class="composer"><textarea id="input" rows="2" required placeholder="Bạn muốn cải thiện điều gì?"></textarea><button type="submit">Gửi</button></div></form>
-    <details><summary>Cài đặt máy chủ</summary><form id="settings"><label for="base">URL máy chủ Picked</label><div class="settings-row"><input id="base" type="url" required><button type="submit">Lưu</button></div><p>Máy chủ khác cần cho phép CORS từ tiện ích. Tiện ích chỉ có quyền truy cập hai máy chủ mặc định.</p><output id="settings-result" aria-live="polite"></output></form></details>
+  <header class="top">
+    <span class="mark" aria-hidden="true">N</span>
+    <h1>NaN for Picked</h1>
+    <button id="more" class="icon" type="button" aria-label="Settings" title="Settings">⋯</button>
+  </header>
+
+  <section class="access" aria-label="Browser access">
+    <span id="dot" class="dot"></span>
+    <div class="access-text"><b id="access-title">NaN can read this browser</b><small id="status-text">Connecting…</small></div>
+    <button id="switch" class="switch" type="button" role="switch" aria-checked="false" aria-label="Let NaN read pages in this browser"><span></span></button>
+  </section>
+
+  <section id="settings" class="settings" hidden>
+    <form id="settings-form"><label for="base">Picked server</label>
+      <div class="row"><input id="base" type="url" required spellcheck="false"><button type="submit" class="pill">Save</button></div>
+      <p>Only the local server and pickedhq.pages.dev are allowed by default.</p><output id="settings-result" aria-live="polite"></output></form>
+  </section>
+
+  <main id="feed" class="feed" aria-live="polite" aria-relevant="additions">
+    <div id="empty" class="empty">
+      <span class="big-mark" aria-hidden="true">N</span>
+      <h2>Ask about this page</h2>
+      <p>NaN reads the page you are on and tells you how AI assistants will see it, what stops them recommending it, and what to fix.</p>
+      <div class="chips" id="starters"></div>
+    </div>
   </main>
+
+  <footer class="dock">
+    <div class="composer">
+      <div id="ctx" class="ctx" hidden>
+        <img id="ctx-icon" alt="" width="22" height="22" hidden>
+        <div class="ctx-text"><small id="ctx-kind">Tab</small><b id="ctx-title">–</b></div>
+        <button id="ctx-x" class="icon sm" type="button" aria-label="Do not attach this tab">×</button>
+      </div>
+      <form id="chat" class="row">
+        <div class="plus-wrap"><button id="plus" class="icon" type="button" aria-label="Add" aria-haspopup="menu">+</button>
+          <div id="menu" class="menu" role="menu" hidden>
+            <button type="button" role="menuitem" data-act="attach">Attach this tab</button>
+            <button type="button" role="menuitem" data-act="review">Review this page for AI</button>
+            <button type="button" role="menuitem" data-act="analyze">Analyze this site in Picked</button>
+          </div>
+        </div>
+        <textarea id="input" rows="1" placeholder="Message NaN" aria-label="Message NaN"></textarea>
+        <button id="send" class="send" type="submit" aria-label="Send" disabled>↑</button>
+      </form>
+    </div>
+  </footer>
   <script type="module" src="panel.js"></script>
 </body>
 </html>

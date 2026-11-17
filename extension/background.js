@@ -10,7 +10,7 @@ function openForTab(tab, selectionText = '') {
   // Invoke open before any await to retain the user's activation.
   const opening = chrome.sidePanel.open
     ? chrome.sidePanel.open({ tabId: tab.id })
-    : Promise.reject(new Error('Mở bảng NaN bằng biểu tượng tiện ích; phím tắt cần Chrome 116 trở lên.'));
+    : Promise.reject(new Error('Open the NaN panel from the extension icon; the shortcut needs Chrome 116 or newer.'));
   const storing = chrome.storage.session.set({ pending: { tabId: tab.id, selectionText } });
   Promise.all([opening, storing]).catch(console.error);
 }

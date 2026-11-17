@@ -110,7 +110,7 @@ test('a Claude 5.5 request that the account does not know is retried as the 4.6 
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fb-'))
   // fake agy for an account that only has 4.6: it rejects 5.5 names the way the real one does and logs every model asked
   fs.writeFileSync(path.join(root, 'agy'), `#!/bin/sh\nM=""; while [ $# -gt 0 ]; do [ "$1" = "--model" ] && M="$2"; shift; done\necho "$M" >> "${root}/models"\ncase "$M" in *5-5*) echo "error: invalid model selection (--model \\"$M\\"): model $M is not recognized as a known model or custom model in settings" >&2; exit 1;; esac\necho '{"status":"SUCCESS","response":"ok"}'\n`, { mode: 0o755 })
-  const code = `const { llm } = await import(${JSON.stringify(new URL('../llm.mjs', import.meta.url).href)}); console.log(await llm.agyText({ prompt: 'a', model: 'claude-sonnet-5-5-low' })); console.log(await llm.agyText({ prompt: 'b', model: 'claude-sonnet-5-5-low' }))`
+  const code = `const { llm } = await import(${JSON.stringify(new URL('../llm.mjs', import.meta.url).href)}); console.log(await llm.agyText({ prompt: 'a' + Math.random(), model: 'claude-sonnet-5-5-low' })); console.log(await llm.agyText({ prompt: 'b' + Math.random(), model: 'claude-sonnet-5-5-low' }))`
   const out = cp.execFileSync(process.execPath, ['--input-type=module', '-e', code], { env: { ...process.env, PATH: `${root}:${process.env.PATH}`, PICKED_NO_CACHE: '1' }, encoding: 'utf8' })
   assert.match(out, /ok/)
   assert.deepEqual(fs.readFileSync(path.join(root, 'models'), 'utf8').trim().split('\n'), ['claude-sonnet-5-5-low', 'claude-sonnet-4-6-thinking', 'claude-sonnet-4-6-thinking']) // the second call goes straight to 4.6

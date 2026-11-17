@@ -79,7 +79,7 @@ function narrate(k: StepId) {
   const next = () => {
     if (useAnalyze.getState().steps[k].status !== 'running' || i >= lines.length) return
     push('act', k, lines[i++])
-    narr = window.setTimeout(next, useAnalyze.getState().replay ? 650 : PACE[k] * (0.8 + Math.random() * 0.4))
+    narr = window.setTimeout(next, useAnalyze.getState().replay ? 650 / replaySpeed : PACE[k] * (0.8 + Math.random() * 0.4))
   }
   next()
 }
@@ -146,27 +146,29 @@ async function run(url: string) {
     probe(); set({ phase: 'error', err: /fetch|Failed/i.test(String(e.message)) ? OFFLINE_MSG : e.message })
   }
 }
-export async function replayAnalysis(id: string) {
+let replaySpeed = 1
+export async function replayAnalysis(id: string, opts: { speed?: number; inline?: boolean } = {}) {
+  replaySpeed = opts.speed ?? 1
   es?.close()
   // the backend first (it has the newest runs), the bundled copy when it is off or the network is down
   const r = await fetch(`/api/analyses/${id}`).then((x) => (x.ok ? x.json() : Promise.reject())).catch(() => fetch(`/analyses/${id}.json`).then((x) => x.json())).catch(() => null)
   if (!r) { set({ phase: 'error', err: 'That saved analysis is not available.' }); return }
   const steps = Object.fromEntries((['scrape', 'audit', 'rea', 'synth'] as StepId[]).map((k) => [k, { status: (r.status?.[k] ?? 'done') as Step['status'] }])) as Record<StepId, Step>
-  set({ open: true, phase: 'running', input: r.url.replace(/^https?:\/\//, '').replace(/\/$/, ''), resolved: null, report: null, steps: BLANK, replay: true, err: '', feed: [], t0: Date.now(), showLog: false })
+  set({ open: !opts.inline, phase: 'running', input: r.url.replace(/^https?:\/\//, '').replace(/\/$/, ''), resolved: null, report: null, steps: BLANK, replay: true, err: '', feed: [], t0: Date.now(), showLog: false })
   // replay the four steps at a watchable pace (the narration streams while each one "runs"), then the report
   const rr = r as Report
   for (const k of ORDER) {
-    await new Promise((x) => setTimeout(x, 350))
+    await new Promise((x) => setTimeout(x, 350 / replaySpeed))
     if (useAnalyze.getState().phase !== 'running') return
     set((s) => ({ report: null, steps: { ...s.steps, [k]: { status: 'running' } } }))
-    await new Promise((x) => setTimeout(x, 3 * 650 + 400))
+    await new Promise((x) => setTimeout(x, (3 * 650 + 400) / replaySpeed))
     if (useAnalyze.getState().phase !== 'running') return
     useAnalyze.setState({ report: rr }, false) // lets the narration quote saved evidence; cleared before the next step runs
     set((s) => ({ steps: { ...s.steps, [k]: { status: steps[k].status, ms: undefined, data: briefOf(k, rr) } } }))
     set({ report: null })
   }
   set((s) => ({ report: rr, steps: { ...s.steps, synth: { ...s.steps.synth } } }))
-  await new Promise((x) => setTimeout(x, 1400))
+  await new Promise((x) => setTimeout(x, 1400 / replaySpeed))
   set({ phase: 'done', report: r })
 }
 function briefOf(k: StepId, r: Report) {

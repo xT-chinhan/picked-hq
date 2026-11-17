@@ -1,12 +1,13 @@
 import { create } from 'zustand'
 import { BENCH, PEOPLE, tint, type Person } from './avatars'
 import { intent, snap, type Act } from './SystemOne'
+import { analysisFor, seed } from './seed'
 import { OFFLINE_MSG, probe } from './edge'
 
 /* The messenger's brain: one thread per agent plus the group chat ("all", answered by NaN, who hands the work to the right colleague).
    A message either talks (streamed word by word) or carries a real run that the chat shows live, inline. */
 export type Run =
-  | { kind: 'xray'; input: string }
+  | { kind: 'xray'; input: string; replay?: string }
   | { kind: 'audit'; act: Act }
   | { kind: 'exec'; act: Act }
   | { kind: 'cost' }
@@ -91,11 +92,13 @@ const ACK = (a: Act) => {
 }
 
 export function openRun(thread: string, a: Act, by?: string) {
+  // (a is reassigned below for the reel)
   const who = by ?? (thread === 'all' ? OWNER[a.type] ?? 'nan' : thread)
   if (CANVAS.has(a.type)) { add(thread, { who: by ?? (thread === 'all' ? 'nan' : thread), text: 'That is a view of the animated workflow. Open the workflow to watch it.', flow: true }); return }
   if (a.type === 'copilot') { if (!a.q) { waiting.add(thread); return } waiting.delete(thread); add(thread, { who: by ?? (thread === 'all' ? 'nan' : thread), text: '', run: { kind: 'copilot', input: a.q } }); return }
   if (a.type === 'savings') { add(thread, { who: by ?? (thread === 'all' ? 'ana' : thread), text: '', run: { kind: 'cost' }, res: { shown: true } }); return }
-  if (a.type === 'analyze') { if (!a.q) return; add(thread, { who, text: '', run: { kind: 'xray', input: a.q } }); return }
+  if (a.type === 'analyze') { if (!a.q) return; add(thread, { who, text: '', run: { kind: 'xray', input: a.q, replay: seed.on ? analysisFor(a.q) : undefined } }); return }
+  if (seed.on && a.type === 'audit') a = { ...a, type: 'replay', speed: 25 } // the reel replays a recorded audit
   if (a.type === 'audit' || a.type === 'replay') { add(thread, { who, text: '', run: { kind: 'audit', act: a } }); return }
   add(thread, { who, text: '', run: { kind: 'exec', act: a } })
 }

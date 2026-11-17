@@ -3,7 +3,7 @@ import { motion } from 'motion/react'
 import { AlertTriangle, ArrowRight, Check, Globe, Loader2, Workflow } from 'lucide-react'
 import { Face } from './avatars'
 import { Compass as Chrome } from 'lucide-react'
-import { Feed, Scanner, startAnalyze, confirmAnalyze, useAnalyze, type Report } from './Analyze'
+import { Feed, Scanner, startAnalyze, confirmAnalyze, replayAnalysis, useAnalyze, type Report } from './Analyze'
 import { Typed, TypedMd } from './Typed'
 import { CostCard } from './savings'
 import { CopilotCard } from './copilot'
@@ -55,7 +55,8 @@ function Pending({ lines }: { lines: string[] }) {
 function Xray({ thread, m }: { thread: string; m: CMsg }) {
   const a = useAnalyze(), mine = a.owner === m.id
   const input = (m.run as any).input as string
-  useEffect(() => { if (started.has(m.id) || m.res) return; started.add(m.id); useAnalyze.setState({ owner: m.id }); void startAnalyze(input) }, [])
+  const replay = (m.run as any).replay as string | undefined
+  useEffect(() => { if (started.has(m.id) || m.res) return; started.add(m.id); useAnalyze.setState({ owner: m.id }); if (replay) void replayAnalysis(replay, { speed: 4, inline: true }); else void startAnalyze(input) }, [])
   useEffect(() => { if (mine && a.phase === 'done' && a.report && !m.res) done(thread, m, { report: a.report, feed: a.feed }) }, [mine, a.phase, a.report])
   const host = (a.input || input).replace(/^https?:\/\//, '').replace(/\/$/, '')
   if (m.res?.report) return <Done m={m} title={`${(m.res.report as Report).brand}: ${(m.res.report as Report).siteScore ?? '–'}/100 agent-readiness`}><Report r={m.res.report} feed={m.res.feed} /></Done>

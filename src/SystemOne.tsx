@@ -21,7 +21,7 @@ export type Prompt = { role: string; context: string; task: string; constraints:
 type Tr = { src: string; en: string; ms: number; provider: string; refined?: boolean }
 type Step = { t: string; done: boolean }
 export type Msg = { id: number; who: 'me' | 'one'; text: string; busy?: boolean; steps?: Step[]; tr?: Tr; pr?: Prompt & { by: 'rules' | 'llm' }; card?: any }
-export type Act = { type: string; brand?: string; website?: string; q?: string; phase?: Phase; fresh?: boolean; url?: string; review?: boolean }
+export type Act = { category?: string; type: string; brand?: string; website?: string; q?: string; phase?: Phase; fresh?: boolean; url?: string; review?: boolean }
 
 export const useOne = create<{ open: boolean; msgs: Msg[]; team: boolean; info: boolean }>(() => ({ open: false, msgs: [], team: false, info: false }))
 let mid = 0
@@ -175,7 +175,7 @@ export async function exec(a: Act, vi: boolean, id: number): Promise<{ text: str
       const full = runs.find((r) => r.total >= 40) ?? runs[0]
       if (a.type === 'audit' && (await serverUp())) {
         step(id, a.fresh ? T('Mở 5 tab Gemini ẩn danh', 'Opening 5 anonymous Gemini tabs') : T('Dùng lại câu trả lời Gemini đã lưu, chạy thật các bước sau', 'Reusing saved Gemini answers, running the rest for real'))
-        const ok = await startLive({ brand, website: a.website || undefined, mode: a.fresh ? 'fresh' : 'quick', replace: true })
+        const ok = await startLive({ brand, website: a.website || undefined, category: a.category || undefined, mode: a.fresh ? 'fresh' : 'quick', replace: true })
         if (!ok) return { text: lget().err === OFFLINE_MSG ? `${OFFLINE_MSG}.` : T(`Không chạy được: ${lget().err}`, `Could not start: ${lget().err}`) }
         return { text: a.fresh ? T(`Đang audit ${brand}: 40 câu hỏi thật trên Gemini, khoảng 3 phút.`, `Auditing ${brand}: 40 real questions on Gemini, about 3 minutes.`) : T(`Đang audit ${brand} trên 40 câu trả lời Gemini đã lưu; phân tích, nội dung, kiểm rủi ro và duyệt chạy thật.`, `Auditing ${brand} on 40 saved Gemini answers; analysis, content, risk and approval run for real.`) }
       }

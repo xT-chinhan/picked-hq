@@ -3,14 +3,15 @@ import { motion } from 'motion/react'
 import { AlertTriangle, Check, ChevronDown, Copy, Download, ExternalLink, Loader2, LogIn, LogOut, Minus, Plus, ScanSearch, X } from 'lucide-react'
 import { Gauge, Eyebrow } from './report'
 import { useBrowser } from './BrowserPanel'
-import { openRun, patch, type CMsg } from './chat'
+import { add, openRun, patch, type CMsg } from './chat'
 
 /* GEO Copilot, in the chat: find the business online, the owner confirms the places, every place is checked against the others,
    and the fixes are drafted as files the owner approves one by one. Nothing is published or posted from here. */
 type Source = { id: string; kind: string; label: string; url: string; status: string; note?: string; inSameAs?: boolean; on?: boolean; facts?: { title: string; words: number }; session?: 'open' | 'reading' | 'read' | 'error' }
 type Check_ = { id: string; status: 'pass' | 'warn' | 'fail'; label: string; detail: string }
 type Fix = { id: string; file: string; where: string; why: string; hours: number; before: string; after: string }
-type State = { stage: 'find' | 'confirm' | 'checking' | 'done' | 'error'; url?: string; host?: string; name?: string; blocked?: boolean; sources?: Source[]; brand?: string; score?: number; checks?: Check_[]; patches?: Fix[]; approved?: string[]; err?: string }
+type Criteria = { bench: { r: number | null; n: number; category?: string; examples: { name: string; site: number; mentioned: number; total: number }[] }; xray: { score: number | null; id: string } | null; sources: { domain: string; count: number }[]; quickCategory: string }
+type State = { criteria?: Criteria; started?: { at: number; category: string; routine: string | null; err?: string } | null; stage: 'find' | 'confirm' | 'checking' | 'done' | 'error'; url?: string; host?: string; name?: string; blocked?: boolean; sources?: Source[]; brand?: string; score?: number; checks?: Check_[]; patches?: Fix[]; approved?: string[]; err?: string }
 
 const post = async (url: string, body: any) => { const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`); return j }
 const started = new Set<number>()
@@ -24,6 +25,7 @@ function Steps({ lines }: { lines: string[] }) {
 const icon = (s: string) => (s === 'pass' ? <Check size={15} strokeWidth={3.5} className="text-ok" /> : s === 'warn' ? <Minus size={15} strokeWidth={3.5} className="text-warn" /> : <X size={15} strokeWidth={3.5} className="text-bad" />)
 
 export function CopilotCard({ thread, m }: { thread: string; m: CMsg }) {
+  const here = thread
   const input = (m.run as any).input as string
   const [st, setSt] = useState<State>(() => m.res?.copilot ?? { stage: 'find' })
   const save = (s: State) => { setSt(s); patch(thread, m.id, { res: { copilot: s, ...(s.stage === 'done' || s.stage === 'error' ? { done: true } : {}) } }) }
@@ -34,14 +36,14 @@ export function CopilotCard({ thread, m }: { thread: string; m: CMsg }) {
   const setSrc = (id: string, p: Partial<Source>) => save({ ...st, sources: st.sources!.map((s) => (s.id === id ? { ...s, ...p } : s)) })
   const check = async () => {
     const s0 = { ...st, stage: 'checking' as const }; setSt(s0)
-    try { const r = await post('/api/copilot/check', { url: st.url, sources: st.sources!.filter((s) => s.on && s.kind !== 'website').map((s) => ({ url: s.url, label: s.label, facts: s.facts })) }); save({ ...s0, stage: 'done', brand: r.brand, score: r.score, checks: r.checks, patches: r.patches, approved: [] }) }
+    try { const r = await post('/api/copilot/check', { url: st.url, sources: st.sources!.filter((s) => s.on && s.kind !== 'website').map((s) => ({ url: s.url, label: s.label, facts: s.facts })) }); save({ ...s0, stage: 'done', brand: r.brand, score: r.score, checks: r.checks, patches: r.patches, criteria: r.criteria, approved: [] }) }
     catch (e: any) { save({ ...st, stage: 'confirm', err: e.message }) }
   }
 
   if (st.stage === 'error') return <div className="rounded-2xl bg-surface p-4 text-[15.5px] text-bad">{st.err}</div>
   if (st.stage === 'find') return <Steps lines={[`Looking up ${input}…`, 'Reading the homepage and its declared identity…', 'Collecting the profiles and marketplaces it links to…']} />
   if (st.stage === 'confirm' || st.stage === 'checking') return <Confirm st={st} setSrc={setSrc} add={(url) => { try { const u = new URL(/^https?:/.test(url) ? url : `https://${url}`); save({ ...st, sources: [...st.sources!, { id: `owner-${u.hostname}${st.sources!.length}`, kind: 'link', label: u.hostname.replace(/^www\./, ''), url: u.href, status: 'owner', on: true }] }) } catch { /* not a link */ } }} onCheck={check} busy={st.stage === 'checking'} />
-  return <Result st={st} save={save} />
+  return <Result st={st} save={save} thread={here} />
 }
 
 /* ───────────── step 2: the owner confirms the places ───────────── */
@@ -100,7 +102,7 @@ function SourceRow({ s, setSrc }: { s: Source; setSrc: (id: string, p: Partial<S
 }
 
 /* ───────────── steps 3–4: one story everywhere? then the fixes, approved one by one ───────────── */
-function Result({ st, save }: { st: State; save: (s: State) => void }) {
+function Result({ st, save, thread }: { st: State; save: (s: State) => void; thread: string }) {
   const [open, setOpen] = useState<string>(st.patches?.[0]?.id ?? ''), [copied, setCopied] = useState('')
   const approved = new Set(st.approved ?? []), hours = (st.patches ?? []).filter((p) => approved.has(p.id)).reduce((n, p) => n + p.hours, 0)
   const toggle = (id: string) => save({ ...st, approved: approved.has(id) ? [...approved].filter((x) => x !== id) : [...approved, id] })
@@ -109,7 +111,7 @@ function Result({ st, save }: { st: State; save: (s: State) => void }) {
   return (
     <div className="space-y-5">
       <section className="flex flex-wrap items-center gap-5 rounded-[22px] p-4 ring-1 ring-line">
-        <Gauge score={st.score ?? 0} size={128} />
+        <Gauge score={st.score ?? 0} size={156} />
         <div className="min-w-[240px] flex-1">
           <Eyebrow>One business everywhere · {st.host}</Eyebrow>
           <div className="mt-1.5 text-[23px] font-semibold leading-tight tracking-[-0.03em] text-ink">{n.fail + n.warn ? `${n.fail + n.warn} things make ${st.brand} harder for an AI to recognise` : `${st.brand} tells the same story everywhere`}</div>
@@ -119,6 +121,8 @@ function Result({ st, save }: { st: State; save: (s: State) => void }) {
       <section><Eyebrow>What we checked</Eyebrow>
         <div className="mt-2.5 grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-x-5 gap-y-2">{st.checks!.map((c) => <div key={c.id} className="flex items-start gap-2.5 text-[14.5px] leading-snug"><span className="mt-[3px] flex-none">{icon(c.status)}</span><span><b className="font-semibold text-ink">{c.label}</b><span className="block text-mute">{c.detail}</span></span></div>)}</div>
       </section>
+      <Criteria st={st} />
+      <Plan st={st} save={save} thread={thread} />
       {(st.patches ?? []).length > 0 && (
         <section>
           <div className="flex items-baseline gap-3"><Eyebrow>The fixes · approve each one</Eyebrow><span className="ml-auto text-[14px] text-mute">{approved.size} of {st.patches!.length} approved · <b className="font-semibold text-ink">{hours} agency hours (${hours * RATE}) not paid for</b></span></div>
@@ -155,5 +159,74 @@ function Result({ st, save }: { st: State; save: (s: State) => void }) {
         <button onClick={() => openRun('all', { type: 'savings' })} className="flex h-10 items-center gap-2 rounded-full border border-line px-4 text-[14.5px] font-semibold text-ink hover:bg-surface">Compare with an SEO agency</button>
       </div>
     </div>
+  )
+}
+
+/* ───────────── what gets a store recommended, with this store's status and the evidence ───────────── */
+function Criteria({ st }: { st: State }) {
+  const c = st.criteria, n = { fail: 0, warn: 0 }; (st.checks ?? []).forEach((x) => { if (x.status !== 'pass') n[x.status]++ })
+  const ex = c?.bench.examples ?? []
+  const rows: { name: string; status: 'pass' | 'warn' | 'fail' | 'todo'; now: string; why: string }[] = [
+    { name: '1. Recognised as one business', status: n.fail ? 'fail' : n.warn ? 'warn' : 'pass', now: `${st.score}/100 on the checks above`, why: 'An assistant only recommends what it can pin down: the same name, phone, address and profiles everywhere, declared in the site’s data.' },
+    { name: '2. Readable by AI assistants', status: c?.xray?.score == null ? 'todo' : c.xray.score >= 75 ? 'pass' : c.xray.score >= 50 ? 'warn' : 'fail', now: c?.xray?.score == null ? 'Not measured yet: the plan runs the X-ray' : `${c.xray.score}/100 agent-readiness`, why: 'Crawlers must get in, see the text without JavaScript and find structured data. Needed, but not enough on its own (see below).' },
+    { name: '3. Talked about where AI looks', status: 'todo', now: c?.sources.length ? `For ${c.bench.category ?? 'this category'} Gemini cites ${c.sources.slice(0, 4).map((x) => x.domain).join(', ')}` : 'Measured by the plan', why: 'Assistants recommend what trusted third parties write about: review sites, news, marketplaces. Being there is what moves the needle.' },
+    { name: '4. Answers the buyer questions', status: 'todo', now: 'Measured by the plan: which buyer questions name you, and which do not', why: 'An FAQ that answers the real questions in plain, sourced sentences is what an assistant can quote.' },
+  ]
+  const ico = (s: string) => (s === 'todo' ? <span className="h-2.5 w-2.5 rounded-full bg-line" /> : icon(s))
+  return (
+    <section>
+      <Eyebrow>What gets a store recommended by AI</Eyebrow>
+      <div className="mt-2.5 divide-y divide-line overflow-hidden rounded-[20px] ring-1 ring-line">
+        {rows.map((r) => <div key={r.name} className="grid grid-cols-[22px_1fr] gap-2.5 px-4 py-3"><span className="mt-1 grid h-4 place-items-center">{ico(r.status)}</span><div><div className="flex flex-wrap items-baseline gap-x-2"><b className="text-[15.5px] font-semibold text-ink">{r.name}</b><span className="text-[14px] text-mute">{r.now}</span></div><div className="mt-0.5 text-[14px] leading-snug text-faint">{r.why}</div></div></div>)}
+      </div>
+      {c?.bench.r != null && ex.length === 2 && <div className="mt-2.5 rounded-2xl bg-surface p-3.5 text-[14.5px] leading-snug text-mute"><b className="font-semibold text-ink">Measured, not assumed:</b> across {c.bench.n} brands we audited, a better website alone did not get a brand named more often (rank correlation {c.bench.r.toFixed(2)}). {ex[0].name} scores {ex[0].site}/100 and is named in {ex[0].mentioned} of {ex[0].total} answers; {ex[1].name} scores {ex[1].site}/100 and is named in {ex[1].mentioned}. That is why the plan works on all four, not only the website. {c.bench.n < 20 ? 'A small sample: read it as a pattern, not a law.' : ''}</div>}
+    </section>
+  )
+}
+
+/* ───────────── the plan: what the team does next, who does it, and what needs you; one approval starts it ───────────── */
+function Plan({ st, save, thread }: { st: State; save: (s: State) => void; thread: string }) {
+  const c = st.criteria, [cat, setCat] = useState(c?.quickCategory ?? ''), [busy, setBusy] = useState(false)
+  const quick = !!c && cat.trim().toLowerCase() === c.quickCategory.toLowerCase()
+  const steps = [
+    { who: 'You', what: `Publish the ${st.patches?.length ?? 0} identity fixes below on your site`, crit: '1', you: true },
+    { who: 'Sy', what: 'Audit the website (39 readiness checks) and collect sourced facts from its pages', crit: '2' },
+    { who: 'Scout', what: quick ? 'Ask Gemini the 40 buyer questions (saved real answers, re-scored for you)' : 'Ask Gemini 20 buyer questions in fresh tabs, about 3 minutes', crit: '3 · 4' },
+    { who: 'Ana', what: 'Find the questions that skip you and the sources Gemini cites', crit: '3 · 4' },
+    { who: 'Mira', what: 'Write an FAQ, an about page and a pitch from facts found on your site', crit: '4' },
+    { who: 'Quinn · Rhea', what: 'Check every sentence against its source; stop claims and personal data', crit: '4' },
+    { who: 'You', what: 'Approve on your phone; nothing is published before that', crit: '—', you: true },
+    { who: 'Pax', what: 'Publish your Picked page with llms.txt and structured data', crit: '1 · 2' },
+    { who: 'Theo', what: 'Draft a pitch to the source Gemini cites most (a draft: you send it)', crit: '3' },
+    { who: 'Tara', what: 'Re-measure every Monday at 09:00 and report the change', crit: 'all' },
+  ]
+  // answers name the short brand (“Elmich”), not the company line on the website (“Elmich Việt Nam”)
+  const brand = (st.brand ?? '').replace(/\s+(Việt Nam|Viet Nam|Vietnam|VN|Official|Store|Shop|JSC|Co\.?,? ?Ltd\.?)$/i, '').trim()
+  const start = async () => {
+    if (!brand || busy) return
+    setBusy(true)
+    let routine: string | null = null, err = ''
+    openRun(thread, { type: 'audit', brand, website: st.url, category: cat.trim() || undefined, fresh: !quick })
+    try { const r = await fetch('/api/routines', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ brand, mode: quick ? 'quick' : 'fresh', schedule: { kind: 'weekly', days: [1], at: '09:00' }, title: `${brand} · weekly re-measure` }) }); const j = await r.json(); if (r.ok) routine = j.id; else err = j.error } catch (e: any) { err = e.message }
+    save({ ...st, started: { at: Date.now(), category: cat.trim(), routine, err } })
+    add(thread, { who: 'nan', text: `Plan started for **${brand}**. Scout is asking Gemini and Sy is auditing the site; the run reports live below, one job at a time. ${routine ? 'Tara will re-measure every Monday at 09:00.' : `The weekly re-measure was not scheduled${err ? `: ${err}` : '.'}`} I will ask you before anything is published.` })
+    setBusy(false)
+  }
+  return (
+    <section>
+      <Eyebrow>The plan · what happens next</Eyebrow>
+      <div className="mt-2.5 overflow-hidden rounded-[20px] ring-1 ring-line">
+        {steps.map((x, i) => <div key={i} className="grid grid-cols-[28px_118px_1fr_52px] items-center gap-2.5 border-b border-line px-4 py-2.5 last:border-0"><span className={`grid h-6 w-6 place-items-center rounded-full text-[12.5px] font-bold ${x.you ? 'bg-accent text-white' : 'bg-surface text-ink'}`}>{i + 1}</span><span className={`text-[14px] font-semibold ${x.you ? 'text-accent' : 'text-ink'}`}>{x.who}</span><span className="text-[14.5px] leading-snug text-ink">{x.what}</span><span className="text-right text-[12.5px] text-faint">{x.crit === '—' ? '' : `crit. ${x.crit}`}</span></div>)}
+      </div>
+      {!st.started ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2.5">
+          <label className="flex h-11 min-w-[260px] flex-1 items-center gap-2 rounded-full border border-line px-4 text-[14.5px] text-mute">What do you sell?<input value={cat} onChange={(e) => setCat(e.target.value)} placeholder="e.g. bình sữa cho bé" className="min-w-0 flex-1 bg-transparent text-ink outline-none" /></label>
+          <button onClick={start} disabled={busy || !cat.trim()} className="flex h-11 items-center gap-2 rounded-full bg-accent px-5 text-[15.5px] font-semibold text-white hover:bg-[#0057b8] disabled:opacity-60">{busy ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} strokeWidth={3} />}Approve the plan and start</button>
+          <span className="w-full text-[13px] text-faint">Starting runs steps 2–6 now, one job at a time, and schedules step 10. Steps 7–9 wait for your approval inside the run. Your identity fixes (step 1) are below: approve and publish them yourself.</span>
+        </div>
+      ) : (
+        <div className="mt-3 flex items-start gap-2.5 rounded-2xl bg-surface p-3.5 text-[14.5px] leading-snug text-ink"><Check size={17} strokeWidth={3} className="mt-0.5 flex-none text-ok" /><span>Started {new Date(st.started.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} for “{st.started.category}”. The run is working below. {st.started.routine ? 'Weekly re-measure scheduled for Mondays at 09:00.' : `Weekly re-measure not scheduled${st.started.err ? `: ${st.started.err}` : ''}.`}</span></div>
+      )}
+    </section>
   )
 }

@@ -12,6 +12,7 @@ import { ledger } from './engines.mjs'
 import { probeLlmsTxt, reviewPage } from './pagereview.mjs'
 import { hub } from './browserhub.mjs'
 import { measured } from './measured.mjs'
+import { analyzeBenchmark } from './criteria.mjs'
 import * as profiles from './profiles.mjs'
 import { platformOf, discover as copilotDiscover, consistency as copilotCheck, patches as copilotPatches } from './copilot.mjs'
 import { createMcpHub, handleMcpRequest, isAllowed } from './mcp.mjs'
@@ -63,6 +64,16 @@ const ANALYSES = path.join(DATA, 'analyses'); fs.mkdirSync(ANALYSES, { recursive
 const analyses = new Map() // id -> { events, clients, status }
 const copilotSeen = new Map() // url -> { f, at }: what discovery read, so a check uses the server's own reading, not the browser's
 setInterval(() => { for (const [k, v] of copilotSeen) if (Date.now() - v.at > 1800000) copilotSeen.delete(k) }, 600000).unref()
+/** The evidence behind "what gets a store recommended": our benchmark, this site's latest X-ray, and the sources Gemini cites for the category. */
+let benchCache = null
+function copilotCriteria(host) {
+  if (!benchCache) { try { const b = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '..', 'public', 'data', 'benchmark.json'), 'utf8')); const a = analyzeBenchmark(b.brands); const rows = a.rows; const pick = (n) => rows.find((r) => r.name === n); benchCache = { r: a.correlation.site, n: a.n, category: b.category, examples: [pick('Hakawa'), pick('Lock&Lock')].filter(Boolean).map((r) => ({ name: r.name, site: r.site, mentioned: r.mentioned, total: r.total })) } } catch { benchCache = { r: null, n: 0, examples: [] } } }
+  let xray = null
+  try { for (const f of fs.readdirSync(ANALYSES).sort().reverse()) { const r = JSON.parse(fs.readFileSync(path.join(ANALYSES, f), 'utf8')); if (new URL(r.url).hostname.replace(/^www\./, '') === host) { xray = { score: r.siteScore, id: r.id }; break } } } catch { /* none yet */ }
+  let sources = []
+  try { const run = saved().filter((r) => r.total >= 40).sort((a, b) => b.startedAt - a.startedAt)[0]; if (run) { const full = JSON.parse(fs.readFileSync(path.join(DIR, run.id + '.json'), 'utf8')); sources = (full.summary?.sources ?? []).slice(0, 6) } } catch { /* no saved run */ }
+  return { bench: benchCache, xray, sources, quickCategory: CATEGORY }
+}
 const pageReviews = [] // pages the extension reviewed in the visitor's own Chrome, newest first
 const analyzer = createAnalyzer({
   scrape: (url, ms) => runScrape(url, ms), audit: (url, ms) => runAudit(url, ms),
@@ -230,7 +241,7 @@ http.createServer(async (req, res) => {
       // only places found on the site, or added by the owner as an http(s) link, are kept; facts read in a signed-in session come from the owner's browser
       const kept = (Array.isArray(b.sources) ? b.sources : []).slice(0, 20).flatMap((s) => { const base = allowed.get(s?.url); if (base) return [{ ...base, facts: s.facts ? { title: String(s.facts.title || '').slice(0, 160) } : undefined }]; try { const u = new URL(String(s?.url)); if (!/^https?:$/.test(u.protocol)) return []; return [{ id: `owner-${u.hostname}`, kind: platformOf(u.href) ?? 'link', label: String(s.label || u.hostname).slice(0, 40), url: u.href, status: 'owner', inSameAs: false }] } catch { return [] } })
       const sources = [hit.f.sources[0], ...kept.filter((s) => s.kind !== 'website')]
-      return json(res, 200, { ...copilotCheck(hit.f, sources), patches: copilotPatches(hit.f, sources) })
+      return json(res, 200, { ...copilotCheck(hit.f, sources), patches: copilotPatches(hit.f, sources), criteria: copilotCriteria(hit.f.host) })
     }
     // sign-in profiles: this machine only, never through the tunnel; reading a page needs the owner's approval in the chat
     if (p === '/api/sessions' && req.method === 'GET') { if (!local) return json(res, 403, { error: 'local only' }); return json(res, 200, { profiles: profiles.list() }) }

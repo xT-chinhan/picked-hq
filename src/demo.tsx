@@ -15,7 +15,7 @@ import { loadSeed, seed } from './seed'
    text is typed into the real inputs, and every job it starts is the real job (one at a time, it waits for each to finish).
    Escape or Stop ends it at once. */
 type Cur = { x: number; y: number; on: boolean; down: boolean }
-export const useDemo = create<{ panel: boolean; running: boolean; scene: string; caption: string; cur: Cur; picked: Record<string, boolean>; err: string; slow: boolean; clean: boolean; fast: boolean; ext: boolean; badge: string; big: string; video: { url: string; mb: string } | null }>(() => ({ panel: false, running: false, scene: '', caption: '', cur: { x: 0, y: 0, on: false, down: false }, picked: {}, err: '', slow: false, clean: false, fast: false, ext: false, badge: '', big: '', video: null }))
+export const useDemo = create<{ panel: boolean; running: boolean; scene: string; caption: string; cur: Cur; picked: Record<string, boolean>; err: string; slow: boolean; clean: boolean; fast: boolean; focus: { x: number; y: number; w: number; h: number } | null; extZoom: boolean; ext: boolean; badge: string; big: string; video: { url: string; mb: string } | null }>(() => ({ panel: false, running: false, scene: '', caption: '', cur: { x: 0, y: 0, on: false, down: false }, picked: {}, err: '', slow: false, clean: false, fast: false, focus: null, extZoom: false, ext: false, badge: '', big: '', video: null }))
 const set = useDemo.setState
 let abort = false
 class Stopped extends Error {}
@@ -36,8 +36,9 @@ function find(t: Target): HTMLElement | null {
 }
 async function el(t: Target, timeout = 15000) { const t0 = Date.now(); for (;;) { const e = find(t); if (e) return e; if (Date.now() - t0 > timeout) throw new Error(`Could not find ${typeof t === 'string' ? t.replace('text=', '“') + (t.startsWith('text=') ? '”' : '') : 'the control'} on screen.`); await nap(150) } }
 async function point(e: HTMLElement) { e.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); await sleep(250); const r = e.getBoundingClientRect(), fr = (e.ownerDocument.defaultView?.frameElement as HTMLElement | null)?.getBoundingClientRect(); set((s) => ({ cur: { ...s.cur, on: true, x: (fr?.left ?? 0) + r.left + Math.min(r.width / 2, 60), y: (fr?.top ?? 0) + r.top + r.height / 2 } })); await sleep(820) }
-async function click(t: Target, timeout?: number) { const e = await el(t, timeout); await point(e); set((s) => ({ cur: { ...s.cur, down: true } })); await sleep(130); e.click(); set((s) => ({ cur: { ...s.cur, down: false } })); await sleep(450) }
+async function click(t: Target, timeout?: number) { if (cam.s !== 1 && !String(t).includes('Approve')) await unzoom(); const e = await el(t, timeout); await point(e); set((s) => ({ cur: { ...s.cur, down: true } })); await sleep(130); e.click(); set((s) => ({ cur: { ...s.cur, down: false } })); await sleep(450) }
 async function type(t: Target, text: string, { enter = false, clear = true } = {}) {
+  if (cam.s !== 1) await unzoom()
   const e = (await el(t)) as HTMLInputElement | HTMLTextAreaElement; await point(e); e.focus()
   const setter = Object.getOwnPropertyDescriptor(e instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype, 'value')!.set!
   const put = (v: string) => { setter.call(e, v); e.dispatchEvent(new Event('input', { bubbles: true })) }
@@ -60,6 +61,31 @@ const esc = () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Esca
 async function office() { if (!useOffice.getState().open) { useOffice.setState({ open: true }); await sleep(900) } }
 async function everyone() { await office(); if (useChat.getState().active !== 'all') await click(row('Everyone')) }
 async function ask(text: string) { await everyone(); await type(composer, text, { enter: true }) }
+
+
+/* The camera: the whole messenger zooms smoothly onto what matters (centred on it) and a ring marks it; the next zoom glides from one target to the next. */
+const stageEl = () => document.querySelector<HTMLElement>('main.absolute.inset-0')
+const cam = { s: 1, tx: 0, ty: 0 }
+async function zoom(t: Target, scale = 1.35, hold = 1400) {
+  const m = stageEl(); if (!m) return
+  const e = await el(t); e.scrollIntoView({ block: 'center', behavior: 'smooth' }); await nap(380)
+  const r = e.getBoundingClientRect(), vw = window.innerWidth, vh = window.innerHeight
+  const ux = (r.left - cam.tx) / cam.s, uy = (r.top - cam.ty) / cam.s, uw = r.width / cam.s, uh = r.height / cam.s // where it sits with no zoom
+  const s = Math.max(1, Math.min(scale, vw / Math.max(uw + 60, 1), vh / Math.max(uh + 60, 1)))
+  const tx = Math.max(vw - vw * s, Math.min(0, vw / 2 - (ux + uw / 2) * s)), ty = Math.max(vh - vh * s, Math.min(0, vh / 2 - (uy + uh / 2) * s))
+  const fast = useDemo.getState().fast
+  m.style.transformOrigin = '0 0'; m.style.willChange = 'transform'; m.style.transition = `transform ${fast ? 620 : 950}ms cubic-bezier(.22,.8,.24,1)`; m.style.transform = `translate(${tx}px, ${ty}px) scale(${s})`
+  cam.s = s; cam.tx = tx; cam.ty = ty
+  set({ focus: { x: ux * s + tx - 8, y: uy * s + ty - 8, w: uw * s + 16, h: uh * s + 16 } })
+  await sleep(hold)
+}
+async function unzoom() {
+  const m = stageEl(); set({ focus: null }); if (!m || cam.s === 1) return
+  m.style.transition = `transform ${useDemo.getState().fast ? 480 : 750}ms cubic-bezier(.22,.8,.24,1)`; m.style.transform = 'translate(0px, 0px) scale(1)'; cam.s = 1; cam.tx = 0; cam.ty = 0; await nap(useDemo.getState().fast ? 480 : 750)
+}
+const resetZoom = () => { const m = stageEl(); if (m) { m.style.transition = ''; m.style.transform = ''; m.style.willChange = '' } cam.s = 1; cam.tx = 0; cam.ty = 0; set({ focus: null }) }
+/** The block that starts with this text (an eyebrow, a heading), as a zoom target: its section when it has one. */
+const block = (text: string) => () => { const e = [...document.querySelectorAll<HTMLElement>('main *')].find((x) => x.children.length <= 1 && x.textContent?.trim().toLowerCase().startsWith(text.toLowerCase()) && shown(x)); return e ? (e.closest('section') ?? e.parentElement) : null }
 
 type Scene = { id: string; title: string; about: string; mins: string; owner?: boolean; run: () => Promise<void> }
 export const SCENES: Scene[] = [
@@ -91,15 +117,15 @@ export const SCENES: Scene[] = [
   { id: 'xray', title: 'Business X-ray', about: 'Robot read, 39 checks, live page, verdict', mins: '1.5', run: async () => {
     await ask('Analyze elmich.vn'); await say('A real X-ray of elmich.vn: our robot reads the site, 39 readiness checks, a live-page inspection, then Ana writes the verdict.')
     await until('Agent-readiness', 200000, 'the X-ray'); await sleep(1500); await say('The report: score, the three layers, a fix plan in order, and the evidence behind every finding.')
-    await glide(700); await sleep(1500); await glide(700); await sleep(1500)
+    await zoom(() => [...document.querySelectorAll<HTMLElement>('main h3')].find((h) => /scores|stands in the way/.test(h.innerText)), 1.4, 2200); await zoom(block('The fix plan'), 1.3, 2600); await zoom(block('Why each one matters'), 1.3, 2200); await unzoom()
   } },
   { id: 'copilot', title: 'GEO Copilot', about: 'Find the store online, one story everywhere, the plan', mins: '1', run: async () => {
     await ask('This is my store: locknlock.vn, do GEO for it'); await say('The GEO Copilot finds where the store lives online: the website and every profile it links to.')
     await until('These are mine', 60000, 'the places'); await sleep(2500); await say('The owner confirms what is theirs. Nothing is checked before that.', 2500)
     await click('text=These are mine, check them'); await until('What gets a store recommended', 60000, 'the checks'); await say('Every place is checked against the others: name, phone, address, profiles declared as one business.')
-    await show('One business everywhere'); await sleep(3500)
-    await show('What gets a store recommended'); await say('The four criteria for being recommended, with this store’s status and the measured evidence.', 6000)
-    await show('The plan'); await say('A ten-step plan: who does what, which criterion it serves, and what needs the owner.', 6000)
+    await zoom(block('One business everywhere'), 1.45, 3200)
+    await say('The four criteria for being recommended, with this store’s status and the measured evidence.'); await zoom(block('What gets a store recommended'), 1.3, 5500)
+    await say('A ten-step plan: who does what, which criterion it serves, and what needs the owner.'); await zoom(block('The plan'), 1.3, 5500)
     await show('The fixes'); await say('Each fix is a real file built from the site’s own facts, shown before and after.', 3500)
     await click('text=Approve'); await say('Approved fixes are counted as agency hours not paid for.', 3000)
   } },
@@ -190,25 +216,26 @@ const REEL: { id: string; title: string; run: () => Promise<void> }[] = [
   } },
   { id: 'xray', title: 'Business X-ray', run: async () => {
     await type(composer, 'Analyze elmich.vn', { enter: true }); await say('Business X-ray: the robot reads the site, 39 checks, a live-page inspection, then the verdict.')
-    await until('Agent-readiness', 40000, 'the X-ray'); await sleep(900); await say('Score, the three layers, a fix plan in order.'); await glide(620, 3); await sleep(500)
+    await until('Agent-readiness', 40000, 'the X-ray'); await sleep(700); await say('Score, the three layers, a fix plan in order.')
+    await zoom(() => [...document.querySelectorAll<HTMLElement>('main h3')].find((h) => /scores|stands in the way/.test(h.innerText)), 1.4, 1300); await zoom(block('The fix plan'), 1.3, 1400); await unzoom()
   } },
   { id: 'copilot', title: 'GEO Copilot', run: async () => {
     await type(composer, 'GEO for locknlock.vn', { enter: true }); await say('GEO Copilot: where does this store live online?')
     await until('These are mine', 30000, 'the places'); await sleep(600); await click('text=These are mine, check them')
     await until('What gets a store recommended', 30000, 'the checks'); await say('One story everywhere? Four criteria, a ten-step plan, fixes the owner approves.')
-    await show('What we checked'); await sleep(900); await show('What gets a store recommended'); await sleep(1100); await show('The plan'); await sleep(1100); await show('The fixes'); await sleep(500); await click('text=Approve'); await sleep(500)
+    await zoom(block('One business everywhere'), 1.45, 1100); await zoom(block('What gets a store recommended'), 1.3, 1500); await zoom(block('The plan'), 1.3, 1500); await zoom(block('The fixes'), 1.3, 1300); await click('text=Approve'); await sleep(400); await unzoom()
   } },
   { id: 'audit', title: 'Audit a brand', run: async () => {
     await type(composer, 'Audit Elmich', { enter: true }); await say('An audit: 40 Gemini answers, who is named, and why not you. (replayed from a saved run)')
-    await until(() => { const L = useLive.getState(); return L.status !== 'running' && L.summary != null }, 40000, 'the audit'); await sleep(1500); await stopLive(); await sleep(300)
+    await until(() => { const L = useLive.getState(); return L.status !== 'running' && L.summary != null }, 40000, 'the audit'); await zoom(() => [...document.querySelectorAll<HTMLElement>('main span')].find((x) => /answers name/.test(x.innerText))?.closest('.rounded-2xl'), 1.6, 1500); await unzoom(); await stopLive(); await sleep(300)
   } },
   { id: 'gemini', title: 'A real Gemini answer', run: async () => {
     await type(composer, 'Ask Gemini: which thermal lunch box is best?', { enter: true }); await say('A buyer question to Gemini: who does it name? (a saved real answer)')
-    await until('What Gemini said', 20000, 'the answer'); await sleep(500); await glide(420, 2); await sleep(900)
+    await until('What Gemini said', 20000, 'the answer'); await sleep(500); await zoom(() => [...document.querySelectorAll<HTMLElement>('main div')].reverse().find((d) => /is named #|is not named/i.test(d.innerText) && d.classList.contains('rounded-[20px]')), 1.45, 1700); await unzoom()
   } },
   { id: 'cost', title: 'Versus an SEO agency', run: async () => {
     await type(composer, 'How much does this save versus an SEO agency?', { enter: true }); await until('What this replaces', 15000)
-    await say('Measured times against agency hours.'); await glide(380, 2); await sleep(1100)
+    await say('Measured times against agency hours.'); await zoom(() => [...document.querySelectorAll<HTMLElement>('main .tnum')].reverse().find((x) => /\$/.test(x.innerText))?.closest('.rounded-\[22px\]'), 1.5, 1700); await unzoom()
   } },
   { id: 'browser', title: 'The agent’s browser', run: async () => {
     await type(composer, 'Open elmich.vn', { enter: true }); await say('The agent opens the page on the right.')
@@ -217,7 +244,7 @@ const REEL: { id: string; title: string; run: () => Promise<void> }[] = [
   { id: 'extension', title: 'The Chrome extension', run: async () => {
     set({ ext: true }); await until(() => !!frameDoc()?.querySelector('#starters button'), 8000, 'the panel'); await say('The NaN extension reads the page you are on, even where robots are turned away.')
     await sleep(500); await click(inFrame('#starters button:nth-child(2)')); await until(frameText('Robot vs your browser'), 20000, 'the deep read')
-    await sleep(1600); set({ ext: false }); await sleep(400)
+    set({ extZoom: true }); await sleep(2000); set({ extZoom: false, ext: false }); await sleep(400)
   } },
   { id: 'workflow', title: 'The company at work', run: async () => {
     await click('button[title="Menu"]'); await click('text=Workflow (simulation)'); await say('And the whole company at work, on one canvas.'); await sleep(7000)
@@ -266,7 +293,7 @@ export async function playReel({ record }: { record: boolean }) {
   useBots.setState((s) => ({ bots: s.bots.filter((b) => madeBots.has(b.id)) }))
   let video: { url: string; mb: string } | null = null
   if (rec) { const blob = await rec.stop(); if (blob.size > 0) { const url = URL.createObjectURL(blob); video = { url, mb: (blob.size / 1048576).toFixed(1) }; const a = document.createElement('a'); a.href = url; a.download = 'picked-demo-2min.webm'; a.click() } }
-  set({ running: false, scene: '', fast: false, clean: false, badge: '', cur: { x: 0, y: 0, on: false, down: false }, video: video ?? null, err: ms > REEL_LIMIT_MS ? `The reel took ${Math.round(ms / 1000)} s: over two minutes.` : '' })
+  resetZoom(); set({ running: false, scene: '', fast: false, clean: false, badge: '', cur: { x: 0, y: 0, on: false, down: false }, video: video ?? null, err: ms > REEL_LIMIT_MS ? `The reel took ${Math.round(ms / 1000)} s: over two minutes.` : '' })
 }
 
 /** Plays scenes one after another; a scene that fails says why and the next one starts. */
@@ -281,7 +308,7 @@ export async function play(ids: string[]) {
     }
     await say('That is the whole demo.', 2500)
   } catch { /* stopped */ }
-  set({ running: false, scene: '', caption: '', cur: { x: 0, y: 0, on: false, down: false } })
+  resetZoom(); set({ running: false, scene: '', caption: '', cur: { x: 0, y: 0, on: false, down: false } })
 }
 export const stop = () => { abort = true }
 /** One ▶ button anywhere in the app: closes whatever is open and plays that scene. */
@@ -330,13 +357,14 @@ export function Demo() {
       <AnimatePresence>
         {d.ext && (
           <motion.div key="ext" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.35 }} className="fixed inset-0 z-[9990] grid place-items-center bg-ink/60 backdrop-blur-[3px]">
-            <motion.div initial={{ y: 30, scale: 0.97 }} animate={{ y: 0, scale: 1 }} exit={{ y: 20, opacity: 0 }} transition={{ type: 'spring', stiffness: 160, damping: 22 }} className="overflow-hidden rounded-[22px] bg-white shadow-[0_40px_120px_-30px_rgba(0,0,0,.7)]">
+            <motion.div initial={{ y: 30, scale: 0.97 }} animate={{ y: 0, scale: d.extZoom ? 1.16 : 1 }} exit={{ y: 20, opacity: 0 }} transition={{ type: 'spring', stiffness: 120, damping: 22 }} className="overflow-hidden rounded-[22px] bg-white shadow-[0_40px_120px_-30px_rgba(0,0,0,.7)]">
               <div className="flex items-center gap-2 border-b border-line bg-surface px-4 py-2 text-[13px] text-mute"><span className="flex gap-1.5">{['#f87171', '#fbbf24', '#34d399'].map((c) => <span key={c} className="h-2.5 w-2.5 rounded-full" style={{ background: c }} />)}</span><span className="ml-2 flex-1 truncate rounded-full bg-white px-3 py-1 ring-1 ring-line">shopee.vn · the page you are on (saved snapshot)</span><span className="font-semibold text-ink">NaN for Picked</span></div>
               <iframe id="ext-demo-frame" title="NaN extension panel" src="/ext/preview.html" className="block h-[700px] w-[430px] border-0" />
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
+      {d.focus && <motion.div className="pointer-events-none fixed z-[9996] rounded-[20px] border-2 border-accent shadow-[0_0_0_6px_rgba(0,100,212,.18),0_18px_50px_-20px_rgba(0,100,212,.6)]" initial={false} animate={{ left: d.focus.x, top: d.focus.y, width: d.focus.w, height: d.focus.h, opacity: 1 }} transition={{ type: 'spring', stiffness: 150, damping: 24 }} />}
       <AnimatePresence>{d.big && <motion.div key={d.big} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.2 }} transition={{ duration: 0.4 }} className="pointer-events-none fixed inset-0 z-[9997] grid place-items-center bg-white/80 text-[clamp(64px,14vw,200px)] font-semibold tracking-[-0.06em] text-ink">{d.big}</motion.div>}</AnimatePresence>
       {d.badge && d.running && <div className="pointer-events-none fixed bottom-3 left-3 z-[9998] rounded-full bg-ink/70 px-3 py-1 text-[12.5px] text-white">{d.badge}</div>}
       <AnimatePresence>

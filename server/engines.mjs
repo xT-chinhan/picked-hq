@@ -53,20 +53,51 @@ export function ledger() {
   return {
     engines: ENGINES.map((e) => { const s = stats.get(e.id); const ok = s ? s.calls - s.fails : 0; return { ...e, home: undefined, calls: s?.calls ?? 0, fails: s?.fails ?? 0, avgMs: ok ? Math.round(s.ms / ok) : null, tokens: s?.tokens ?? 0, last: s?.last ?? null } }),
     recent: recent.slice(-20).reverse(),
+    codexPool: codexPool(),
   }
 }
 
 /* ───────────── calling ───────────── */
-/** Codex profiles to try, in order. PICKED_CODEX_HOMES (separated by |) lists them; a call that fails on one (usage limit, provider down) moves to the next, and the profile that worked is tried first next time. */
+/* Codex profiles. PICKED_CODEX_HOMES lists them (separated by |). A profile that hits its usage limit is kept in the pool but rested until the
+   time the provider names (“try again at 1:41 PM”); a profile that fails for another reason (provider down) rests for two minutes.
+   When the time comes it is used again by itself. Rest times are saved, so a restart does not forget them. */
 const HOMES = (process.env.PICKED_CODEX_HOMES || '').split('|').map((x) => x.trim()).filter(Boolean)
+const RESTS = path.join(DATA, 'codex-rests.json')
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+/** When a “usage limit” message says the profile is usable again (ms), or null when it names no time. Times are in the machine's own clock. */
+export function parseResetTime(msg, now = Date.now()) {
+  const m = /try again at\s+(?:([A-Za-z]{3,9})\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(?:(\d{4}),?\s+)?)?(\d{1,2}):(\d{2})\s*(AM|PM)/i.exec(String(msg))
+  if (!m) return null
+  let h = +m[4] % 12; if (m[6].toUpperCase() === 'PM') h += 12
+  const d = new Date(now); d.setHours(h, +m[5], 0, 0)
+  if (m[1]) { const mo = MONTHS.indexOf(m[1].slice(0, 3).toLowerCase()); if (mo < 0) return null; d.setMonth(mo, +m[2]); if (m[3]) d.setFullYear(+m[3]); else if (d.getTime() < now - 864e5) d.setFullYear(d.getFullYear() + 1) }
+  else if (d.getTime() <= now) d.setDate(d.getDate() + 1)
+  return d.getTime()
+}
+let rests = {}
+try { rests = JSON.parse(fs.readFileSync(RESTS, 'utf8')) } catch { /* nothing is resting */ }
+const saveRests = () => { try { fs.mkdirSync(DATA, { recursive: true }); fs.writeFileSync(RESTS, JSON.stringify(rests)) } catch { /* the pool still works in memory */ } }
+const restUntil = (home) => (rests[home] && rests[home].until > Date.now() ? rests[home] : null)
+const rest = (home, until, why) => { rests[home] = { until, why }; saveRests() }
+const label = (home) => path.basename(home || 'default')
+/** The pool as the UI shows it: every profile, whether it is usable now and, if resting, when it comes back. */
+export const codexPool = () => (HOMES.length ? HOMES : []).map((h) => { const r = restUntil(h); return { profile: label(h), usable: !r, resetsAt: r?.until ?? null, why: r?.why ?? '' } })
 let goodHome = 0
 async function codex(e, prompt, schema, timeoutMs) {
   const homes = HOMES.length ? HOMES : [e.home]
   let last
   for (let k = 0; k < homes.length; k++) {
     const i = (goodHome + k) % homes.length
-    try { const r = await codexOnce(e, homes[i], prompt, schema, timeoutMs); goodHome = i; return r } catch (x) { last = x; if (/timed out/.test(String(x.message))) throw x }
+    if (restUntil(homes[i])) continue // resting until its time
+    try { const r = await codexOnce(e, homes[i], prompt, schema, timeoutMs); goodHome = i; return r }
+    catch (x) {
+      last = x; const msg = String(x.message)
+      if (/timed out/.test(msg)) throw x
+      if (/usage limit/i.test(msg)) rest(homes[i], parseResetTime(msg) ?? Date.now() + 30 * 60000, 'usage limit')
+      else rest(homes[i], Date.now() + 2 * 60000, 'provider error')
+    }
   }
+  if (!last) { const soonest = Math.min(...homes.map((h) => restUntil(h)?.until ?? Infinity)); throw new Error(`every Codex profile is resting; the first is back at ${new Date(soonest).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`) }
   throw last
 }
 function codexOnce(e, home, prompt, schema, timeoutMs) {

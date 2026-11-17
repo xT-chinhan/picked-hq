@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Mirror this machine (the server) to the second machine, so it has the same project, data and tools.
+# Push this checkout to the server machine (192.168.92.169), which now runs the backend, the UI and the tunnel to pickedhq.pages.dev.
 # Usage: scripts/sync-mirror.sh [user@host]   (needs an ssh key on that machine; set up once with ssh-copy-id)
-# The mirror runs with the tunnel off (PICKED_NO_EDGE=1): only this machine answers pickedhq.pages.dev.
 set -eu
 H=${1:-chinhan@192.168.92.169}
 R="rsync -aHs --partial"

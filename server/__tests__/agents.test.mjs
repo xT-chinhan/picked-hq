@@ -50,3 +50,13 @@ test('a changed soul is flagged until the souls are locked again', () => {
   lockSouls(); assert.equal(roster().find((r) => r.id === 'mira').drift, false)
   a.soul = before
 })
+
+test('Codex profiles: a profile that fails (usage limit, provider down) hands the call to the next one', async () => {
+  const fs = await import('node:fs'), os = await import('node:os'), path = await import('node:path'), cp = await import('node:child_process')
+  const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'fake-codex-')), home = (n, ok) => { const d = path.join(bin, n); fs.mkdirSync(d); fs.writeFileSync(path.join(d, 'ok'), ok ? '1' : '0'); return d }
+  // a fake `codex`: succeeds only when its CODEX_HOME holds ok=1, writing the -o file the way the real one does
+  fs.writeFileSync(path.join(bin, 'codex'), '#!/bin/sh\nif [ "$(cat "$CODEX_HOME/ok")" != "1" ]; then echo "usage limit" >&2; exit 1; fi\nwhile [ $# -gt 0 ]; do [ "$1" = "-o" ] && echo ready > "$2"; shift; done\n', { mode: 0o755 })
+  const code = `const { call } = await import(${JSON.stringify(new URL('../engines.mjs', import.meta.url).href)}); const r = await call('astra', { prompt: 'x', fresh: true }); console.log(r.text)`
+  const out = cp.execFileSync(process.execPath, ['--input-type=module', '-e', code], { env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, PICKED_DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'pd-')), PICKED_CODEX_HOMES: [home('a', false), home('b', true)].join('|') }, encoding: 'utf8' })
+  assert.match(out, /ready/)
+})

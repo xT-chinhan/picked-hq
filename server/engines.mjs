@@ -57,12 +57,24 @@ export function ledger() {
 }
 
 /* ───────────── calling ───────────── */
-function codex(e, prompt, schema, timeoutMs) {
+/** Codex profiles to try, in order. PICKED_CODEX_HOMES (separated by |) lists them; a call that fails on one (usage limit, provider down) moves to the next, and the profile that worked is tried first next time. */
+const HOMES = (process.env.PICKED_CODEX_HOMES || '').split('|').map((x) => x.trim()).filter(Boolean)
+let goodHome = 0
+async function codex(e, prompt, schema, timeoutMs) {
+  const homes = HOMES.length ? HOMES : [e.home]
+  let last
+  for (let k = 0; k < homes.length; k++) {
+    const i = (goodHome + k) % homes.length
+    try { const r = await codexOnce(e, homes[i], prompt, schema, timeoutMs); goodHome = i; return r } catch (x) { last = x; if (/timed out/.test(String(x.message))) throw x }
+  }
+  throw last
+}
+function codexOnce(e, home, prompt, schema, timeoutMs) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'picked-cx-')), out = path.join(dir, 'out.txt'), sp = path.join(dir, 'schema.json')
   if (schema) fs.writeFileSync(sp, JSON.stringify(schema))
   const args = ['exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '--json', '-m', e.model, '-c', `model_reasoning_effort=${e.effort ?? 'low'}`, '-o', out, ...(schema ? ['--output-schema', sp] : []), prompt]
   return new Promise((resolve, reject) => {
-    const p = spawn('codex', args, { env: { ...process.env, ...(e.home ? { CODEX_HOME: e.home } : {}) }, stdio: ['ignore', 'pipe', 'pipe'] })
+    const p = spawn('codex', args, { env: { ...process.env, ...(home ? { CODEX_HOME: home } : {}) }, stdio: ['ignore', 'pipe', 'pipe'] })
     let so = '', se = ''
     const t = setTimeout(() => { p.kill('SIGKILL'); reject(new Error(`codex timed out after ${timeoutMs / 1000}s`)) }, timeoutMs)
     p.stdout.on('data', (d) => (so += d)); p.stderr.on('data', (d) => (se += d))

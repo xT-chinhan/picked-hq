@@ -128,9 +128,12 @@ function Chat({ thread, onEdit }: { thread: string; onEdit: (b: Bot) => void }) 
   useLayoutEffect(() => { stick.current = true; const el = box.current; if (el) el.scrollTop = el.scrollHeight }, [thread])
   useEffect(() => {
     const el = box.current, c = inner.current; if (!el || !c) return
-    const ro = new ResizeObserver(() => { if (stick.current) el.scrollTo({ top: el.scrollHeight }) })
+    const ro = new ResizeObserver(() => { if (stick.current && !useDemo.getState().cam) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' }) })
     ro.observe(c); return () => ro.disconnect()
   }, [thread])
+  // a new message from the operator always brings the conversation back to the bottom, gliding
+  const mine = msgs.filter((m) => m.who === 'me').length
+  useEffect(() => { const el = box.current; if (!el || !mine) return; stick.current = true; el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' }) }, [mine])
   // when a job finishes, bring the top of its result into view instead of leaving the reader at the bottom of a long report
   const doneKey = msgs.filter((m) => m.run && m.res && !m.old).map((m) => m.id).join()
   useEffect(() => {
@@ -150,7 +153,7 @@ function Chat({ thread, onEdit }: { thread: string; onEdit: (b: Bot) => void }) 
         <button onClick={() => useDemo.setState({ panel: true })} className="flex h-10 items-center gap-2 rounded-full bg-ink px-4 text-[14.5px] font-semibold text-white hover:bg-black"><Play size={14} />Demo</button>
         <button onClick={() => useBrowser.setState((s) => ({ open: !s.open, control: false }))} className="flex h-10 items-center gap-2 rounded-full bg-surface px-4 text-[14.5px] font-semibold text-ink hover:bg-line"><Globe size={16} />Browser</button>
       </header>
-      <div ref={box} onScroll={(e) => { const el = e.currentTarget; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80 }} className="min-h-0 flex-1 overflow-y-auto px-5 py-5 [scrollbar-width:thin]">
+      <div ref={box} onScroll={(e) => { const el = e.currentTarget; if (el.scrollHeight - el.scrollTop - el.clientHeight < 80) stick.current = true }} onWheel={(e) => { if (e.deltaY < 0) stick.current = false }} onTouchMove={() => { stick.current = false }} className="min-h-0 flex-1 overflow-y-auto px-5 py-5 [scrollbar-width:thin]">
         <div ref={inner} className="mx-auto flex max-w-[900px] flex-col gap-4">
           {empty && (
             <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center py-12 text-center">
@@ -235,7 +238,7 @@ export function Messenger({ onWorkflow }: { onWorkflow: () => void }) {
   const info = (id: string) => {
     const ms = threads[id] ?? [], m = [...ms].reverse().find((x) => x.text || x.run)
     const working = ms.some((x) => x.run && (!x.res || (x.run.kind === 'copilot' && ['find', 'checking'].includes(x.res.copilot?.stage))))
-    const preview = m ? (m.run ? (m.run.kind === 'xray' ? `X-ray of ${m.run.input}` : m.run.kind === 'audit' ? `Audit ${m.run.act.brand ?? ''}` : m.run.kind === 'copilot' ? `GEO Copilot · ${m.run.input}` : 'Real job') : (m.who === 'me' ? 'You: ' : '') + m.text) : id === 'all' ? greeting('all') : (personOf(id)?.role ?? '')
+    const preview = String(m ? (m.run ? (m.run.kind === 'xray' ? `X-ray of ${m.run.input}` : m.run.kind === 'audit' ? `Audit ${m.run.act.brand ?? ''}` : m.run.kind === 'copilot' ? `GEO Copilot · ${m.run.input}` : m.run.kind === 'team' ? `Team job · ${m.run.input}` : 'Real job') : (m.who === 'me' ? 'You: ' : '') + m.text) : id === 'all' ? greeting('all') : (personOf(id)?.role ?? '')).replace(/\*\*/g, '')
     return { preview, ts: m?.ts ?? last[id], working }
   }
   const items: { icon: any; label: string; run: () => void; scene?: string }[] = [

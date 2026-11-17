@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { create } from 'zustand'
 import { AnimatePresence, motion } from 'motion/react'
-import { Circle, MousePointer2, Play, Square, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Circle, Lock, MousePointer2, Play, Puzzle, RotateCw, Square, X } from 'lucide-react'
 import { useStory } from './Story'
 import { useApps } from './Apps'
 import { useBrowser } from './BrowserPanel'
@@ -10,12 +10,13 @@ import { useLive, startLive, stopLive } from './live'
 import { useBots, useChat } from './chat'
 import { useAnalyze } from './Analyze'
 import { loadSeed, seed } from './seed'
+import { clock, CYCLE } from './sim'
 
 /* Stage demo: an autopilot that drives the real interface the way a presenter would. A visible cursor moves to each control and clicks it,
    text is typed into the real inputs, and every job it starts is the real job (one at a time, it waits for each to finish).
    Escape or Stop ends it at once. */
 type Cur = { x: number; y: number; on: boolean; down: boolean }
-export const useDemo = create<{ panel: boolean; running: boolean; scene: string; caption: string; cur: Cur; picked: Record<string, boolean>; err: string; slow: boolean; clean: boolean; fast: boolean; focus: { x: number; y: number; w: number; h: number } | null; extZoom: boolean; ext: boolean; badge: string; big: string; video: { url: string; mb: string } | null }>(() => ({ panel: false, running: false, scene: '', caption: '', cur: { x: 0, y: 0, on: false, down: false }, picked: {}, err: '', slow: false, clean: false, fast: false, focus: null, extZoom: false, ext: false, badge: '', big: '', video: null }))
+export const useDemo = create<{ panel: boolean; running: boolean; scene: string; caption: string; cur: Cur; picked: Record<string, boolean>; err: string; slow: boolean; clean: boolean; fast: boolean; focus: { x: number; y: number; w: number; h: number } | null; extZoom: boolean; ext: boolean; extPanel: boolean; cam: boolean; badge: string; big: string; video: { url: string; mb: string } | null }>(() => ({ panel: false, running: false, scene: '', caption: '', cur: { x: 0, y: 0, on: false, down: false }, picked: {}, err: '', slow: false, clean: false, fast: false, focus: null, extZoom: false, ext: false, extPanel: false, cam: false, badge: '', big: '', video: null }))
 const set = useDemo.setState
 let abort = false
 class Stopped extends Error {}
@@ -45,7 +46,7 @@ async function type(t: Target, text: string, { enter = false, clear = true } = {
   if (clear) put('')
   for (const ch of text) { put(e.value + ch); await nap(useDemo.getState().fast ? 9 + Math.random() * 7 : (useDemo.getState().slow ? 55 : 30) + Math.random() * 28) }
   await sleep(350)
-  if (enter) { const f = e.closest('form'); if (f) f.requestSubmit(); else e.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })) ; await sleep(400) }
+  if (enter) { const f = e.closest('form'); if (f) f.requestSubmit(); else e.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await nap(120); await follow() }
 }
 async function until(p: string | (() => boolean), timeout = 60000, what = '') {
   const t0 = Date.now(), want = typeof p === 'string' ? p.toLowerCase() : '', ok = typeof p === 'string' ? () => document.body.innerText.toLowerCase().includes(want) : p // headings are upper-cased by CSS, and innerText follows it
@@ -63,27 +64,44 @@ async function everyone() { await office(); if (useChat.getState().active !== 'a
 async function ask(text: string) { await everyone(); await type(composer, text, { enter: true }) }
 
 
-/* The camera: the whole messenger zooms smoothly onto what matters (centred on it) and a ring marks it; the next zoom glides from one target to the next. */
+/* The camera: the whole messenger zooms smoothly onto what matters (centred on it) and a ring marks it. The chat scrolls and the camera moves
+   in one eased motion (no jump-then-zoom), and the next zoom glides from one target to the next. */
 const stageEl = () => document.querySelector<HTMLElement>('main.absolute.inset-0')
 const cam = { s: 1, tx: 0, ty: 0 }
+const EASE = 'cubic-bezier(.65,0,.35,1)', easeIO = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2)
+const camMs = () => (useDemo.getState().fast ? 820 : 1250)
+/** Scrolls a box with the same easing as the camera; resolves with how far it really moved. */
+function glideTo(box: HTMLElement, top: number, ms = camMs()) {
+  const from = box.scrollTop, to = Math.max(0, Math.min(top, box.scrollHeight - box.clientHeight)), d = to - from
+  if (Math.abs(d) < 2) return { d: 0, done: Promise.resolve() }
+  const t0 = performance.now()
+  const done = new Promise<void>((res) => { const f = (now: number) => { const k = Math.min(1, (now - t0) / ms); box.scrollTop = from + d * easeIO(k); if (k < 1 && !abort) requestAnimationFrame(f); else res() }; requestAnimationFrame(f) })
+  return { d, done }
+}
 async function zoom(t: Target, scale = 1.35, hold = 1400) {
   const m = stageEl(); if (!m) return
-  const e = await el(t); e.scrollIntoView({ block: 'center', behavior: 'smooth' }); await nap(380)
-  const r = e.getBoundingClientRect(), vw = window.innerWidth, vh = window.innerHeight
-  const ux = (r.left - cam.tx) / cam.s, uy = (r.top - cam.ty) / cam.s, uw = r.width / cam.s, uh = r.height / cam.s // where it sits with no zoom
+  const e = await el(t), box = chatBox(), vw = window.innerWidth, vh = window.innerHeight
+  let r = e.getBoundingClientRect(), dy = 0
+  if (box && box.contains(e)) { // bring it to the middle of the chat while the camera moves
+    const br = box.getBoundingClientRect(), off = (r.top - br.top) / cam.s, h = r.height / cam.s
+    const g = glideTo(box, box.scrollTop + (h > box.clientHeight - 40 ? off - 16 : off - (box.clientHeight - h) / 2)); dy = g.d
+  } else if (r.top < 0 || r.bottom > vh) { e.scrollIntoView({ block: 'center' }); r = e.getBoundingClientRect() }
+  const ux = (r.left - cam.tx) / cam.s, uy = (r.top - cam.ty) / cam.s - dy, uw = r.width / cam.s, uh = r.height / cam.s // where it will sit with no zoom
   const s = Math.max(1, Math.min(scale, vw / Math.max(uw + 60, 1), vh / Math.max(uh + 60, 1)))
-  const tx = Math.max(vw - vw * s, Math.min(0, vw / 2 - (ux + uw / 2) * s)), ty = Math.max(vh - vh * s, Math.min(0, vh / 2 - (uy + uh / 2) * s))
-  const fast = useDemo.getState().fast
-  m.style.transformOrigin = '0 0'; m.style.willChange = 'transform'; m.style.transition = `transform ${fast ? 620 : 950}ms cubic-bezier(.22,.8,.24,1)`; m.style.transform = `translate(${tx}px, ${ty}px) scale(${s})`
+  const tx = Math.max(vw - vw * s, Math.min(0, vw / 2 - (ux + uw / 2) * s)), ty = Math.max(vh - vh * s, Math.min(0, vh / 2 - (uy + Math.min(uh, vh / s - 40) / 2) * s))
+  m.style.transformOrigin = '0 0'; m.style.willChange = 'transform'; m.style.transition = `transform ${camMs()}ms ${EASE}`; m.style.transform = `translate(${tx}px, ${ty}px) scale(${s})`
   cam.s = s; cam.tx = tx; cam.ty = ty
-  set({ focus: { x: ux * s + tx - 8, y: uy * s + ty - 8, w: uw * s + 16, h: uh * s + 16 } })
-  await sleep(hold)
+  set({ focus: null, cam: true }) // the ring waits until the camera has arrived
+  await nap(camMs())
+  set({ focus: { x: ux * s + tx - 8, y: uy * s + ty - 8, w: uw * s + 16, h: Math.min(uh * s, vh - 24) + 16 } }); await sleep(hold)
 }
 async function unzoom() {
-  const m = stageEl(); set({ focus: null }); if (!m || cam.s === 1) return
-  m.style.transition = `transform ${useDemo.getState().fast ? 480 : 750}ms cubic-bezier(.22,.8,.24,1)`; m.style.transform = 'translate(0px, 0px) scale(1)'; cam.s = 1; cam.tx = 0; cam.ty = 0; await nap(useDemo.getState().fast ? 480 : 750)
+  const m = stageEl(); set({ focus: null }); if (!m || cam.s === 1) { set({ cam: false }); return }
+  m.style.transition = `transform ${camMs()}ms ${EASE}`; m.style.transform = 'translate(0px, 0px) scale(1)'; cam.s = 1; cam.tx = 0; cam.ty = 0; await nap(camMs()); set({ cam: false })
 }
-const resetZoom = () => { const m = stageEl(); if (m) { m.style.transition = ''; m.style.transform = ''; m.style.willChange = '' } cam.s = 1; cam.tx = 0; cam.ty = 0; set({ focus: null }) }
+/** After a prompt: the chat glides down to the newest message, so the answer is followed as it arrives. */
+async function follow() { const b = chatBox(); if (b) await glideTo(b, b.scrollHeight).done }
+const resetZoom = () => { const m = stageEl(); if (m) { m.style.transition = ''; m.style.transform = ''; m.style.willChange = '' } cam.s = 1; cam.tx = 0; cam.ty = 0; set({ focus: null, cam: false }) }
 /** The block that starts with this text (an eyebrow, a heading), as a zoom target: its section when it has one. */
 const block = (text: string) => () => { const e = [...document.querySelectorAll<HTMLElement>('main *')].find((x) => x.children.length <= 1 && x.textContent?.trim().toLowerCase().startsWith(text.toLowerCase()) && shown(x)); return e ? (e.closest('section') ?? e.parentElement) : null }
 
@@ -203,52 +221,62 @@ const frameDoc = () => (document.querySelector<HTMLIFrameElement>('#ext-demo-fra
 const inFrame = (sel: string) => () => frameDoc()?.querySelector(sel)
 const frameText = (t: string) => () => !!frameDoc()?.body?.innerText.toLowerCase().includes(t.toLowerCase())
 const REEL: { id: string; title: string; run: () => Promise<void> }[] = [
-  { id: 'team', title: 'The AI company', run: async () => {
-    await office(); await say('Picked: a company of AI agents. Each row is one you can talk to.', 1500)
-    await click(row('Sy')); await say('Sy audits websites.', 900); await click(row('Everyone')); await sleep(400)
-  } },
   { id: 'agent', title: 'A new agent from one sentence', run: async () => {
-    await click('button[title="New agent"]'); await say('A new agent from one sentence: the model writes its full prompt.')
+    await office(); await click('button[title="New agent"]')
     await type('textarea', 'A keyword researcher for Vietnamese kitchenware'); await click('text=Write the prompt')
-    await until('Create agent', 20000, 'the prompt'); await sleep(700); await click('text=Create agent'); await sleep(500)
-    await type(composer, 'Give me 5 keyword ideas for clay pots', { enter: true })
-    await until(() => !document.body.innerText.includes('Thinking'), 20000, 'the reply'); await sleep(2200); await click(row('Everyone')); await sleep(300)
+    await until('Create agent', 20000, 'the prompt'); await sleep(300); await click('text=Create agent'); await sleep(300)
+  } },
+  { id: 'apps', title: 'Connected apps (MCP)', run: async () => {
+    await click('button[title="Menu"]'); await click('text=Connected apps'); await sleep(200)
+    const box = await el(() => document.querySelector<HTMLElement>('.fixed.inset-0 .overflow-y-auto'), 5000)
+    await glideTo(box, box.scrollTop + 520, 1400).done; await sleep(200)
+    useApps.setState({ open: false }); await sleep(300)
+  } },
+  { id: 'chief', title: 'The chief splits the job', run: async () => {
+    useChat.setState({ active: 'all' }); await nap(350)
+    await type(composer, 'Get elmich.vn recommended by AI: split it across the team', { enter: true })
+    const card = () => [...document.querySelectorAll<HTMLElement>('main [data-mid]')].reverse().find((x) => /Split across the team/.test(x.innerText))
+    await until(() => !!card(), 8000, 'the team')
+    await zoom(card, 1.3, 0)
+    await until(() => /All \d+ are back/.test(chatBox()?.innerText ?? ''), 30000, 'the team'); await sleep(500)
+    await unzoom(); await follow(); await sleep(500)
   } },
   { id: 'xray', title: 'Business X-ray', run: async () => {
-    await type(composer, 'Analyze elmich.vn', { enter: true }); await say('Business X-ray: the robot reads the site, 39 checks, a live-page inspection, then the verdict.')
-    await until('Agent-readiness', 40000, 'the X-ray'); await sleep(700); await say('Score, the three layers, a fix plan in order.')
-    await zoom(() => [...document.querySelectorAll<HTMLElement>('main h3')].find((h) => /scores|stands in the way/.test(h.innerText)), 1.4, 1300); await zoom(block('The fix plan'), 1.3, 1400); await unzoom()
+    await type(composer, 'Analyze elmich.vn', { enter: true })
+    const live = () => [...document.querySelectorAll<HTMLElement>('main [data-mid]')].pop()
+    await until(() => /Reading|Analyz|Checking|Inspecting/i.test(live()?.innerText ?? ''), 8000, 'the X-ray'); await zoom(live, 1.3, 0) // follow it while it streams
+    await until('Agent-readiness', 40000, 'the X-ray'); await sleep(300)
+    await zoom(() => [...document.querySelectorAll<HTMLElement>('main h3')].find((h) => /scores|stands in the way/.test(h.innerText)), 1.4, 750); await zoom(block('The fix plan'), 1.3, 800); await unzoom()
   } },
   { id: 'copilot', title: 'GEO Copilot', run: async () => {
-    await type(composer, 'GEO for locknlock.vn', { enter: true }); await say('GEO Copilot: where does this store live online?')
-    await until('These are mine', 30000, 'the places'); await sleep(600); await click('text=These are mine, check them')
-    await until('What gets a store recommended', 30000, 'the checks'); await say('One story everywhere? Four criteria, a ten-step plan, fixes the owner approves.')
-    await zoom(block('One business everywhere'), 1.45, 1100); await zoom(block('What gets a store recommended'), 1.3, 1500); await zoom(block('The plan'), 1.3, 1500); await zoom(block('The fixes'), 1.3, 1300); await click('text=Approve'); await sleep(400); await unzoom()
-  } },
-  { id: 'audit', title: 'Audit a brand', run: async () => {
-    await type(composer, 'Audit Elmich', { enter: true }); await say('An audit: 40 Gemini answers, who is named, and why not you. (replayed from a saved run)')
-    await until(() => { const L = useLive.getState(); return L.status !== 'running' && L.summary != null }, 40000, 'the audit'); await zoom(() => [...document.querySelectorAll<HTMLElement>('main span')].find((x) => /answers name/.test(x.innerText))?.closest('.rounded-2xl'), 1.6, 1500); await unzoom(); await stopLive(); await sleep(300)
+    await type(composer, 'GEO for locknlock.vn', { enter: true })
+    await until('These are mine', 30000, 'the places'); await sleep(300); await click('text=These are mine, check them')
+    await until('What gets a store recommended', 30000, 'the checks'); await sleep(300)
+    await zoom(block('One business everywhere'), 1.45, 500); await zoom(block('What gets a store recommended'), 1.3, 750); await click('text=Approve'); await sleep(200)
   } },
   { id: 'gemini', title: 'A real Gemini answer', run: async () => {
-    await type(composer, 'Ask Gemini: which thermal lunch box is best?', { enter: true }); await say('A buyer question to Gemini: who does it name? (a saved real answer)')
-    await until('What Gemini said', 20000, 'the answer'); await sleep(500); await zoom(() => [...document.querySelectorAll<HTMLElement>('main div')].reverse().find((d) => /is named #|is not named/i.test(d.innerText) && d.classList.contains('rounded-[20px]')), 1.45, 1700); await unzoom()
+    await type(composer, 'Ask Gemini: which thermal lunch box is best?', { enter: true })
+    await until('What Gemini said', 20000, 'the answer'); await sleep(300); await zoom(() => [...document.querySelectorAll<HTMLElement>('main div')].reverse().find((d) => /is named #|is not named/i.test(d.innerText) && d.classList.contains('rounded-[20px]')), 1.45, 900); await unzoom()
   } },
   { id: 'cost', title: 'Versus an SEO agency', run: async () => {
-    await type(composer, 'How much does this save versus an SEO agency?', { enter: true }); await until('What this replaces', 15000)
-    await say('Measured times against agency hours.'); await zoom(() => [...document.querySelectorAll<HTMLElement>('main .tnum')].reverse().find((x) => /\$/.test(x.innerText))?.closest('.rounded-\[22px\]'), 1.5, 1700); await unzoom()
+    await type(composer, 'How much does this save versus an SEO agency?', { enter: true }); await until('What this replaces', 15000); await sleep(300)
+    await zoom(() => [...document.querySelectorAll<HTMLElement>('main .tnum')].reverse().find((x) => /\$/.test(x.innerText))?.closest('.rounded-\[22px\]'), 1.5, 1100); await unzoom()
   } },
   { id: 'browser', title: 'The agent’s browser', run: async () => {
-    if (!(await fetch('/api/owner').then((r) => r.json()).then((o) => o.owner).catch(() => false))) return // needs Owner mode: skipped at once, so the reel keeps its time
-    await type(composer, 'Open elmich.vn', { enter: true }); await say('The agent opens the page on the right.')
-    await until('The page is open in the browser', 30000, 'the page'); await sleep(1700); useBrowser.setState({ open: false }); await sleep(300)
+    // the page is a recording made on the server (elmich.vn, full page, and its real review), so this plays on any machine
+    await type(composer, 'Open elmich.vn and review it', { enter: true })
+    await until(() => useBrowser.getState().open && !!find('main aside img[alt="elmich.vn"]'), 15000, 'the page'); await sleep(1300)
+    await until(() => !!useBrowser.getState().review, 15000, 'the review'); await sleep(300)
+    await zoom(() => [...document.querySelectorAll<HTMLElement>('main aside .rounded-2xl')].find((x) => /\/100/.test(x.innerText)), 1.45, 900); await unzoom()
+    useBrowser.setState({ open: false }); await sleep(300)
   } },
   { id: 'extension', title: 'The Chrome extension', run: async () => {
-    set({ ext: true }); await until(() => !!frameDoc()?.querySelector('#starters button'), 8000, 'the panel'); await say('The NaN extension reads the page you are on, even where robots are turned away.')
-    await sleep(500); await click(inFrame('#starters button:nth-child(2)')); await until(frameText('Robot vs your browser'), 20000, 'the deep read')
-    set({ extZoom: true }); await sleep(2000); set({ extZoom: false, ext: false }); await sleep(400)
-  } },
-  { id: 'workflow', title: 'The company at work', run: async () => {
-    await click('button[title="Menu"]'); await click('text=Workflow (simulation)'); await say('And the whole company at work, on one canvas.'); await sleep(7000)
+    // a Chrome window on highlandscoffee.com.vn (a saved capture); the side panel is the extension's real code, its deep read replays a saved X-ray
+    set({ ext: true, extPanel: false, extZoom: false }); await sleep(900)
+    await click('#ext-icon'); await until(() => !!frameDoc()?.querySelector('#starters button'), 8000, 'the panel'); await sleep(500)
+    await click(inFrame('#starters button:nth-child(2)')); await until(frameText('Robot vs your browser'), 20000, 'the deep read'); await sleep(300)
+    const card = [...(frameDoc()?.querySelectorAll<HTMLElement>('b') ?? [])].find((x) => x.innerText.trim() === 'Robot vs your browser'); card?.parentElement?.parentElement?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    set({ extZoom: true }); await sleep(1800); set({ extZoom: false }); await sleep(450); set({ ext: false, extPanel: false }); await nap(450)
   } },
 ]
 export const REEL_IDS = REEL.map((r) => r.id)
@@ -281,15 +309,20 @@ export async function playReel({ record }: { record: boolean }) {
   const t0 = Date.now(), guard = setTimeout(() => { abort = true }, REEL_LIMIT_MS)
   try {
     await nap(900)
-    if (record) { for (const n of ['3', '2', '1']) { set({ big: n }); await nap(650) } set({ big: '' }) }
+    if (record) { for (const n of ['3', '2', '1']) { set({ big: n }); await nap(420) } set({ big: '' }) }
     for (const sc of REEL) {
       set({ scene: sc.title })
       try { await sc.run() } catch (e: any) { if (e instanceof Stopped) throw e; await say(`${sc.title}: ${e.message}`, 1200) }
     }
+    // the last 45 s: the whole company at work on the workflow canvas, one full cycle sped up to fit
+    set({ scene: 'The company at work' }); const wf = Math.max(30000, Math.min(45000, REEL_LIMIT_MS - 3000 - (Date.now() - t0)))
+    await click('button[title="Menu"]'); await click('text=Workflow (simulation)'); const left = wf - 2600 // the two clicks above took about this long
+    set((st) => ({ cur: { ...st.cur, on: false } }))
+    clock.rate = CYCLE / (left / 1000 - 0.5); await nap(left); clock.rate = 1
     set({ big: 'picked.' , caption: 'AI agents that get your brand picked.' }); await nap(2600)
   } catch { /* stopped, or out of time */ }
-  clearTimeout(guard); seed.on = false
-  set({ ext: false, big: '', caption: '' })
+  clearTimeout(guard); seed.on = false; clock.rate = 1
+  set({ ext: false, extPanel: false, extZoom: false, big: '', caption: '' })
   const ms = Date.now() - t0
   useBots.setState((s) => ({ bots: s.bots.filter((b) => madeBots.has(b.id)) }))
   let video: { url: string; mb: string } | null = null
@@ -357,15 +390,29 @@ export function Demo() {
       </AnimatePresence>
       <AnimatePresence>
         {d.ext && (
-          <motion.div key="ext" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.35 }} className="fixed inset-0 z-[9990] grid place-items-center bg-ink/60 backdrop-blur-[3px]">
-            <motion.div initial={{ y: 30, scale: 0.97 }} animate={{ y: 0, scale: d.extZoom ? 1.16 : 1 }} exit={{ y: 20, opacity: 0 }} transition={{ type: 'spring', stiffness: 120, damping: 22 }} className="overflow-hidden rounded-[22px] bg-white shadow-[0_40px_120px_-30px_rgba(0,0,0,.7)]">
-              <div className="flex items-center gap-2 border-b border-line bg-surface px-4 py-2 text-[13px] text-mute"><span className="flex gap-1.5">{['#f87171', '#fbbf24', '#34d399'].map((c) => <span key={c} className="h-2.5 w-2.5 rounded-full" style={{ background: c }} />)}</span><span className="ml-2 flex-1 truncate rounded-full bg-white px-3 py-1 ring-1 ring-line">shopee.vn · the page you are on (saved snapshot)</span><span className="font-semibold text-ink">NaN for Picked</span></div>
-              <iframe id="ext-demo-frame" title="NaN extension panel" src="/ext/preview.html" className="block h-[700px] w-[430px] border-0" />
+          <motion.div key="ext" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }} className="fixed inset-0 z-[9990] grid place-items-center bg-ink/55 backdrop-blur-[3px]">
+            <motion.div initial={{ y: 40, scale: 0.96 }} animate={{ y: 0, scale: d.extZoom ? 1.14 : 1 }} exit={{ y: 24, opacity: 0 }} transition={{ type: 'spring', stiffness: 90, damping: 20 }} style={{ transformOrigin: '100% 50%' }} className="flex h-[min(840px,92vh)] w-[min(1480px,96vw)] flex-col overflow-hidden rounded-[14px] bg-white shadow-[0_40px_120px_-30px_rgba(0,0,0,.7)]">
+              <div className="flex h-10 flex-none items-end gap-3 bg-[#dde1e6] px-3">
+                <span className="mb-3 flex gap-1.5">{['#f87171', '#fbbf24', '#34d399'].map((c) => <span key={c} className="h-3 w-3 rounded-full" style={{ background: c }} />)}</span>
+                <div className="flex h-8 w-[260px] items-center gap-2 rounded-t-[10px] bg-white px-3 text-[12.5px] text-ink"><span className="grid h-4 w-4 place-items-center rounded-full bg-[#b3282d] text-[9px] font-bold text-white">H</span><span className="truncate">Highlands Coffee - Đặt Giao Ngay</span><X size={12} className="ml-auto text-mute" /></div>
+              </div>
+              <div className="flex h-11 flex-none items-center gap-2 border-b border-line bg-white px-3 text-mute">
+                <ArrowLeft size={17} /><ArrowRight size={17} className="opacity-40" /><RotateCw size={15} />
+                <div className="mx-2 flex h-8 flex-1 items-center gap-2 rounded-full bg-[#f1f3f4] px-4 text-[13.5px] text-ink"><Lock size={12} className="text-mute" />highlandscoffee.com.vn</div>
+                <button id="ext-icon" type="button" title="NaN for Picked" onClick={() => set({ extPanel: true })} className={`grid h-8 w-8 place-items-center rounded-full ${d.extPanel ? 'bg-[#e8f0fe]' : 'hover:bg-surface'}`}><img src="/ext/icons/icon-32.png" alt="NaN" width={20} height={20} /></button>
+                <Puzzle size={16} /><span className="grid h-7 w-7 place-items-center rounded-full bg-[#b3282d] text-[12px] font-semibold text-white">C</span>
+              </div>
+              <div className="flex min-h-0 flex-1">
+                <div className="relative min-w-0 flex-1 overflow-hidden bg-white"><motion.img src="/demo/brand.jpg" alt="highlandscoffee.com.vn" draggable={false} className="absolute left-0 top-0 w-full select-none" initial={{ y: 0 }} animate={{ y: d.extPanel ? '-18%' : '0%' }} transition={{ duration: 6, ease: [0.45, 0, 0.25, 1] }} /></div>
+                <motion.div initial={false} animate={{ width: d.extPanel ? 430 : 0 }} transition={{ type: 'spring', stiffness: 160, damping: 26 }} className="h-full flex-none overflow-hidden border-l border-line bg-white">
+                  <iframe id="ext-demo-frame" title="NaN extension panel" src="/ext/preview.html" className="block h-full w-[430px] border-0" />
+                </motion.div>
+              </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
-      {d.focus && <motion.div className="pointer-events-none fixed z-[9996] rounded-[20px] border-2 border-accent shadow-[0_0_0_6px_rgba(0,100,212,.18),0_18px_50px_-20px_rgba(0,100,212,.6)]" initial={false} animate={{ left: d.focus.x, top: d.focus.y, width: d.focus.w, height: d.focus.h, opacity: 1 }} transition={{ type: 'spring', stiffness: 150, damping: 24 }} />}
+      <AnimatePresence>{d.focus && <motion.div key={`${Math.round(d.focus.x)}-${Math.round(d.focus.y)}`} className="pointer-events-none fixed z-[9996] rounded-[20px] border-2 border-accent shadow-[0_0_0_6px_rgba(0,100,212,.18),0_18px_50px_-20px_rgba(0,100,212,.6)]" style={{ left: d.focus.x, top: d.focus.y, width: d.focus.w, height: d.focus.h }} initial={{ opacity: 0, scale: 1.03 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.35, ease: [0.22, 0.8, 0.24, 1] }} />}</AnimatePresence>
       <AnimatePresence>{d.big && <motion.div key={d.big} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.2 }} transition={{ duration: 0.4 }} className="pointer-events-none fixed inset-0 z-[9997] grid place-items-center bg-white/80 text-[clamp(64px,14vw,200px)] font-semibold tracking-[-0.06em] text-ink">{d.big}</motion.div>}</AnimatePresence>
       {d.badge && d.running && <div className="pointer-events-none fixed bottom-3 left-3 z-[9998] rounded-full bg-ink/70 px-3 py-1 text-[12.5px] text-white">{d.badge}</div>}
       <AnimatePresence>

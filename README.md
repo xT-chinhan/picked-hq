@@ -1,162 +1,119 @@
-# Picked
+<div align="center">
 
-**An AI agent team that gets small businesses picked by ChatGPT, Gemini and Claude.**
+# picked.
 
-Customers now ask AI "where should I buy this?". AI names only a few big brands, and small shops disappear from the answer without knowing it. Picked is a team of AI agents that measures this loss, finds why it happens, drafts the fixes, and lets the owner approve them in one tap.
+**A company of AI agents that gets small shops named by ChatGPT, Gemini and Claude.**
 
-[![Watch the product demo](docs/demo-poster.jpg)](https://drive.google.com/file/d/108ArtN2uJnFCOYWFm_qmGGYi6Qu62IH-/view?usp=drive_link)
+[Live app](https://pickedhq.pages.dev) · [Product demo](https://drive.google.com/file/d/108ArtN2uJnFCOYWFm_qmGGYi6Qu62IH-/view?usp=drive_link) · [Idea video](https://drive.google.com/file/d/1JJtVlpsb54upyW6h2eL2--gJNIoD28x6/view?usp=drive_link)
 
-**[▶ Watch the product demo](https://drive.google.com/file/d/108ArtN2uJnFCOYWFm_qmGGYi6Qu62IH-/view?usp=drive_link)** · **[Live app](https://pickedhq.pages.dev)** · **[Idea video](https://drive.google.com/file/d/1JJtVlpsb54upyW6h2eL2--gJNIoD28x6/view?usp=drive_link)**
+<sub>Team NaN · AI for Business Innovation 2026</sub>
 
----
+<br>
 
-## What the app shows
+<img src="docs/readme/hero.jpg" alt="AI's shop window has only 4 seats" width="100%">
 
-The app is one live canvas where a company of agents runs a 96-second loop, from a new shop to a measured result.
+</div>
 
-| Step | Department | What the agents do |
+<br>
+
+## The problem
+
+Buyers ask AI which product to buy. The answer names about four brands, and every other shop is simply not there. The shop owner never finds out.
+
+<img src="docs/readme/share.jpg" alt="4 brands took 81% of all mentions" width="100%">
+
+We asked Gemini 40 real buyer questions about thermal lunch boxes and counted every brand it named. Four brands took **81%** of the mentions; 8 of 13 brands were named three times or fewer.
+
+<br>
+
+## A good website is not enough
+
+<img src="docs/readme/proof.jpg" alt="Website score against AI mentions, 13 brands" width="100%">
+
+Stanley and Hakawa have two of the best websites in the category and were named **0 times in 40**. Across 20 brands in two categories, the website score did not reliably predict who AI names (Spearman ρ = 0.14, p = 0.57). Being picked depends on more than the site, so Picked works on all of it.
+
+<br>
+
+## What Picked does
+
+<img src="docs/readme/loop.jpg" alt="Find, fix, approve, track" width="100%">
+
+The owner talks to **NaN**, the chief of staff. NaN splits the job across specialist agents who work in parallel, then reports back in one message.
+
+<img src="docs/readme/team.jpg" alt="The chief splits a job across four subagents" width="100%">
+
+| | Agent | Job |
 |---|---|---|
-| 1 | Shop | A shop joins with no website needed |
-| 2 | Signals | Learn real buyer questions from Zalo and Shopee |
-| 3 | Research | Ask 4 AI assistants the same 40 buyer questions |
-| 4 | Analysis | Find why AI skips the shop |
-| 5 | Content | Write FAQs, product info and review requests |
-| 6 | Citations | Pitch the review sites AI trusts |
-| 7 | Channel Sync | Make price and hours match on every channel |
-| 8 | QA | Re-test every fix in real AI chats |
-| 9 | Risk Gate | Block unverifiable claims and hide personal data |
-| 10 | Approve | The owner approves in one tap on Zalo |
-| 11 | Publish | Fixes go live where AI reads |
-| 12 | Track | AI Visibility is measured every week |
-| 13 | Impact | Before and after results for the pilot |
+| <img src="public/avatars/a21.webp" width="40"> | **NaN** | Chief of staff: routes every request, runs the team |
+| <img src="public/avatars/a17.webp" width="40"> | **Sy** | Audits the website, 39 readiness checks |
+| <img src="public/avatars/a04.webp" width="40"> | **Scout** | Asks Gemini the real buyer questions in fresh tabs |
+| <img src="public/avatars/a26.webp" width="40"> | **Ana** | Finds who AI names instead, and why |
+| <img src="public/avatars/a24.webp" width="40"> | **Mira** | Writes answers and pages from the shop's own facts |
+| <img src="public/avatars/a15.webp" width="40"> | **Quinn** | Fact-check council: three model families vote on each claim |
+| <img src="public/avatars/a28.webp" width="40"> | **Rhea** | Blocks unproven claims and personal data |
+| <img src="public/avatars/a10.webp" width="40"> | **Tara** | Asks the same questions again every week |
 
-The loop runs by itself. Click any AI chat, agent or card to open it. Drag the canvas or use the top bar to jump to a department.
+Nothing is published until the owner approves it.
 
-## Live audit with real Gemini tabs
+<br>
 
-The **Live audit** button in the top bar runs a real audit: it opens several anonymous Gemini tabs in parallel, asks 40 real buyer questions, reads each answer and its cited sources, and scores how often a brand is named and in which position. The canvas shows the real questions, answers and results.
+## Features
 
-- **Run live** needs the local audit server and Chrome: `pnpm live` (server on :5198, app on :5199). A full 40-question audit takes about 3 minutes on 5 tabs.
-- **Replay** plays back a saved real run and re-scores its answers for any brand you type, so it also works online without a server. One real run is bundled in `public/runs/` (category: thermal lunch boxes, 40 questions).
-- Everything after the research step (content, QA, approval, publishing, tracking) is still the scripted showcase.
+<table>
+<tr>
+<td width="50%"><img src="docs/readme/xray.jpg" alt="Business X-ray"><br><b>Business X-ray</b><br>Reads any site with Scrapling, runs 39 checks, inspects the live page with REA, and writes a fix plan where every finding cites its evidence.</td>
+<td width="50%"><img src="docs/readme/copilot.jpg" alt="GEO Copilot"><br><b>GEO Copilot</b><br>Finds where a shop lives online, checks that every place tells the same story, and drafts the fixes for the owner to approve.</td>
+</tr>
+<tr>
+<td><img src="docs/readme/gemini.jpg" alt="A real Gemini answer"><br><b>Real Gemini answers</b><br>One buyer question in an anonymous Gemini tab: who it names, in which order, and where you stand.</td>
+<td><img src="docs/readme/browser.jpg" alt="Agent browser"><br><b>Agent browser</b><br>The agent opens a page on the right and scores how readable it is for AI. Take control at any time.</td>
+</tr>
+<tr>
+<td><img src="docs/readme/extension.jpg" alt="Chrome extension"><br><b>Chrome extension</b><br>Reads the page you are on, even where robots are turned away, and compares it with what an AI crawler gets.</td>
+<td><img src="docs/readme/workflow.jpg" alt="The workflow canvas"><br><b>The whole company</b><br>An animated canvas of every department, from buyer questions to the weekly re-measure.</td>
+</tr>
+</table>
 
-## NaN and stage controls
+Also: agents you create from one sentence, 28 apps the agents can use through MCP, weekly re-measure routines, and a two-minute guided demo that records itself.
 
-Press `/` to open **NaN**, the operator chat. Type in any language: the request is translated to English (Google, with Vietnamese accent restoration) and shown as a structured prompt (Role, Context, Task, Constraints, Output).
+<br>
 
-- Commands run instantly in the browser: `audit Elmich`, `replay Sunhouse`, `hồ sơ Lock&Lock`, `hỏi: hộp cơm giữ nhiệt nào tốt?`, `đến phòng rủi ro`, `duyệt`, `mở shop`, `giải thích`.
-- Free-form questions go to the local LLM, which answers from the on-screen data and can trigger the same actions (needs `pnpm live`).
-- The **Audit a brand** button (top bar) is three taps: pick a brand, choose **Quick** (about a minute, reuses saved Gemini answers; analysis, content, risk and approval still run for real) or **Fresh** (about four minutes, 40 new questions on real Gemini), press Run. While it runs the top bar shows the current step, a one-tap **Approve** button and Stop; reloading the page rejoins the running audit.
-- Each department carries a **Real** or **Simulated** tag while a live or recorded run is on screen.
+## Built and running
 
-| Key | Action |
-| --- | --- |
-| `/` | NaN (operator chat) |
-| `←` `→` | Previous or next step |
-| `T` | Agent team and handoffs |
-| `P` | Presenter notes and timer |
-| `W` | Inbox and routines |
-| `B` | Browser: watch the agents' real pages, take control |
-| `A` | Apps: connect MCP servers and choose which agents may use them |
-| `X` | Business X-ray: analyze any company |
-| `I` | Q&A sheet (cost, data, responsibility, what is real) |
-| `O` | Whole company |
+<img src="docs/readme/built.jpg" alt="Built and running" width="100%">
 
-## The criteria, measured for real
+<br>
 
-`V` opens the story sheets; two of them are data. **What we measure** lays out four layers (reachable, understandable, quotable and trusted, chosen) with one square per real check, taken from 39 site checks on elmich.vn and 40 real Gemini answers. **What the real data says** puts twelve brands side by side (`scripts/benchmark.mjs`, saved in `public/data/benchmark.json`): website score and how often Gemini names each brand. Findings are stated with their statistics (`server/criteria.mjs`): Lock&Lock 33/40 against Elmich 19/40 is far beyond chance (Fisher exact p = 0.002); across 12 brands the website score has no relationship with how often Gemini names a brand (Spearman ρ = −0.10, permutation p = 0.76: Inochi, Stanley, Hakawa and Skater score 72–75 and are named 0–3 times). A second category, air fryers (40 new Gemini answers, `scripts/category-run.mjs`, 8 audited brands), shows a positive trend that is not significant (ρ = 0.53, p = 0.18); both categories together, 20 brands: ρ = 0.14, p = 0.57. Website readiness does not reliably decide who gets named; and the idea that cited sources lift mentions is **not** significant (p = 0.20), so it is presented as a hypothesis. The files Picked generates are scored with the same checks (`scripts/audit-published.mjs`, 71 on the brand's own site, 77 for our files), and the audit found gaps in our own output (sameAs, social tags, llms-full.txt) that the generator now fills. Run these audits with `NODE_OPTIONS=--no-network-family-autoselection` on a machine without IPv6.
-
-## Business X-ray: analyze any company with REA and Scrapling
-
-`X` (or *Run → Analyze any business* in the office, or `analyze <site>` in the chat) opens the Business X-ray. Type a website or a company name; a name is resolved to its official site and shown for confirmation. Four real tools then run one after another:
-
-1. **Scrapling** reads up to five pages politely: robots.txt first, a named user agent (`PickedBot`), a pause between requests, and none of Scrapling's disguise features (no browser TLS impersonation, no spoofed headers).
-2. **Site audit**: the 39 agent-readiness checks.
-3. **REA** (reverse-engineer-anything, over MCP) takes the live page apart in a throwaway headless Chrome that refuses to load anything from a private address: DOM weight, scripts, third-party origins, endpoints, accessibility nodes, each with a content-addressed evidence id.
-4. **Ana** writes the findings. Every finding must cite evidence ids; ones that cite nothing real are dropped, and without a model the report falls back to the audit's own failing checks.
-
-The job is one at a time, each step has its own timeout, and a hard ceiling makes a slow site give a partial report instead of a hang. Five real reports are saved in `public/analyses/` and replay with no backend. Public (tunnel) visitors are limited to 3 analyses per 10 minutes per address, and private or loopback addresses are refused up front. Setup on a new machine: `scripts/setup-python.sh` (Scrapling's environment is about 370 MB and is not in git).
-
-## The office
-
-The demo opens in the office (`C` brings it back): the whole company standing by, each agent with its own character (`public/avatars/`, cut from the team's avatar sheet with background removal). Click anyone to call them, or *Call everyone*; the same faces appear on each department card and in the agent panel.
-
-## The agent company
-
-Every agent has a **soul** (who it is and the rules it keeps, with a hash that flags changes), a tool scope and an engine policy. Model calls go through one **engine room** that serves 14 engines (11 `agy` models, GPT-6.1 Sol and GPT-6 Astra through Codex) and logs time and tokens for each call; `T` shows the agents and the AI engines wall with the measured numbers. Quinn, the fact checker, is a **council**: three engines of different families judge each sentence and the majority decides, so one model's mistake cannot approve a claim. Engine policies follow measurements, not guesses (`node scripts/engine-bench.mjs`).
-
-- **Browser (`B`)**: live view of the Gemini tabs during a Fresh audit and of any page NaN opens ("kiểm tra trang elmich.vn" opens it and scores 12 checks for AI readability). *Take control* forwards clicks, typing and scrolling; only the machine running Picked can do that.
-- **Apps (`A`)**: MCP servers started on this machine (Memory, Files, Browser, GitHub, Notion, Slack). Secrets are stored in a mode-600 file on the machine; each agent may use only the apps the owner switched on; `apps: <request>` makes NaN use them one tool at a time.
-- **Chrome extension** (`extension/`): NaN beside any page (Alt+Shift+N), reads a page only when asked. Load it unpacked; see `extension/README.md`.
-
-## Inbox and routines
-
-`W` opens the workspace. **Inbox** gathers what waits for a person: the owner decision of a running audit (approve all in one tap) and the results of scheduled re-checks, each with the change since the previous run for that brand. **Routines** re-measure a brand on a schedule (every X minutes, daily, or on chosen weekdays), which is the real mechanism behind "measured again in 7 days". A routine only measures: it never drafts, asks for approval or publishes. The scheduler runs inside the backend (`server/routines.mjs`) and the hosted page can read routines but not change them.
-
-## Hosting: Cloudflare Pages + this machine as the backend
-
-The UI is on **Cloudflare Pages** (`pickedhq.pages.dev`) and stays up when the backend is off. The backend (`pnpm live`) runs on the team's own machine: it starts a Cloudflare quick tunnel and announces its address to a Pages Function (`functions/`), which proxies `/api`, `/shop` and `/approve` to it. Only that function holds the shared secret, so the tunnel address cannot be used directly; visitors are rate limited per IP.
-
-- Backend on: NaN, live audits and approval QR codes work from the public address.
-- Backend off: the UI shows **"NaN-Team đang tạm khóa để phát triển dự án"**; the scripted demo, saved replays and rule commands keep working.
-- Publish the UI: `pnpm deploy:edge`. Machine setup: `~/.config/picked/cloudflare.env` (API token) and `edge.env` (shared secret and address); without `edge.env` the server runs local-only.
-
-## Run locally
-
-Requires Node.js 22+ and pnpm.
+## Run it
 
 ```bash
 pnpm install
-pnpm dev        # http://localhost:5199
+pnpm server        # API and agents on :5198
+pnpm dev           # app on http://localhost:5199
 ```
 
-Build and preview the production bundle:
+The Business X-ray reads sites with Scrapling; set it up once with `scripts/setup-python.sh`. Gemini audits need Google Chrome on the machine.
 
 ```bash
-pnpm build
-pnpm preview    # http://localhost:5197
+node --test server/__tests__/*.test.mjs extension/tests/*.test.mjs   # 199 tests
 ```
 
-Open `?t=88` to start the loop at the Impact board, for example `http://localhost:5197/?t=88`.
+To load the extension, open `chrome://extensions`, turn on Developer mode, choose **Load unpacked** and pick the `extension/` folder.
 
-## Tech stack
-
-- **React 19** with **React Flow** (`@xyflow/react`) for the canvas and edges
-- **Vite** and **Tailwind CSS v4** for build and styling
-- **Motion** for UI transitions and **zustand** for the simulation clock
-- Brand logos from `@lobehub/icons-static-svg` and `simple-icons`
-- Hosted on **Vercel**
+<br>
 
 ## Project layout
 
 ```
-src/
-  App.tsx       canvas, camera director, top bar, live feed
-  nodes.tsx     department nodes (Research, Analysis, Content, QA, Approval, Publish, Track)
-  flows.tsx     Signals, Citations, Channel Sync, Risk Gate, Zalo approval, Impact board
-  Swarm.tsx     agent cursor swarm drawn on one canvas overlay
-  live.ts       real audit data (live server or saved run) feeding the canvas
-  LiveControl.tsx  the Live audit panel in the top bar
-  fx.ts         flow-particle tracks along each edge
-  Chat.tsx      miniature ChatGPT, Claude, Gemini and Perplexity windows
-  sim.ts        scripted timeline, scores and content
-  layout.ts     world coordinates and camera shots
-server/
-  index.mjs     audit API (SSE) on :5198
-  gemini.mjs    drives anonymous Gemini tabs with Playwright
-  audit.mjs     parallel runner, parse.mjs answer parser, questions.mjs buyer questions
+src/         the app: messenger, agents, run cards, workflow canvas, demo autopilot
+server/      agents, engines, audits, X-ray, Copilot, browser hub, MCP, routines
+extension/   the Chrome extension (MV3 side panel)
+functions/   Cloudflare Pages functions for the public site
+public/      saved real runs, analyses and benchmarks, so the app replays without a backend
 ```
 
-## Notes
+<br>
 
-- **Real versus scripted.** The Live audit and its bundled replay use real Gemini answers. Content drafts, QA, approval, publishing and the Impact board are still scripted for the demo, and the before/after figures are pilot targets, not measured results.
-- **Targets, not results.** Before and after figures are pilot targets, not measured results.
-- **Next steps.** Connect real AI queries, Zalo and Shopee data, and publishing.
-
-## Team NaN
-
-- **Nguyễn Chí Nhân** — Leader
-- **Lê Quốc Anh**
-- **Bùi Nguyễn Công Nghiệp**
-
-Built for AI for Business Innovation 2026 (K-Tech College × LIKELION × Cobi Group).
+<div align="center">
+<sub>Data on this page comes from saved real Gemini runs in November 2026 (thermal lunch boxes and air fryers, Vietnam). It is a small sample; read it as a pattern, not a law.</sub>
+</div>

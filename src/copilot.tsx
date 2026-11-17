@@ -4,6 +4,7 @@ import { AlertTriangle, Check, ChevronDown, Copy, Download, ExternalLink, Loader
 import { Gauge, Eyebrow } from './report'
 import { useBrowser } from './BrowserPanel'
 import { add, openRun, patch, type CMsg } from './chat'
+import { seed } from './seed'
 
 /* GEO Copilot, in the chat: find the business online, the owner confirms the places, every place is checked against the others,
    and the fixes are drafted as files the owner approves one by one. Nothing is published or posted from here. */
@@ -186,7 +187,7 @@ function Criteria({ st }: { st: State }) {
 
 /* ───────────── the plan: what the team does next, who does it, and what needs you; one approval starts it ───────────── */
 function Plan({ st, save, thread }: { st: State; save: (s: State) => void; thread: string }) {
-  const c = st.criteria, [cat, setCat] = useState(c?.quickCategory ?? ''), [busy, setBusy] = useState(false)
+  const c = st.criteria, [cat, setCat] = useState(seed.on && c?.quickCategory ? 'thermal lunch boxes' : c?.quickCategory ?? ''), [busy, setBusy] = useState(false)
   const quick = !!c && cat.trim().toLowerCase() === c.quickCategory.toLowerCase()
   const steps = [
     { who: 'You', what: `Publish the ${st.patches?.length ?? 0} identity fixes below on your site`, crit: '1', you: true },

@@ -1,5 +1,5 @@
 // Copies the extension's real panel (HTML, CSS, JS, icons) into public/ext so the app can show it inside a page for the recording.
-// public/ext/stub.js stands in for Chrome's APIs and public/ext/shopee.json is the page snapshot it reads; both are committed.
+// public/ext/stub.js stands in for Chrome's APIs and public/ext/brand.json (highlandscoffee.com.vn) is the page snapshot it reads; both are committed.
 import fs from 'node:fs'
 const SRC = 'extension', DST = 'public/ext'
 fs.mkdirSync(`${DST}/lib`, { recursive: true }); fs.mkdirSync(`${DST}/icons`, { recursive: true })

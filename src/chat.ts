@@ -12,6 +12,7 @@ export type Run =
   | { kind: 'exec'; act: Act }
   | { kind: 'cost' }
   | { kind: 'copilot'; input: string }
+  | { kind: 'team'; input: string; lanes: string[] }
 export type CMsg = { id: number; who: string; text: string; ts: number; run?: Run; res?: any; thinking?: boolean; old?: boolean; flow?: boolean }
 
 export const TEAM: Person[] = ['nan', 'lia', 'mina', 'scout1', 'ana', 'sy', 'mira', 'theo', 'quinn', 'rhea', 'pax', 'tara'].map((id) => PEOPLE.find((p) => p.id === id)!)
@@ -110,6 +111,13 @@ export async function sendTurn(thread: string, raw: string) {
   add(thread, { who: 'me', text })
   const bot = add(thread, { who: speaker, text: '', thinking: true })
   let acts: Act[] = [], reply = ''
+  // the chief splits a job across the team: subagents work in parallel, each in its own thread, and report back here
+  const site = text.match(/((?:[a-z0-9-]+\.)+[a-z]{2,})/i)?.[1]
+  if ((thread === 'all' || thread === 'nan') && site && /\b(split|delegate|in parallel|the (whole )?team)\b/i.test(text)) {
+    const custom = useBots.getState().bots.at(-1)?.id, lanes = ['sy', 'scout1', 'ana', custom ?? 'mira']
+    patch(thread, bot, { thinking: false, text: `On it. I split this into ${lanes.length} jobs and run them in parallel.` })
+    add(thread, { who: 'nan', text: '', run: { kind: 'team', input: site.toLowerCase().replace(/^www\./, ''), lanes } }); return
+  }
   try {
     let a = intent(text)
     // the answer to “which business?” goes straight to the Copilot
@@ -131,3 +139,5 @@ export async function sendTurn(thread: string, raw: string) {
 export const idle = (thread: string) => !(useChat.getState().threads[thread] ?? []).some((m) => m.run && !m.res)
 
 export const draftBot = (description: string) => post('/api/bots/draft', { description }, 100000).then((j) => j.bot as { name: string; role: string; greeting: string; soul: string; starters: string[] })
+/** One question to one agent (a subagent's job inside a team run): its reply text. */
+export const askAgent = (id: string, text: string) => { const cb = botOf(id); return post('/api/one/chat', { text, original: text, agent: serverId(id), history: [], state: snap(), ...(cb ? { persona: { name: cb.name, role: cb.role, soul: cb.soul } } : {}) }).then((j) => String(j.reply || '')) }

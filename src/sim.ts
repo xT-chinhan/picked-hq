@@ -6,7 +6,7 @@ type S = { t: number; now: number; sel: string | null; auto: boolean; hold: numb
 /** `now` is wall-clock time sampled once per tick, so selectors that use it stay pure */
 export const useSim = create<S>(() => ({ t: 0, now: Date.now(), sel: null, auto: true, hold: 0 }))
 /** continuous clock, advanced every frame (the store copy only ticks at 20 Hz) */
-export const clock = { t: 0 }
+export const clock = { t: 0, rate: 1 } // rate: the 2-minute reel plays one whole cycle in about 30 s
 
 /* ───────────── pipeline timeline (seconds inside one cycle) ───────────── */
 export const PH = {

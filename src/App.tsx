@@ -139,7 +139,6 @@ function Director() {
   const store = useStoreApi()
   useEffect(() => {
     const cam = { on: false, still: false, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0 }
-    const W0 = 2.4
     let raf = 0, last = performance.now(), nextSharp = 0
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop)
@@ -148,7 +147,7 @@ function Director() {
       const { width: W, height: H, transform } = store.getState()
       if (!ui.auto || ui.sel || now < ui.hold || !W || !H) { cam.on = false; return }
       if (!cam.on) { const [x, y, z] = transform; Object.assign(cam, { on: true, still: false, x: (W / 2 - x) / z, y: (H / 2 - y) / z, z: Math.log(z), vx: 0, vy: 0, vz: 0 }) }
-      const [tx, ty, th] = SHOT[phaseOf(clock.t)]
+      const [tx, ty, th] = SHOT[phaseOf(clock.t)], W0 = 2.4 * Math.sqrt(clock.rate) // a faster clock gets a quicker camera
       const tz = Math.log(Math.min(H / th, W / (th * 1.42)))
       const far = Math.abs(tx - cam.x) > 0.5 || Math.abs(ty - cam.y) > 0.5 || Math.abs(tz - cam.z) > 0.0015 || Math.abs(cam.vx) + Math.abs(cam.vy) > 2 || Math.abs(cam.vz) > 0.004
       if (!far) {
@@ -372,7 +371,7 @@ export default function App() {
       const dt = Math.max(0, Math.min(0.1, (now - last) / 1000)); last = now
       // nothing moves behind the office: the demo clock starts when the office closes
       if ((DBG.has('nosim') && clock.t > 8) || useOffice.getState().open) { raf = requestAnimationFrame(loop); return }
-      clock.t += dt
+      clock.t += dt * clock.rate
       acc += dt
       if (acc >= 0.08) { useSim.setState({ t: clock.t, now: Date.now() }); acc = 0 }
       raf = requestAnimationFrame(loop)

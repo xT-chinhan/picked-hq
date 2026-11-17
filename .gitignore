@@ -10,3 +10,5 @@ docs/tasks/out/
 public/shops/*
 !public/shops/elmich/
 server/py/.venv/
+
+scripts/tmp/

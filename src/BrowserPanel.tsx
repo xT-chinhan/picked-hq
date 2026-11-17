@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowLeft, Globe, Hand, RotateCw, ScanSearch, X } from 'lucide-react'
 import { useOffice } from './Office'
+import { seed } from './seed'
 
 /* Browser room: watch the real pages the agents drive (Gemini tabs, pages NaN opens) and take control when needed. */
 type Tab = { id: string; kind: 'gemini' | 'web'; q: string; url: string; title: string; status: string; help: string | null }
@@ -16,16 +17,36 @@ const post = async (url: string, body?: any) => {
   if (!r.ok) throw new Error(r.status === 403 ? 'Only the machine running Picked can do this.' : j.error || `HTTP ${r.status}`)
   return j
 }
+// the 2-minute reel: elmich.vn is replayed from a page recorded on the server (a full-page capture and its real review)
+const SEEDED = { id: 'seed-web', url: 'https://elmich.vn/', title: 'Elmich | Gia dụng chuẩn Âu, Sống chuẩn Xanh' }
 export const openPage = async (url: string) => {
+  if (seed.on && /(^|\/\/|\.)elmich\.vn/i.test(url)) {
+    useBrowser.setState({ open: true, tab: SEEDED.id, tabs: [{ id: SEEDED.id, kind: 'web', q: '', url: SEEDED.url, title: SEEDED.title, status: 'done', help: null }], control: false, review: null, err: '' })
+    await new Promise((r) => setTimeout(r, 900)); return SEEDED.id
+  }
   const { id } = await post('/api/browser/open', { url })
   useBrowser.setState({ open: true, tab: id, control: false, review: null, err: '' }); return id as string
 }
-export const reviewTab = (id: string) => post(`/api/browser/${id}/review`)
+export const reviewTab = async (id: string) => id === SEEDED.id ? (await new Promise((r) => setTimeout(r, 2600)), await fetch('/demo/elmich-review.json').then((r) => r.json())) : post(`/api/browser/${id}/review`)
 
 const KEYS = new Set(['Enter', 'Backspace', 'Tab', 'Escape', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Delete', 'Home', 'End', 'PageUp', 'PageDown'])
 const STATUS: Record<string, string> = { working: 'Working', done: 'Done', ready: 'Ready', failed: 'Failed', 'needs-help': 'Needs your help' }
 
+/** A recorded page: the full-page capture glides down slowly, the way the agent scrolls while it reads. */
+function SeedFrame() {
+  return (
+    <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white" style={{ aspectRatio: `${W} / ${H}` }}>
+      <motion.img src="/demo/elmich.jpg" alt="elmich.vn" draggable={false} className="absolute left-0 top-0 w-full select-none" initial={{ y: '0%' }} animate={{ y: '-62%' }} transition={{ duration: 9, delay: 0.8, ease: [0.45, 0, 0.25, 1] }} />
+      <span className="pointer-events-none absolute right-2 top-2 flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-slate-600 shadow"><span className="live-dot" />Watching</span>
+    </div>
+  )
+}
+
 function Frame({ id, control }: { id: string; control: boolean }) {
+  if (id === SEEDED.id) return <SeedFrame />
+  return <LiveFrame id={id} control={control} />
+}
+function LiveFrame({ id, control }: { id: string; control: boolean }) {
   const img = useRef<HTMLImageElement>(null), [live, setLive] = useState(false)
   useEffect(() => {
     setLive(false)
@@ -55,7 +76,7 @@ export function BrowserPanel({ docked = false }: { docked?: boolean }) {
   const { open, tab, tabs, control, review, err } = useBrowser()
   const [url, setUrl] = useState(''), [busy, setBusy] = useState(false)
   useEffect(() => {
-    if (!open || (!docked && office)) return
+    if (!open || (!docked && office) || seed.on) return
     const es = new EventSource('/api/browser/stream') // tab list only
     es.onmessage = (m) => { const ev = JSON.parse(m.data); if (ev.type === 'tabs') useBrowser.setState((s) => ({ tabs: ev.tabs, tab: ev.tabs.some((t: Tab) => t.id === s.tab) ? s.tab : ev.tabs[0]?.id ?? '' })) }
     return () => es.close()

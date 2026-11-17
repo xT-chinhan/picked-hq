@@ -1,9 +1,9 @@
 // A stand-in for Chrome's extension APIs so the REAL panel code can run inside a normal page (for the recording).
-// The page it reads is a saved snapshot of shopee.vn; the deep read replays the X-ray saved earlier for that site.
+// The page it reads is a saved snapshot of highlandscoffee.com.vn; the deep read replays the X-ray saved earlier for that site.
 (() => {
   const L = (f) => ({ addListener: f || (() => {}) })
-  const snap = fetch('/ext/shopee.json').then((r) => r.json())
-  const tab = { id: 7, url: 'https://shopee.vn/', title: 'Shopee Việt Nam | Mua Sắm Online', status: 'complete' }
+  const snap = fetch('/ext/brand.json').then((r) => r.json())
+  const tab = { id: 7, url: 'https://www.highlandscoffee.com.vn/', title: 'Highlands Coffee - Đặt Giao Ngay 19001755', status: 'complete' }
   window.chrome = {
     permissions: { contains: async () => true, request: async () => true, remove: async () => true, onAdded: L(), onRemoved: L() },
     tabs: { query: async () => [tab], get: async () => tab, create: () => {}, onActivated: L(), onUpdated: L() },
@@ -17,7 +17,7 @@
       if (!/\/api\/analyze\/seed\/events/.test(url)) return
       this.readyState = 1
       ;(async () => {
-        const idx = await real('/analyses/index.json').then((r) => r.json()), a = idx.find((x) => /shopee\.vn/.test(x.url)) || idx[0], r = await real(`/analyses/${a.id}.json`).then((x) => x.json())
+        const idx = await real('/analyses/index.json').then((r) => r.json()), a = idx.find((x) => /highlandscoffee\.com\.vn/.test(x.url)) || idx[0], r = await real(`/analyses/${a.id}.json`).then((x) => x.json())
         const warn = r.evidence.filter((e) => /^A:/.test(e.id) && /^WARN/.test(e.detail)).length, fail = r.evidence.filter((e) => /^A:/.test(e.id) && /^FAIL/.test(e.detail)).length
         const words = Number(/;\s*(\d+) words/.exec(r.evidence.find((e) => e.id === 'S1')?.detail || '')?.[1] ?? 0)
         const steps = [['scrape', { pages: r.tools?.scrape?.pages ?? 1, words, llms: r.tools?.scrape?.llms ?? 'missing' }], ['audit', { score: r.siteScore, pass: Math.max(0, 39 - warn - fail), warn, fail }], ['rea', { domNodes: r.tools?.rea?.domNodes ?? 0, scripts: r.tools?.rea?.scripts ?? 0, thirdParty: r.tools?.rea?.thirdParty ?? 0 }], ['synth', undefined]]

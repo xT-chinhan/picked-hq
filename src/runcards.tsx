@@ -12,7 +12,8 @@ import { useLive } from './live'
 import { Card, exec } from './SystemOne'
 import { useOffice } from './Office'
 import { OFFLINE_MSG } from './edge'
-import { patch, personOf, type CMsg } from './chat'
+import { add, askAgent, patch, personOf, type CMsg } from './chat'
+import { seed } from './seed'
 
 /* Real jobs, shown inside the conversation while they happen. Each card starts its own job once, streams what the job reports,
    and leaves a small snapshot in the message so it still reads after a reload. */
@@ -218,15 +219,75 @@ function Exec({ thread, m }: { thread: string; m: CMsg }) {
       {card?.kind === 'answer' && (
         <div className="mt-3 space-y-3">
           <Ranking brands={card.brands} target={card.brand} ms={card.ms} />
-          <div className="rounded-[20px] border border-line bg-white p-4"><div className="mb-1.5 text-[12.5px] font-bold uppercase tracking-[.16em] text-faint">What Gemini said</div><div className="text-[15px] leading-relaxed text-ink"><TypedMd k={`an${m.id}`} text={card.text.slice(0, 1200)} /></div></div>
+          <div className="rounded-[20px] border border-line bg-white p-4"><div className="mb-1.5 text-[12.5px] font-bold uppercase tracking-[.16em] text-faint">What Gemini said{card.translated ? ' · translated from Vietnamese' : ''}</div><div className="text-[15px] leading-relaxed text-ink"><TypedMd k={`an${m.id}`} text={card.text.slice(0, 1200)} /></div></div>
         </div>
       )}
     </Shell>
   )
 }
 
+/* ───────────── the chief splits one job across the team: subagents run in parallel, each reports back ───────────── */
+type Facts = { host: string; brand: string; an: any; sum: any }
+async function factsFor(host: string): Promise<Facts> {
+  const get = (u: string) => fetch(u).then((r) => (r.ok ? r.json() : null)).catch(() => null)
+  const idx = (await get('/analyses/index.json')) ?? [], a = idx.find((x: any) => { try { return new URL(x.url).hostname.replace(/^www\./, '') === host } catch { return false } })
+  const an = a ? await get(`/analyses/${a.id}.json`) : null, brand = an?.brand ?? host.split('.')[0].replace(/^./, (c) => c.toUpperCase())
+  const runs = (await get('/runs/index.json')) ?? [], ri = runs.find((x: any) => String(x.brand).toLowerCase() === brand.toLowerCase())
+  const run = ri ? await get(`/runs/${ri.id}.json`) : null
+  return { host, brand, an, sum: run?.summary ?? null }
+}
+const LANE: Record<string, { task: (f: Facts) => string; steps: string[]; get: (f: Facts, who: string) => Promise<string> }> = {
+  sy: { task: (f) => `Audit ${f.host} for AI readiness`, steps: ['Reading the site with our robot…', 'Running 39 readiness checks…'],
+    get: async (f) => (f.an ? `**${f.an.siteScore}/100** on 39 checks. Biggest gap: ${String(f.an.findings?.[0]?.title ?? 'none').toLowerCase()}.` : `No X-ray of ${f.host} yet: run “Analyze ${f.host}”.`) },
+  scout1: { task: (f) => `Ask Gemini the 40 buyer questions about ${f.brand}`, steps: ['Opening fresh Gemini tabs…', 'Reading who each answer names…'],
+    get: async (f) => (f.sum ? `${f.brand} is named in **${f.sum.mentioned} of ${f.sum.answered}** answers, ${f.sum.top3} times in the top three.` : `No saved answers for ${f.brand} yet.`) },
+  ana: { task: (f) => `Find who Gemini names instead of ${f.brand}`, steps: ['Counting the brands in every answer…', 'Ranking the rivals…'],
+    get: async (f) => (f.sum?.competitors?.length ? `Named instead: ${f.sum.competitors.slice(0, 3).map((c: any) => `**${c.name}** (${c.count})`).join(', ')}.` : 'No rivals counted yet.') },
+  any: { task: () => 'Find what buyers type about thermal lunch boxes', steps: ['Thinking in the buyer’s words…'],
+    get: async (_f, who) => (await askAgent(who, 'In two short lines: what do buyers type when they look for a thermal lunch box?')).split('\n').filter(Boolean).slice(0, 3).join(' ') },
+}
+const laneOf = (id: string) => LANE[id] ?? LANE.any
+const startedTeam = new Set<number>()
+function Team({ thread, m }: { thread: string; m: CMsg }) {
+  const run = m.run as Extract<CMsg['run'], { kind: 'team' }>, ids = run.lanes
+  const [st, setSt] = useState<{ i: number; out?: string; task?: string }[]>(m.res?.lanes ?? ids.map(() => ({ i: 0 })))
+  const up = (k: number, v: Partial<{ i: number; out: string; task: string }>) => setSt((s) => s.map((x, j) => (j === k ? { ...x, ...v } : x)))
+  useEffect(() => {
+    if (startedTeam.has(m.id) || m.res) return; startedTeam.add(m.id)
+    void (async () => {
+      const f = await factsFor(run.input)
+      const outs = await Promise.all(ids.map(async (id, k) => {
+        const L = laneOf(id), task = L.task(f); up(k, { task })
+        add(id, { who: 'nan', text: task }) // the brief lands in the subagent's own thread
+        const pace = seed.on ? 0.4 : 1 // the reel keeps the parallel run short
+        await new Promise((r) => setTimeout(r, (250 + k * 220) * pace))
+        for (let i = 0; i < L.steps.length; i++) { up(k, { i }); await new Promise((r) => setTimeout(r, (900 + k * 260 + Math.random() * 400) * pace)) }
+        let out: string; try { out = await L.get(f, id) } catch (e: any) { out = `Could not finish: ${e.message || e}` }
+        up(k, { i: L.steps.length, out }); add(id, { who: id, text: out }); return { i: L.steps.length, out, task }
+      }))
+      patch(thread, m.id, { res: { lanes: outs } })
+      const top = f.sum?.competitors?.[0]
+      add(thread, { who: 'nan', text: `All ${ids.length} are back. **${f.brand}** scores **${f.an?.siteScore ?? '?'}/100** for AI readiness and is named in **${f.sum?.mentioned ?? '?'} of ${f.sum?.answered ?? 40}** Gemini answers${top ? `; ${top.name} is named most (${top.count})` : ''}. First fix: ${String(f.an?.findings?.[0]?.title ?? 'publish the facts buyers ask about').toLowerCase()}. Say “GEO for ${f.host}” and I will turn this into a plan.` })
+    })()
+  }, [])
+  const finished = st.every((x) => x.out)
+  return (
+    <Shell m={m} title={`Split across the team · ${run.input}`} state={finished ? 'done' : 'work'}>
+      <div className="grid grid-cols-2 gap-2.5">
+        {ids.map((id, k) => { const p = personOf(id), L = laneOf(id), x = st[k] ?? { i: 0 }; return (
+          <motion.div key={id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: k * 0.12, type: 'spring', stiffness: 240, damping: 26 }} className="min-h-[118px] rounded-[18px] bg-surface p-3">
+            <div className="flex items-center gap-2.5">{p && <Face av={p.av} size={30} plain />}<div className="min-w-0 flex-1"><div className="text-[14px] font-semibold leading-tight text-ink">{p?.name}<span className="font-normal text-faint"> · subagent</span></div><div className="truncate text-[13px] text-mute">{x.task ?? '…'}</div></div>{x.out ? <Check size={16} strokeWidth={3} className="text-ok" /> : <Loader2 size={15} className="animate-spin text-mute" />}</div>
+            {!x.out && <div className="mt-2 text-[13.5px] text-mute"><span className="shimmer">{L.steps[Math.min(x.i, L.steps.length - 1)]}</span></div>}
+            {x.out && <div className="mt-2 text-[14.5px] leading-snug text-ink"><TypedMd k={`tm${m.id}-${k}`} text={x.out} /></div>}
+          </motion.div>) })}
+      </div>
+    </Shell>
+  )
+}
+
 export function RunCard({ thread, m }: { thread: string; m: CMsg }) {
   const k = m.run!.kind
+  if (k === 'team') return <Team thread={thread} m={m} />
   if (k === 'copilot') { const c = m.res?.copilot; return <Shell m={m} title={`GEO Copilot · ${(m.run as any).input}`} state={!c || c.stage === 'find' || c.stage === 'checking' ? 'work' : c.stage === 'confirm' ? 'wait' : c.stage === 'error' ? 'warn' : 'done'}><CopilotCard thread={thread} m={m} /></Shell> }
   if (k === 'cost') return <Shell m={m} title="What this replaces" state="done"><CostCard /></Shell>
   return k === 'xray' ? <Xray thread={thread} m={m} /> : k === 'audit' ? <Audit thread={thread} m={m} /> : <Exec thread={thread} m={m} />

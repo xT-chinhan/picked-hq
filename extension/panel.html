@@ -3,7 +3,7 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NaN · Picked</title><link rel="stylesheet" href="panel.css"></head>
 <body>
   <header class="top">
-    <span class="mark" aria-hidden="true">N</span>
+    <img class="mark" src="icons/icon-48.png" alt="" width="28" height="28">
     <h1>NaN for Picked</h1>
     <button id="more" class="icon" type="button" aria-label="Settings" title="Settings">⋯</button>
   </header>
@@ -22,7 +22,7 @@
 
   <main id="feed" class="feed" aria-live="polite" aria-relevant="additions">
     <div id="empty" class="empty">
-      <span class="big-mark" aria-hidden="true">N</span>
+      <img class="big-mark" src="icons/icon-128.png" alt="" width="64" height="64">
       <h2>Ask about this page</h2>
       <p>NaN reads the page you are on and tells you how AI assistants will see it, what stops them recommending it, and what to fix.</p>
       <div class="chips" id="starters"></div>
@@ -40,6 +40,7 @@
         <div class="plus-wrap"><button id="plus" class="icon" type="button" aria-label="Add" aria-haspopup="menu">+</button>
           <div id="menu" class="menu" role="menu" hidden>
             <button type="button" role="menuitem" data-act="attach">Attach this tab</button>
+            <button type="button" role="menuitem" data-act="deep">Deep read: robot vs your browser</button>
             <button type="button" role="menuitem" data-act="review">Review this page for AI</button>
             <button type="button" role="menuitem" data-act="analyze">Analyze this site in Picked</button>
           </div>

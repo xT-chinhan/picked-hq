@@ -41,3 +41,10 @@ export async function post(path, body) {
   if (!response.ok) throw new Error(typeof data?.error === 'string' ? data.error : `Lỗi máy chủ (HTTP ${response.status}).`);
   return data;
 }
+
+/** Where the Picked app (the chat) lives. The server on this machine only serves the API, so a local server hands the visitor to the hosted app,
+ *  which reaches this machine through its tunnel; any other server is assumed to serve the app itself. */
+export async function appUrl() {
+  const base = await getBase();
+  return isLocalBase(base) ? 'https://pickedhq.pages.dev' : base;
+}

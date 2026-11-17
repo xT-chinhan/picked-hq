@@ -33,7 +33,7 @@ const limited = (ip, key, max, windowMs) => {
 }
 const live = new Map(), pending = new Map() // run id -> run state; approval id -> resolver
 const json = (res, code, body) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)) }
-const body = (req) => new Promise((r) => { let b = ''; req.on('data', (c) => { if (b.length < 65536) b += c }); req.on('end', () => { try { r(JSON.parse(b || '{}')) } catch { r({}) } }) })
+const body = (req) => new Promise((r) => { let b = ''; req.on('data', (c) => { if (b.length < 200000) b += c }); req.on('end', () => { try { r(JSON.parse(b || '{}')) } catch { r({}) } }) })
 const listCache = new Map() // file -> [mtimeMs, summary]; run files are large, so only changed ones are re-read
 const saved = () => fs.readdirSync(DIR).filter((f) => f.endsWith('.json')).map((f) => {
   try {

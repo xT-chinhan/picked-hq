@@ -1,5 +1,5 @@
-import { extractPage } from './lib/extract.js';
-import { getBase, setBase, post } from './lib/api.js';
+import { extractDeep } from './lib/extract.js';
+import { getBase, setBase, post, appUrl } from './lib/api.js';
 import { parseMd } from './lib/md.js';
 
 /* NaN's side panel. NaN reads the page you are on (only when you let it) and answers about it; every piece of page or model text
@@ -8,7 +8,7 @@ const ORIGINS = ['http://*/*', 'https://*/*'];
 const OFFLINE = 'NaN-Team đang tạm khóa để phát triển dự án';
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const $ = (id) => document.getElementById(id);
-const state = { tab: null, access: false, attach: true, busy: false, online: false, history: [], page: null };
+const state = { robot: null, tab: null, access: false, attach: true, busy: false, online: false, history: [], page: null };
 
 const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
 const feed = () => $('feed');
@@ -138,13 +138,13 @@ async function readPage() {
   if (!state.tab || !Number.isInteger(state.tab.id)) throw new Error('There is no page open to read.');
   if (state.tab.url && !readable(state.tab.url)) throw new Error('NaN can only read normal web pages, not browser pages.');
   let res;
-  try { res = await chrome.scripting.executeScript({ target: { tabId: state.tab.id }, func: extractPage }); }
+  try { res = await chrome.scripting.executeScript({ target: { tabId: state.tab.id }, func: extractDeep }); }
   catch (e) { const err = new Error(/permission|access|host/i.test(String(e.message)) ? 'NEEDS_ACCESS' : String(e.message || 'Could not read this page.')); throw err; }
   const page = res?.[0]?.result;
   if (!page) throw new Error('NaN could not read this page. Open a normal web page.');
   state.page = page; return page;
 }
-const readLine = (page) => { const l = el('div', 'read'); l.textContent = `Read ${hostOf(page.url)} · ${String(page.text || '').split(/\s+/).filter(Boolean).length} words, ${page.headings?.length ?? 0} headings, ${page.schemaTypes?.length ?? 0} data types`; return l; };
+const readLine = (page) => { const l = el('div', 'read'); const w = String(page.text || '').split(/\s+/).filter(Boolean).length; l.textContent = `Read ${hostOf(page.url)} · ${w.toLocaleString()} words · ${page.headings?.length ?? 0} headings · ${page.links?.internal ?? 0} links · ${page.images?.total ?? 0} images · ${page.stats?.requests ?? 0} requests · ${page.schemaTypes?.length ?? 0} data types`; return l; };
 
 /* ───────────── talking ───────────── */
 function setBusy(v) { state.busy = v; $('send').disabled = v || !$('input').value.trim(); }
@@ -160,7 +160,7 @@ async function send(raw) {
       catch (e) { if (e.message === 'NEEDS_ACCESS') { wait.m.remove(); noticeNeedAccess(); setBusy(false); return; } wait.say('Thinking…'); }
     } else wait.say('Thinking…');
     const body = { text, original: text, agent: 'nan', history: state.history.slice(-8), state: page ? { page: { url: page.url, title: page.title, description: page.description, schemaTypes: page.schemaTypes, hasFaq: page.hasFaq } } : {} };
-    if (page) body.page = { url: page.url, title: page.title, description: page.description, headings: (page.headings || []).slice(0, 20), schemaTypes: page.schemaTypes, hasFaq: page.hasFaq, text: String(page.text || '').slice(0, 6000) };
+    if (page) body.page = { ...page, text: String(page.text || '').slice(0, 16000), robot: state.robot && state.robot.host === hostOf(page.url) ? state.robot.summary : '' };
     const j = await post('/api/one/chat', body);
     if (typeof j?.reply !== 'string') throw new Error('The server sent no usable reply.');
     wait.body.querySelectorAll('.think').forEach((x) => x.remove());
@@ -177,7 +177,7 @@ function handOff(actions, body, page) {
   if (!a) return;
   const q = a.type === 'analyze' ? `Analyze ${a.q || (page ? hostOf(page.url) : '')}` : a.type === 'audit' ? `Audit ${a.brand || ''} ${a.fresh ? 'fresh' : 'quick'}` : a.type === 'ask' ? `Ask Gemini: ${a.q}` : `Use apps: ${a.q}`;
   const b = el('button', 'btn dark', 'Run this in Picked'); b.type = 'button'; b.style.marginTop = '8px';
-  b.addEventListener('click', async () => { chrome.tabs.create({ url: `${await getBase()}/?ask=${encodeURIComponent(q.trim())}` }); });
+  b.addEventListener('click', async () => { chrome.tabs.create({ url: `${await appUrl()}/?ask=${encodeURIComponent(q.trim())}` }); });
   body.append(b);
 }
 async function reviewThisPage() {
@@ -190,9 +190,56 @@ async function reviewThisPage() {
   } catch (e) { wait.m.remove(); if (e.message === 'NEEDS_ACCESS') noticeNeedAccess(); else addMsg('err', e.message || 'Could not review this page.'); }
   setBusy(false);
 }
+/* Deep read: our own robot (Scrapling reader, 39 readiness checks, a live-page inspection) goes to the same address,
+   then the panel sets what the robot saw against what your browser shows. A site that turns robots away is exactly where they differ. */
+const STEPS = [['scrape', 'Reading the site with our robot'], ['audit', 'Checking AI readiness'], ['rea', 'Inspecting the live page'], ['synth', 'Writing the verdict']];
+async function deepRead() {
+  const t = state.tab; if (state.busy) return;
+  if (!state.access) { addMsg('me', 'Deep read this site'); noticeNeedAccess(); return; }
+  if (!t?.url || !readable(t.url)) { addMsg('err', 'Open a normal web page first.'); return; }
+  setBusy(true); addMsg('me', 'Deep read this site');
+  let page = null;
+  try { page = await readPage(); } catch (e) { if (e.message === 'NEEDS_ACCESS') { noticeNeedAccess(); setBusy(false); return; } }
+  hideEmpty(); const m = el('div', 'msg nan'), card = el('div', 'card'), h = el('div', 'card-h'), b = el('div', 'card-b');
+  h.append(el('b', '', 'Deep read'), el('small', '', hostOf(t.url))); const ul = el('ul', 'checks'), rows = {};
+  for (const [id, label] of STEPS) { const li = el('li'), ic = el('span', 'ic idle', ''), tx = el('div'); const lb = el('b', '', label), sm = el('small', '', 'Waiting'); tx.append(lb, sm); li.append(ic, tx); ul.append(li); rows[id] = { ic, lb, sm }; }
+  b.append(ul); card.append(h, b); m.append(card); feed().append(m); scrollEnd();
+  const mark = (id, st, note) => { const r = rows[id]; if (!r) return; r.ic.className = `ic ${st === 'running' ? 'run' : st === 'done' ? 'pass' : st === 'idle' ? 'idle' : 'warn'}`; r.ic.textContent = st === 'done' ? '✓' : st === 'running' ? '' : st === 'idle' ? '' : '–'; r.lb.className = st === 'running' ? 'shimmer' : ''; r.sm.textContent = note || (st === 'running' ? 'Working…' : st === 'done' ? 'Done' : 'Skipped'); };
+  try {
+    const base = await getBase(); let id;
+    try { id = (await post('/api/analyze', { input: t.url })).id; } catch (e) { throw new Error(/still running/i.test(e.message) ? 'Another analysis is running in Picked. Try again in a minute.' : e.message); }
+    const report = await new Promise((resolve, reject) => {
+      const es = new EventSource(`${base}/api/analyze/${id}/events`); const guard = setTimeout(() => { es.close(); reject(new Error('The deep read took too long.')); }, 200000);
+      es.onmessage = (ev) => { const d = JSON.parse(ev.data);
+        if (d.type === 'an.step') mark(d.step, d.status, d.status === 'done' && d.data ? briefOf(d.step, d.data) : d.note || d.error);
+        else if (d.type === 'an.done') { clearTimeout(guard); es.close(); resolve(d.report); } else if (d.type === 'an.error') { clearTimeout(guard); es.close(); reject(new Error(d.error)); } };
+      es.onerror = () => { if (es.readyState === 2) { clearTimeout(guard); reject(new Error('Lost the connection to the Picked server.')); } };
+    });
+    deepResult(report, page);
+  } catch (e) { addMsg('err', e.message || 'The deep read failed.'); }
+  setBusy(false);
+}
+const briefOf = (step, d) => step === 'scrape' ? `${d.pages} pages · ${d.words ?? '?'} words · llms.txt ${d.llms}` : step === 'audit' ? `${d.score ?? '–'}/100 · ${d.pass} pass, ${d.warn} warn, ${d.fail} fail` : step === 'rea' ? `${d.domNodes?.toLocaleString?.() ?? d.domNodes} elements · ${d.scripts} scripts · ${d.thirdParty} outside services` : '';
+function deepResult(r, page) {
+  const robotWords = Number(/;\s*(\d+) words/.exec(r.evidence.find((e) => e.id === 'S1')?.detail || '')?.[1] ?? 0);
+  const youWords = page ? String(page.text || '').split(/\s+/).filter(Boolean).length : null;
+  const host = hostOf(r.url);
+  state.robot = { host, summary: `for ${host}: site score ${r.siteScore ?? 'n/a'}/100; the robot read ${r.tools?.scrape?.pages ?? 0} pages and ${robotWords} words${youWords != null ? ` (the visitor's browser shows ${youWords} words)` : ''}; headline: ${r.headline}; findings: ${r.findings.map((f) => f.title).join('; ')}; live page: ${r.tools?.rea ? `${r.tools.rea.domNodes} elements, ${r.tools.rea.scripts} scripts, ${r.tools.rea.thirdParty} outside services` : 'not inspected'}` };
+  hideEmpty(); const m = el('div', 'msg nan'), card = el('div', 'card'), h = el('div', 'card-h'), b = el('div', 'card-b');
+  h.append(el('b', '', 'Robot vs your browser'), el('small', '', host)); card.append(h);
+  const score = el('div', 'score'); const tx = el('div'); tx.append(el('p', '', r.headline || 'Deep read finished.')); score.append(gauge(r.siteScore ?? 0), tx); b.append(score);
+  if (youWords != null) {
+    const cmp = el('div', 'cmp'); const row = (label, n, max) => { const x = el('div', 'cmp-row'); const bar = el('div', 'cmp-bar'), fill = el('i'); fill.style.width = `${max ? Math.max(2, Math.round((n / max) * 100)) : 2}%`; bar.append(fill); x.append(el('span', '', label), bar, el('b', '', n.toLocaleString())); return x; };
+    const max = Math.max(robotWords, youWords, 1); cmp.append(row('Our robot read', robotWords, max), row('Your browser shows', youWords, max));
+    const gap = youWords > 0 && robotWords < youWords * 0.5; cmp.append(el('p', 'cmp-note', gap ? 'AI crawlers see far less than a visitor does. That gap is what keeps assistants from quoting this site.' : 'The robot and your browser see about the same text.')); b.append(cmp);
+  }
+  const ul = el('ul', 'checks'); for (const f of r.findings.slice(0, 5)) { const li = el('li'), ic = el('span', 'ic fail', '!'), t = el('div'); t.append(el('b', '', f.title), el('small', '', f.fix || f.why)); li.append(ic, t); ul.append(li); } b.append(ul);
+  const foot = el('div', 'card-f'); const a = el('button', 'btn dark', 'Ask NaN what to fix first'); a.type = 'button'; a.addEventListener('click', () => send('Using what our robot saw and what my browser shows, what should I fix first on this site?')); const o = el('button', 'btn', 'Full report in Picked'); o.type = 'button'; o.addEventListener('click', async () => chrome.tabs.create({ url: `${await appUrl()}/?ask=${encodeURIComponent(`Analyze ${host}`)}` })); foot.append(a, o);
+  card.append(b, foot); m.append(card); feed().append(m); m.scrollIntoView({ block: 'start', behavior: REDUCED ? 'auto' : 'smooth' });
+}
 async function analyzeInPicked() {
   const t = state.tab; if (!t?.url || !readable(t.url)) { addMsg('err', 'Open a normal web page first.'); return; }
-  chrome.tabs.create({ url: `${await getBase()}/?ask=${encodeURIComponent(`Analyze ${hostOf(t.url)}`)}` });
+  chrome.tabs.create({ url: `${await appUrl()}/?ask=${encodeURIComponent(`Analyze ${hostOf(t.url)}`)}` });
 }
 
 /* ───────────── composer ───────────── */
@@ -205,7 +252,7 @@ document.addEventListener('click', () => { $('menu').hidden = true; });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') $('menu').hidden = true; });
 $('menu').addEventListener('click', (e) => {
   const a = e.target.closest('button')?.dataset.act; $('menu').hidden = true;
-  if (a === 'attach') { state.attach = true; paintChip(); $('input').focus(); } else if (a === 'review') reviewThisPage(); else if (a === 'analyze') analyzeInPicked();
+  if (a === 'attach') { state.attach = true; paintChip(); $('input').focus(); } else if (a === 'review') reviewThisPage(); else if (a === 'deep') deepRead(); else if (a === 'analyze') analyzeInPicked();
 });
 $('switch').addEventListener('click', () => toggleAccess(!state.access));
 $('more').addEventListener('click', () => { $('settings').hidden = !$('settings').hidden; });
@@ -213,8 +260,8 @@ $('settings-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   try { $('base').value = await setBase($('base').value); $('settings-result').textContent = 'Saved.'; await health(); } catch (err) { $('settings-result').textContent = err.message; }
 });
-const STARTERS = ['Read this page', 'Review this page for AI', 'What would an AI assistant say about this brand?', 'What should I fix first?'];
-for (const s of STARTERS) { const b = el('button', '', s); b.type = 'button'; b.addEventListener('click', () => (s === 'Review this page for AI' ? reviewThisPage() : send(s === 'Read this page' ? 'Read this page and tell me what it is, what it sells and how AI assistants will see it.' : s))); $('starters').append(b); }
+const STARTERS = ['Read this page', 'Deep read this site', 'Review this page for AI', 'What should I fix first?'];
+for (const s of STARTERS) { const b = el('button', '', s); b.type = 'button'; b.addEventListener('click', () => (s === 'Review this page for AI' ? reviewThisPage() : s === 'Deep read this site' ? deepRead() : send(s === 'Read this page' ? 'Read this page and tell me what it is, what it sells and how AI assistants will see it.' : s))); $('starters').append(b); }
 
 async function health() {
   let ok = false;

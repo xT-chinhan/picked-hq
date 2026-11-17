@@ -141,7 +141,7 @@ async function exec(a: Act, vi: boolean, id: number): Promise<{ text: string; ca
       const r = await post('/api/one/agent', { text: a.q || '' }, 170000)
       return { text: r.answer, card: r.steps?.length ? { kind: 'steps', steps: r.steps } : undefined }
     }
-    case 'analyze': openAnalyze(a.q || undefined); return { text: a.q ? `Opening the Business X-ray for ${a.q}: Scrapling reads the site, the audit scores it, REA takes the live page apart.` : 'Opening the Business X-ray. Type a website or a company name.' }
+    case 'analyze': openAnalyze(a.q || undefined); return { text: a.q ? `Opening the Business X-ray for ${a.q}: the agents read the site, check it for AI readiness and inspect the live page.` : 'Opening the Business X-ray. Type a website or a company name.' }
     case 'explain': return { text: explain(vi) }
     case 'help': return { text: T('Lệnh: audit <thương hiệu> · replay <thương hiệu> · hỏi: <câu hỏi cho Gemini> · hồ sơ <thương hiệu> · đến phòng <tên> · duyệt / từ chối · mở shop · giải thích · toàn cảnh · dừng. Câu hỏi tự do cũng được.', 'Commands: audit <brand> · replay <brand> · ask: <question for Gemini> · profile <brand> · go to <department> · approve / reject · open shop · explain · overview · stop. Free-form questions work too.') }
     case 'rivals': { const r = snap().rivals; return { text: r.length ? T(`Được Gemini nhắc nhiều nhất: ${r.map((x) => `${x.name} (${x.count})`).join(', ')}.`, `Named most by Gemini: ${r.map((x) => `${x.name} (${x.count})`).join(', ')}.`) : T('Chưa có dữ liệu thật trên màn hình. Gõ "replay Elmich" hoặc "audit Elmich".', 'No real data on screen yet. Type "replay Elmich" or "audit Elmich".') } }

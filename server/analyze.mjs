@@ -270,7 +270,7 @@ export function createAnalyzer(deps) {
 }
 function brief(step, out) {
   if (step === 'scrape') return { pages: out.pages?.length ?? 0, title: out.pages?.[0]?.title ?? '', robots: out.robots, llms: out.llms_txt, jsonld: [...new Set((out.pages ?? []).flatMap((p) => p.jsonld_types))].slice(0, 6), words: (out.pages ?? []).reduce((n, p) => n + p.words, 0) }
-  if (step === 'audit') return { score: out.score, blocked: out.blocked, pass: out.checks.filter((c) => c.status === 'pass').length, warn: out.checks.filter((c) => c.status === 'warn').length, fail: out.checks.filter((c) => c.status === 'fail').length }
+  if (step === 'audit') return { score: out.score, blocked: out.blocked, pass: out.checks.filter((c) => c.status === 'pass').length, warn: out.checks.filter((c) => c.status === 'warn').length, fail: out.checks.filter((c) => c.status === 'fail').length, issues: out.checks.filter((c) => c.status === 'fail').concat(out.checks.filter((c) => c.status === 'warn')).slice(0, 5).map((c) => ({ s: c.status, t: c.title, d: String(c.evidence ?? '').slice(0, 110) })) }
   return { domNodes: out.domNodes, scripts: out.scripts, thirdParty: out.thirdParty.length, endpoints: out.endpoints.length, evidence: out.evidence.inspect }
 }
 

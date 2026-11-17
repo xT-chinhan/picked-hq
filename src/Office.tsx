@@ -82,7 +82,7 @@ function OfficeBar({ callAll }: { callAll: () => void }) {
     { icon: <Sparkles size={17} />, label: 'Open the story sheets', hint: 'Positioning, business case, real data', run: go(() => useStory.setState({ open: true, slide: 0 })) },
   ]
   const real: Item[] = [
-    { icon: <ScanSearch size={17} />, label: 'Analyze any business', hint: 'REA + Scrapling on a company you pick', run: go(() => openAnalyze()) },
+    { icon: <ScanSearch size={17} />, label: 'Analyze any business', hint: 'Our agents x-ray a company you pick, live', run: go(() => openAnalyze()) },
     { icon: <Zap size={17} />, label: 'Audit Elmich, quick', hint: 'Real pipeline on the saved Gemini answers', run: go(() => { close(); void startLive({ brand: 'Elmich', mode: 'quick', replace: true }) }) },
     { icon: <Globe size={17} />, label: 'Audit Elmich, fresh', hint: '40 new questions on real Gemini, ~4 min', run: go(() => { close(); void startLive({ brand: 'Elmich', mode: 'fresh', replace: true }) }) },
     { icon: <Globe size={17} />, label: 'Open the browser room', hint: 'Watch the agents’ real pages', run: go(() => { close(); useBrowser.setState({ open: true, control: false }) }) },

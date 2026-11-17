@@ -86,3 +86,19 @@ test('a profile at its usage limit is rested and skipped, then used again when i
   fs.writeFileSync(path.join(limited, 'mode'), 'ok'); fs.writeFileSync(path.join(root, 'calls'), '')
   const out = run(); assert.match(fs.readFileSync(path.join(root, 'calls'), 'utf8'), /limited|good/); assert.ok(JSON.parse(out.trim().split('\n').pop()).every((p) => p.usable))
 })
+
+test('agy quota message: the wait is read, and a family at its limit fails fast then returns by itself', async () => {
+  const { parseResetsIn } = await import('../engines.mjs')
+  assert.equal(parseResetsIn('Resets in 14m49s.'), (14 * 60 + 49) * 1000)
+  assert.equal(parseResetsIn('Resets in 1h 5m'), 65 * 60000)
+  assert.equal(parseResetsIn('Resets in 2d 3h'), (2 * 24 + 3) * 3600000)
+  assert.equal(parseResetsIn('nothing about time'), null)
+  const fs = await import('node:fs'), os = await import('node:os'), path = await import('node:path'), cp = await import('node:child_process')
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agyrest-')), data = path.join(root, 'd'); fs.mkdirSync(data)
+  fs.writeFileSync(path.join(root, 'agy'), `#!/bin/sh\necho x >> "${root}/calls"\necho '{"status":"ERROR","error":"quota exhausted. Resets in 10m"}' >&2; echo '{"status":"ERROR","error":"quota exhausted. Resets in 10m"}'; exit 3\n`, { mode: 0o755 })
+  const code = `const m = await import(${JSON.stringify(new URL('../engines.mjs', import.meta.url).href)}); const t = async (id) => { try { await m.call(id, { prompt: 'q', fresh: true, timeoutMs: 8000 }); return 'ok' } catch (e) { return String(e.message).slice(0, 60) } }; console.log(await t('sonnet-low')); console.log(await t('opus-low')); console.log(await t('flash-low')); console.log(JSON.stringify(m.agyRests()))`
+  const out = cp.execFileSync(process.execPath, ['--input-type=module', '-e', code], { env: { ...process.env, PATH: `${root}:${process.env.PATH}`, PICKED_DATA_DIR: data }, encoding: 'utf8' }).trim().split('\n')
+  assert.match(out[1], /resting until/)           // opus shares Claude's quota: not even tried
+  assert.doesNotMatch(out[2], /resting/)          // Gemini is another family and is still tried
+  assert.ok(JSON.parse(out[3]).some((x) => x.family === 'claude' && x.resetsAt > Date.now() + 9 * 60000)) // this fake agy reports the limit for every model, so Gemini rests too
+})

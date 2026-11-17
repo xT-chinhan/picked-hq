@@ -53,7 +53,7 @@ export function ledger() {
   return {
     engines: ENGINES.map((e) => { const s = stats.get(e.id); const ok = s ? s.calls - s.fails : 0; return { ...e, home: undefined, calls: s?.calls ?? 0, fails: s?.fails ?? 0, avgMs: ok ? Math.round(s.ms / ok) : null, tokens: s?.tokens ?? 0, last: s?.last ?? null } }),
     recent: recent.slice(-20).reverse(),
-    codexPool: codexPool(),
+    codexPool: codexPool(), agyRests: agyRests(),
   }
 }
 
@@ -82,6 +82,16 @@ const rest = (home, until, why) => { rests[home] = { until, why }; saveRests() }
 const label = (home) => path.basename(home || 'default')
 /** The pool as the UI shows it: every profile, whether it is usable now and, if resting, when it comes back. */
 export const codexPool = () => (HOMES.length ? HOMES : []).map((h) => { const r = restUntil(h); return { profile: label(h), usable: !r, resetsAt: r?.until ?? null, why: r?.why ?? '' } })
+/* The agy models share a quota per family (Claude, Gemini, GPT). When a call says “Resets in 14m49s” the family rests that long: calls fail at once, so the
+   agents' fallback engines take over without waiting, and the family is used again by itself when the time is up. */
+const familyOf = (e) => `agy:${String(e.model).split('-')[0]}`
+/** Milliseconds until the quota returns, read from “Resets in 1h 14m 49s”, or null. */
+export function parseResetsIn(msg) {
+  const m = /Resets in\s+(?:(\d+)\s*d)?\s*(?:(\d+)\s*h)?\s*(?:(\d+)\s*m)?\s*(?:(\d+)\s*s)?/i.exec(String(msg))
+  if (!m || !(m[1] || m[2] || m[3] || m[4])) return null
+  return (((+m[1] || 0) * 24 + (+m[2] || 0)) * 60 + (+m[3] || 0)) * 60000 + (+m[4] || 0) * 1000
+}
+export const agyRests = () => Object.entries(rests).filter(([k, v]) => k.startsWith('agy:') && v.until > Date.now()).map(([k, v]) => ({ family: k.slice(4), resetsAt: v.until }))
 let goodHome = 0
 async function codex(e, prompt, schema, timeoutMs) {
   const homes = HOMES.length ? HOMES : [e.home]
@@ -133,6 +143,7 @@ export async function call(engineId, { prompt, schema, role = '', timeoutMs = 15
   try {
     let text = '', json, tokens = 0, cached = false
     if (e.driver === 'agy') {
+      const rr = restUntil(familyOf(e)); if (rr) throw new Error(`${e.label} is resting until ${new Date(rr.until).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (usage limit)`)
       if (schema) { json = await llm.agyJson({ prompt: prompt + nonce, schema, model: e.model, timeoutMs, retries: 1 }); text = JSON.stringify(json) }
       else text = (await llm.agyText({ prompt: prompt + nonce, model: e.model, timeoutMs })).trim()
     } else {
@@ -152,6 +163,7 @@ export async function call(engineId, { prompt, schema, role = '', timeoutMs = 15
     record({ at: t0, engine: e.id, role, ok: true, ms, tokens, cached })
     return { engine: e.id, text, json, ms, tokens, cached }
   } catch (err) {
+    if (e.driver === 'agy' && /usage limit|quota|RESOURCE_EXHAUSTED|Resets in/i.test(String(err.message))) { const w = parseResetsIn(err.message); if (w) rest(familyOf(e), Date.now() + w + 5000, 'usage limit') }
     record({ at: t0, engine: e.id, role, ok: false, ms: Date.now() - t0, error: String(err.message || err).slice(0, 160) })
     throw err
   }

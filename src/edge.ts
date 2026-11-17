@@ -19,6 +19,6 @@ export function watchEdge() {
   if (started) return
   started = true
   probe()
-  setInterval(probe, 20000)
+  setInterval(() => { if (!document.hidden) void probe() }, 60000)
   document.addEventListener('visibilitychange', () => { if (!document.hidden) probe() })
 }

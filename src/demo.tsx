@@ -271,7 +271,7 @@ export async function playReel({ record }: { record: boolean }) {
   abort = false; set({ panel: false, err: '', video: null })
   let rec: Rec | null = null
   if (record) { try { rec = await startRecorder() } catch (e: any) { set({ err: /denied|NotAllowed|Permission/i.test(String(e)) ? 'Screen recording was not allowed.' : String(e.message || e) }); return } rec.onEnd(() => { abort = true }) }
-  set({ running: true, scene: '2-minute reel', fast: true, clean: true, slow: false, badge: 'Recording · some results are replayed from saved real runs' })
+  set({ running: true, scene: '2-minute reel', fast: true, clean: true, slow: false, badge: '' })
   await loadSeed(); seed.on = true
   const madeBots = new Set(useBots.getState().bots.map((b) => b.id))
   // a clean first screen: no conversations, nothing open

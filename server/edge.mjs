@@ -35,7 +35,8 @@ export function startEdge(port, cfg, log = console.log) {
     child.on('error', (e) => { log(`edge: cannot start cloudflared (${e.message})`); stopped = true })
   }
   spawnTunnel()
-  timer = setInterval(() => beat(), 25000)
+  // Cloudflare KV's free plan allows 1,000 writes a day: the address is written when the tunnel changes and refreshed hourly (the record lasts 24 h); a dead tunnel shows as offline because the request itself fails
+  timer = setInterval(() => beat(), 3600000)
   const stop = async () => { stopped = true; clearInterval(timer); await beat('DELETE'); child?.kill() }
   for (const s of ['SIGINT', 'SIGTERM']) process.once(s, () => stop().finally(() => process.exit(0)))
   return { stop, url: () => tunnel }

@@ -11,9 +11,11 @@ export function offline(request, why = '') {
     : new Response(JSON.stringify({ offline: true, error: OFFLINE }), { status: 503, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-why': why } })
 }
 
+let memo = { at: 0, entry: null } // per isolate: one KV read serves every request for 20 s
 export async function proxy({ request, env }) {
   const url = new URL(request.url)
-  const entry = await env.EDGE.get('backend', 'json')
+  if (Date.now() - memo.at > 20000) memo = { at: Date.now(), entry: await env.EDGE.get('backend', 'json') }
+  const entry = memo.entry
   if (!entry?.url) return offline(request, 'no-entry')
   const headers = new Headers(request.headers)
   headers.set('x-picked-edge', env.EDGE_SECRET)
@@ -24,9 +26,9 @@ export async function proxy({ request, env }) {
   let res
   try {
     res = await fetch(new Request(entry.url + url.pathname + url.search, { method: request.method, headers, body: ['GET', 'HEAD'].includes(request.method) ? undefined : request.body, redirect: 'manual' }))
-  } catch (e) { return offline(request, 'fetch:' + String(e.message).slice(0, 60)) }
+  } catch (e) { memo.at = 0; return offline(request, 'fetch:' + String(e.message).slice(0, 60)) } // the address may have changed: read it again next time
   // Only our own server sets x-picked; anything else (tunnel down, 502, 530) means the machine is off.
-  if (!res.headers.get('x-picked')) return offline(request, 'status:' + res.status)
+  if (!res.headers.get('x-picked')) { memo.at = 0; return offline(request, 'status:' + res.status) }
   const out = new Headers(res.headers)
   out.delete('x-picked'); out.set('cache-control', 'no-store')
   return new Response(res.body, { status: res.status, headers: out })

@@ -28,7 +28,7 @@ export function useWorkPoll() {
   const online = useEdge((s) => s.online), open = useWork((s) => s.open)
   useEffect(() => {
     if (online === false) { useWork.setState({ inbox: null }); return }
-    refreshWork(); const id = setInterval(refreshWork, open ? 4000 : 15000); return () => clearInterval(id)
+    refreshWork(); const id = setInterval(() => { if (!document.hidden) void refreshWork() }, open ? 5000 : 45000); return () => clearInterval(id)
   }, [online, open])
 }
 export const useNeeds = () => useWork((s) => (s.inbox ? s.inbox.needs.length + s.inbox.results.length : 0))

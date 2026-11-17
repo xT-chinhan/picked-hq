@@ -12,6 +12,8 @@ import { ledger } from './engines.mjs'
 import { probeLlmsTxt, reviewPage } from './pagereview.mjs'
 import { hub } from './browserhub.mjs'
 import { measured } from './measured.mjs'
+import * as profiles from './profiles.mjs'
+import { platformOf, discover as copilotDiscover, consistency as copilotCheck, patches as copilotPatches } from './copilot.mjs'
 import { createMcpHub, handleMcpRequest, isAllowed } from './mcp.mjs'
 import { entry, publicCatalog } from './mcp-catalog.mjs'
 import { runToolLoop } from './toolloop.mjs'
@@ -59,6 +61,8 @@ const nanLlm = agentLlm('nan')
 const anaLlm = agentLlm('ana')
 const ANALYSES = path.join(DATA, 'analyses'); fs.mkdirSync(ANALYSES, { recursive: true })
 const analyses = new Map() // id -> { events, clients, status }
+const copilotSeen = new Map() // url -> { f, at }: what discovery read, so a check uses the server's own reading, not the browser's
+setInterval(() => { for (const [k, v] of copilotSeen) if (Date.now() - v.at > 1800000) copilotSeen.delete(k) }, 600000).unref()
 const pageReviews = [] // pages the extension reviewed in the visitor's own Chrome, newest first
 const analyzer = createAnalyzer({
   scrape: (url, ms) => runScrape(url, ms), audit: (url, ms) => runAudit(url, ms),
@@ -209,6 +213,35 @@ http.createServer(async (req, res) => {
       const f = path.join(ANALYSES, m[1] + '.json'); if (!fs.existsSync(f)) return json(res, 404, { error: 'not found' })
       res.writeHead(200, { 'content-type': 'application/json' }); return res.end(fs.readFileSync(f))
     }
+    // GEO Copilot: find the business online, the owner confirms the places, then every place is checked against the others
+    if (p === '/api/copilot/discover' && req.method === 'POST') {
+      const t = normalizeTarget((await body(req)).input)
+      let url = t.url, name = ''
+      if (!url && t.name) { try { const r = await resolveName(t.name, { llm: nanLlm, fetchTitle }); if (r.unresolved) return json(res, 404, { error: `No website found for “${t.name}”.`, name: t.name }); url = r.url; name = r.name } catch (e) { return json(res, 502, { error: 'Could not look that business up: ' + String(e.message || e).slice(0, 120) }) } }
+      if (!url) return json(res, 400, { error: t.error || 'Give a website or a business name.' })
+      try { await assertPublic(url) } catch (e) { return json(res, 400, { error: `Cannot read that address: ${String(e.message || e)}` }) }
+      try { const f = await copilotDiscover(url); copilotSeen.set(f.url, { f, at: Date.now() }); return json(res, 200, { ...f, name, identity: { ...f.identity, org: f.identity.org && { ...f.identity.org, raw: undefined } } }) }
+      catch (e) { return json(res, 502, { error: 'Could not read the site: ' + String(e.message || e).split('\n')[0].slice(0, 140) }) }
+    }
+    if (p === '/api/copilot/check' && req.method === 'POST') {
+      const b = await body(req), hit = copilotSeen.get(String(b.url || ''))
+      if (!hit) return json(res, 404, { error: 'Run the discovery again: this site was not read in the last 30 minutes.' })
+      const allowed = new Map(hit.f.sources.map((s) => [s.url, s]))
+      // only places found on the site, or added by the owner as an http(s) link, are kept; facts read in a signed-in session come from the owner's browser
+      const kept = (Array.isArray(b.sources) ? b.sources : []).slice(0, 20).flatMap((s) => { const base = allowed.get(s?.url); if (base) return [{ ...base, facts: s.facts ? { title: String(s.facts.title || '').slice(0, 160) } : undefined }]; try { const u = new URL(String(s?.url)); if (!/^https?:$/.test(u.protocol)) return []; return [{ id: `owner-${u.hostname}`, kind: platformOf(u.href) ?? 'link', label: String(s.label || u.hostname).slice(0, 40), url: u.href, status: 'owner', inSameAs: false }] } catch { return [] } })
+      const sources = [hit.f.sources[0], ...kept.filter((s) => s.kind !== 'website')]
+      return json(res, 200, { ...copilotCheck(hit.f, sources), patches: copilotPatches(hit.f, sources) })
+    }
+    // sign-in profiles: this machine only, never through the tunnel; reading a page needs the owner's approval in the chat
+    if (p === '/api/sessions' && req.method === 'GET') { if (!local) return json(res, 403, { error: 'local only' }); return json(res, 200, { profiles: profiles.list() }) }
+    if ((m = p.match(/^\/api\/sessions\/([\w-]+)\/(open|read)$/)) && req.method === 'POST') {
+      if (!local) return json(res, 403, { error: 'local only' })
+      const b = await body(req)
+      if (m[2] === 'open') { const id = await hub.openSession(m[1], String(b.url || '')); return json(res, 200, { id }) }
+      if (b.approved !== true) return json(res, 400, { error: 'the owner must approve the read first' })
+      try { return json(res, 200, await profiles.read(m[1], String(b.url || ''), { more: Math.min(4, Number(b.more) || 3) })) } catch (e) { return json(res, 502, { error: String(e.message || e).split('\n')[0].slice(0, 160) }) }
+    }
+    if ((m = p.match(/^\/api\/sessions\/([\w-]+)$/)) && req.method === 'DELETE') { if (!local) return json(res, 403, { error: 'local only' }); await profiles.signOut(m[1]); return json(res, 200, { ok: true }) }
     if (p === '/api/browser/tabs' && req.method === 'GET') return json(res, 200, { tabs: hub.list().filter((t) => local || t.kind === 'gemini') })
     if (p === '/api/browser/stream' && req.method === 'GET') {
       const tab = u.searchParams.get('tab') || ''

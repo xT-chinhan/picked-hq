@@ -59,6 +59,7 @@ function Bubble({ m, group }: { m: CMsg; group: boolean }) {
 }
 
 const RUN_ITEMS: { icon: any; label: string; hint: string; fill?: string; run?: () => void }[] = [
+  { icon: Sparkles, label: 'GEO Copilot for a business', hint: 'Find it online, check one story everywhere, draft the fixes', fill: 'GEO for ' },
   { icon: ScanSearch, label: 'Analyze any business', hint: 'Site read, readiness checks, live-page inspection', fill: 'Analyze ' },
   { icon: Zap, label: 'Audit Elmich, quick', hint: 'Full pipeline on the saved Gemini answers', run: () => openRun(useChat.getState().active, { type: 'audit', brand: 'Elmich', fresh: false }) },
   { icon: Globe, label: 'Audit Elmich, fresh', hint: '40 new questions on real Gemini, about 4 minutes', run: () => openRun(useChat.getState().active, { type: 'audit', brand: 'Elmich', fresh: true }) },
@@ -210,8 +211,8 @@ export function Messenger({ onWorkflow }: { onWorkflow: () => void }) {
   }, [q, bots])
   const info = (id: string) => {
     const ms = threads[id] ?? [], m = [...ms].reverse().find((x) => x.text || x.run)
-    const working = ms.some((x) => x.run && !x.res)
-    const preview = m ? (m.run ? (m.run.kind === 'xray' ? `X-ray of ${m.run.input}` : m.run.kind === 'audit' ? `Audit ${m.run.act.brand ?? ''}` : 'Real job') : (m.who === 'me' ? 'You: ' : '') + m.text) : id === 'all' ? greeting('all') : (personOf(id)?.role ?? '')
+    const working = ms.some((x) => x.run && (!x.res || (x.run.kind === 'copilot' && ['find', 'checking'].includes(x.res.copilot?.stage))))
+    const preview = m ? (m.run ? (m.run.kind === 'xray' ? `X-ray of ${m.run.input}` : m.run.kind === 'audit' ? `Audit ${m.run.act.brand ?? ''}` : m.run.kind === 'copilot' ? `GEO Copilot · ${m.run.input}` : 'Real job') : (m.who === 'me' ? 'You: ' : '') + m.text) : id === 'all' ? greeting('all') : (personOf(id)?.role ?? '')
     return { preview, ts: m?.ts ?? last[id], working }
   }
   const items: { icon: any; label: string; run: () => void }[] = [

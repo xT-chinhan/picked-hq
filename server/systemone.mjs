@@ -5,7 +5,7 @@ import { parseAnswer } from './parse.mjs'
 import { handleTranslateRequest, makeAgyRestorer } from './translate.mjs'
 
 const PHASES = ['mining', 'research', 'analysis', 'sync', 'content', 'citations', 'qa', 'risk', 'approve', 'publish', 'track', 'impact']
-const ACTIONS = ['audit', 'replay', 'ask', 'browse', 'analyze', 'savings', 'apps', 'goto', 'approve', 'reject', 'shop', 'profile', 'explain', 'stop', 'overview', 'none']
+const ACTIONS = ['audit', 'replay', 'ask', 'browse', 'analyze', 'copilot', 'savings', 'apps', 'goto', 'approve', 'reject', 'shop', 'profile', 'explain', 'stop', 'overview', 'none']
 const PROMPT = {
   type: 'object',
   properties: { role: { type: 'string' }, context: { type: 'string' }, task: { type: 'string' }, constraints: { type: 'array', items: { type: 'string' } }, output: { type: 'string' } },
@@ -82,7 +82,7 @@ export async function handleSystemOne(req, res, ctx = {}) {
 Return three things.
 1. prompt: ${STRUCT}
 2. reply: answer the operator in English, at most 3 short sentences, using only numbers found in the state. If the state lacks the data, say so and name the action that would get it.
-3. actions: zero or more of: audit {brand, website} (run a live audit), replay {brand} (replay the saved real run, re-scored for that brand), ask {q} (ask Gemini one real question; write q in Vietnamese because the buyers are Vietnamese), analyze {q} (run the Business X-ray on a company: q is its website or name; Scrapling reads the site, the audit scores it, REA inspects the live page), savings (show how much the work saves compared with paying an SEO agency; use it when the operator asks about cost, savings, ROI or agencies), apps {q} (use the connected apps listed in connectedApps to do q), browse {url, review} (open a web page in the agent browser; use it for ANY request to open, visit or look at a website, even when the operator only names the company: give its real domain such as shopee.vn; review=true also scores how readable it is for AI assistants),
+3. actions: zero or more of: audit {brand, website} (run a live audit), replay {brand} (replay the saved real run, re-scored for that brand), ask {q} (ask Gemini one real question; write q in Vietnamese because the buyers are Vietnamese), analyze {q} (run the Business X-ray on a company: q is its website or name; Scrapling reads the site, the audit scores it, REA inspects the live page), copilot {q} (the GEO Copilot for the operator's own business: q is its website or name; it finds the business online, checks that every place tells the same story and drafts the fixes; use it when the operator says this is their store or asks to do GEO for a business), savings (show how much the work saves compared with paying an SEO agency; use it when the operator asks about cost, savings, ROI or agencies), apps {q} (use the connected apps listed in connectedApps to do q), browse {url, review} (open a web page in the agent browser; use it for ANY request to open, visit or look at a website, even when the operator only names the company: give its real domain such as shopee.vn; review=true also scores how readable it is for AI assistants),
 goto {phase} (move the camera to a department), approve, reject (decide the pending owner approval), shop (open the published shop page), profile {brand} (brand profile card),
 explain (describe what is on screen), stop (back to the demo loop), overview (whole company). Use an empty list when the request is only a question.`,
       })

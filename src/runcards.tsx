@@ -6,6 +6,7 @@ import { Compass as Chrome } from 'lucide-react'
 import { Feed, Scanner, startAnalyze, confirmAnalyze, useAnalyze, type Report } from './Analyze'
 import { Typed, TypedMd } from './Typed'
 import { CostCard } from './savings'
+import { CopilotCard } from './copilot'
 import { PageReviewView, Ranking, ReportView, isBlocked, type PageReview } from './report'
 import { useLive } from './live'
 import { Card, exec } from './SystemOne'
@@ -18,15 +19,15 @@ import { patch, personOf, type CMsg } from './chat'
 const started = new Set<number>()
 const done = (thread: string, m: CMsg, res: any) => patch(thread, m.id, { res })
 
-function Shell({ m, title, state, children }: { m: CMsg; title: string; state: 'work' | 'done' | 'warn'; children: ReactNode }) {
+function Shell({ m, title, state, children }: { m: CMsg; title: string; state: 'work' | 'done' | 'warn' | 'wait'; children: ReactNode }) {
   const p = personOf(m.who)
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring', stiffness: 260, damping: 28 }} className="w-full max-w-[860px] overflow-hidden rounded-[22px] border border-line bg-white">
       <div className="flex items-center gap-3 border-b border-line px-4 py-3">
         {p && <Face av={p.av} size={32} plain />}
         <div className="min-w-0 flex-1"><div className="text-[14px] font-semibold leading-tight text-ink">{p?.name}<span className="font-normal text-faint"> · {p?.role}</span></div><div className={`truncate text-[15.5px] ${state === 'work' ? 'shimmer font-medium' : 'text-mute'}`}>{title}</div></div>
-        <span className={`flex flex-none items-center gap-1.5 text-[14px] font-medium ${state === 'work' ? 'text-mute' : state === 'done' ? 'text-ok' : 'text-warn'}`}>
-          {state === 'work' ? <><Loader2 size={15} className="animate-spin" />Working</> : state === 'done' ? <><Check size={15} strokeWidth={3} />Done</> : <><AlertTriangle size={15} />Stopped</>}
+        <span className={`flex flex-none items-center gap-1.5 text-[14px] font-medium ${state === 'work' || state === 'wait' ? 'text-mute' : state === 'done' ? 'text-ok' : 'text-warn'}`}>
+          {state === 'wait' ? <>Your turn</> : state === 'work' ? <><Loader2 size={15} className="animate-spin" />Working</> : state === 'done' ? <><Check size={15} strokeWidth={3} />Done</> : <><AlertTriangle size={15} />Stopped</>}
         </span>
       </div>
       <div className="p-4">{children}</div>
@@ -225,6 +226,7 @@ function Exec({ thread, m }: { thread: string; m: CMsg }) {
 
 export function RunCard({ thread, m }: { thread: string; m: CMsg }) {
   const k = m.run!.kind
+  if (k === 'copilot') { const c = m.res?.copilot; return <Shell m={m} title={`GEO Copilot · ${(m.run as any).input}`} state={!c || c.stage === 'find' || c.stage === 'checking' ? 'work' : c.stage === 'confirm' ? 'wait' : c.stage === 'error' ? 'warn' : 'done'}><CopilotCard thread={thread} m={m} /></Shell> }
   if (k === 'cost') return <Shell m={m} title="What this replaces" state="done"><CostCard /></Shell>
   return k === 'xray' ? <Xray thread={thread} m={m} /> : k === 'audit' ? <Audit thread={thread} m={m} /> : <Exec thread={thread} m={m} />
 }

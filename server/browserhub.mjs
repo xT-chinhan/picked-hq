@@ -1,6 +1,7 @@
 // The browser room: every page the agents drive (Gemini tabs, pages NaN opens) is registered here so the UI can watch it live
 // and, on request, take control. Screenshots are only taken while somebody is watching a tab.
 import { launch } from './gemini.mjs'
+import { signInPage } from './profiles.mjs'
 
 const W = 1280, H = 860
 /** "elmich.vn/a" becomes https://elmich.vn/a; any other scheme is left for the caller to refuse. */
@@ -55,10 +56,21 @@ export function createBrowserHub({ launchImpl = launch, now = Date.now } = {}) {
     return id
   }
 
+  /** Opens a page inside a sign-in profile (a business's own login). The owner signs in here by taking control. */
+  async function openSession(slug, url) {
+    const u = toUrl(url)
+    if (!/^https?:$/.test(u.protocol)) throw new Error('only http and https pages can be opened')
+    const page = await signInPage(slug, u.href)
+    const id = `s${++seq}`
+    const h = attach(id, page, { kind: 'session', q: slug })
+    h.set({ url: page.url(), title: await page.title().catch(() => ''), status: 'ready' })
+    return id
+  }
+
   async function closeTab(id) {
     const t = tabs.get(id); if (!t) return false
     tabs.delete(id)
-    if (t.kind === 'web') await t.page.close().catch(() => {})
+    if (t.kind === 'web' || t.kind === 'session') await t.page.close().catch(() => {}) // a session closes its page only; the profile stays signed in
     for (const w of watchers) if (w.tab === id) push(w.res, { type: 'tabs', tabs: list() })
     return true
   }
@@ -108,7 +120,7 @@ export function createBrowserHub({ launchImpl = launch, now = Date.now } = {}) {
   }
   const setHelp = (id, help) => { const t = tabs.get(id); if (t) { t.help = help; t.status = help ? 'needs-help' : 'working' } }
   async function stop() { watchers.clear(); clearInterval(timer); timer = null; for (const [id, t] of tabs) if (t.kind === 'web') await t.page.close().catch(() => {}); tabs.clear(); await shared?.close().catch(() => {}); shared = null }
-  return { attach, openWeb, closeTab, read, input, watch, list, setHelp, stop, tick }
+  return { attach, openWeb, openSession, closeTab, read, input, watch, list, setHelp, stop, tick }
 }
 
 export const hub = createBrowserHub()

@@ -77,6 +77,12 @@ const SITES: [RegExp, string][] = [
 export function intent(raw: string): Act | null {
   const n = plain(raw)
   let m: RegExpMatchArray | null
+  // the GEO Copilot: "this is my store …", "GEO for elmich.vn", "làm GEO cho …"
+  if ((m = raw.match(/^\s*geo(?:\s*copilot)?\s*(?:for|cho)?\s*[:,]?\s+(.{3,})$/i))) return { type: 'copilot', q: m[1].trim() }
+  if (/(cửa hàng của tôi|cua hang cua toi|shop của tôi|shop cua toi|thương hiệu của tôi|my (store|shop|business|brand)|this is my|làm geo|lam geo|do geo|geo copilot|nhận diện|nhan dien)/i.test(raw)) {
+    const d = raw.match(/((?:https?:\/\/)?(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/\S*)?)/i)
+    return { type: 'copilot', q: d ? d[1] : '' }
+  }
   if (/\b(agency|sav(?:e|es|ing|ings)|roi|cost|chi ph[ií]|ti[eế]t ki[eệ]m)\b/i.test(raw) && /\b(seo|geo|agency|aeo|marketing)\b/i.test(raw)) return { type: 'savings' }
   if ((m = raw.match(/^\s*(?:analy[sz]e|x-?ray|ph[âa]n t[íi]ch|scan)\s*[:,]?\s+(.{3,})$/i))) return { type: 'analyze', q: m[1].trim() }
   if (/^\s*(?:analy[sz]e|x-?ray|ph[âa]n t[íi]ch)\s*$/i.test(raw)) return { type: 'analyze', q: '' }

@@ -10,6 +10,7 @@ export type Run =
   | { kind: 'audit'; act: Act }
   | { kind: 'exec'; act: Act }
   | { kind: 'cost' }
+  | { kind: 'copilot'; input: string }
 export type CMsg = { id: number; who: string; text: string; ts: number; run?: Run; res?: any; thinking?: boolean; old?: boolean; flow?: boolean }
 
 export const TEAM: Person[] = ['nan', 'lia', 'mina', 'scout1', 'ana', 'sy', 'mira', 'theo', 'quinn', 'rhea', 'pax', 'tara'].map((id) => PEOPLE.find((p) => p.id === id)!)
@@ -32,7 +33,7 @@ export const personOf = (id: string) => (id === 'me' ? null : PEOPLE.find((p) =>
 const serverId = (id: string) => (id.startsWith('scout') ? 'scout' : isCustom(id) ? 'custom' : id)
 export const ENGINE: Record<string, string> = { nan: 'Claude Opus 5.5', lia: 'Gemini 3.8', mina: 'Gemini 3.8', scout1: 'Gemini tabs', ana: 'Gemini 4', sy: 'Gemini 4', mira: 'Sonnet 5.5', theo: 'Gemini 4', quinn: 'Council of 3 models', rhea: 'Fixed rules', pax: 'Fixed rules', tara: 'Scheduler' }
 export const STARTERS: Record<string, string[]> = {
-  all: ['Analyze highlandscoffee.com.vn', 'Audit Elmich, quick', 'How much does this save versus an SEO agency?', 'Ask Gemini: nồi chiên không dầu loại nào tốt?', 'Open elmich.vn and review it'],
+  all: ['This is my store: locknlock.vn, do GEO for it', 'Analyze highlandscoffee.com.vn', 'Audit Elmich, quick', 'How much does this save versus an SEO agency?', 'Ask Gemini: nồi chiên không dầu loại nào tốt?', 'Open elmich.vn and review it'],
   nan: ['Analyze elmich.vn', 'Audit Elmich, quick', 'What can you do?', 'Explain what is on screen'],
   lia: ['Translate: tôi muốn bán nồi cơm điện', 'Restore diacritics: noi com dien tu'],
   mina: ['What would buyers ask about lunch boxes?', 'Ask Gemini: hộp cơm giữ nhiệt nào tốt?'],
@@ -74,7 +75,8 @@ const post = async (url: string, body: any, ms = 70000) => {
 }
 
 /** who does the work when the request comes into the group chat */
-const OWNER: Record<string, string> = { savings: 'ana', analyze: 'ana', audit: 'scout1', replay: 'scout1', ask: 'scout1', browse: 'scout1', apps: 'nan', profile: 'ana', rivals: 'ana', score: 'ana', explain: 'nan', help: 'nan', shop: 'pax', approve: 'pax', reject: 'pax' }
+const waiting = new Set<string>() // threads where NaN asked which business to run the Copilot on
+const OWNER: Record<string, string> = { copilot: 'nan', savings: 'ana', analyze: 'ana', audit: 'scout1', replay: 'scout1', ask: 'scout1', browse: 'scout1', apps: 'nan', profile: 'ana', rivals: 'ana', score: 'ana', explain: 'nan', help: 'nan', shop: 'pax', approve: 'pax', reject: 'pax' }
 const CANVAS = new Set(['goto', 'overview', 'stop'])
 const ACK = (a: Act) => {
   switch (a.type) {
@@ -84,6 +86,7 @@ const ACK = (a: Act) => {
     case 'ask': return 'Scout is opening a fresh Gemini tab with your question.'
     case 'browse': return `Opening ${a.url} in the browser${a.review ? ' and reviewing it' : ''}.`
     case 'apps': return 'Using the connected apps, one tool at a time.'
+    case 'copilot': return a.q ? `Starting the GEO Copilot for ${a.q}: first I find where the business lives online, then you confirm, then I check every place against the others and draft the fixes.` : 'Which business? Send its website (best) or its name and city.'
     case 'savings': return 'Here is what this work costs through an agency, set against what the team just did. The agency hours and the rate are assumptions you can change; the Picked times are measured.'
     default: return ''
   }
@@ -92,6 +95,7 @@ const ACK = (a: Act) => {
 export function openRun(thread: string, a: Act, by?: string) {
   const who = by ?? (thread === 'all' ? OWNER[a.type] ?? 'nan' : thread)
   if (CANVAS.has(a.type)) { add(thread, { who: by ?? (thread === 'all' ? 'nan' : thread), text: 'That is a view of the animated workflow. Open the workflow to watch it.', flow: true }); return }
+  if (a.type === 'copilot') { if (!a.q) { waiting.add(thread); return } waiting.delete(thread); add(thread, { who: by ?? (thread === 'all' ? 'nan' : thread), text: '', run: { kind: 'copilot', input: a.q } }); return }
   if (a.type === 'savings') { add(thread, { who: by ?? (thread === 'all' ? 'ana' : thread), text: '', run: { kind: 'cost' }, res: { shown: true } }); return }
   if (a.type === 'analyze') { if (!a.q) return; add(thread, { who, text: '', run: { kind: 'xray', input: a.q } }); return }
   if (a.type === 'audit' || a.type === 'replay') { add(thread, { who, text: '', run: { kind: 'audit', act: a } }); return }
@@ -106,7 +110,9 @@ export async function sendTurn(thread: string, raw: string) {
   const bot = add(thread, { who: speaker, text: '', thinking: true })
   let acts: Act[] = [], reply = ''
   try {
-    const a = intent(text)
+    let a = intent(text)
+    // the answer to “which business?” goes straight to the Copilot
+    if (!a && waiting.has(thread) && text.length <= 120) a = { type: 'copilot', q: text }
     if (a) { acts = [a]; reply = ACK(a) }
     else {
       const cb = botOf(speaker)

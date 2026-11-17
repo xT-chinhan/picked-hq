@@ -270,7 +270,15 @@ async function health() {
 }
 async function consumePending(p) {
   if (!p || !Number.isInteger(p.tabId)) return;
-  try { state.tab = await chrome.tabs.get(p.tabId); paintChip(); if (p.selectionText) { $('input').value = p.selectionText; autosize(); } $('input').focus(); await chrome.storage.session.remove('pending'); } catch (e) { addMsg('err', e.message); }
+  try {
+    state.tab = await chrome.tabs.get(p.tabId); paintChip(); if (p.selectionText) { $('input').value = p.selectionText; autosize(); } $('input').focus(); await chrome.storage.session.remove('pending')
+    if (p.action) {
+      // a job handed over by the Picked app: wait for the page to load, then run it
+      for (let i = 0; i < 40; i++) { const t = await chrome.tabs.get(p.tabId); if (t.status === 'complete') { state.tab = t; break } await new Promise((r) => setTimeout(r, 500)) }
+      paintChip()
+      if (p.action === 'deep') deepRead(); else if (p.action === 'review') reviewThisPage(); else send('Read this page and tell me what it is, what it sells and how AI assistants will see it.')
+    }
+  } catch (e) { addMsg('err', e.message); }
 }
 chrome.storage.onChanged.addListener((c, area) => { if (area === 'session' && c.pending?.newValue) consumePending(c.pending.newValue); if (area === 'local' && c.base) health(); });
 chrome.tabs.onActivated.addListener(() => refreshTab());

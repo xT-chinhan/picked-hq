@@ -55,13 +55,17 @@ function stopRun(run, why = 'stopped') {
   run.status = 'stopped'; run.ctrl.abort(); routines.finished(run.id, 'stopped')
   for (const r of pending.values()) r({ status: 'rejected', decisions: {} })
   const ev = { t: Date.now() - run.startedAt, type: 'run.error', error: why }; run.events.push(ev)
-  for (const c of run.clients) { c.write(`data: ${JSON.stringify(ev)}\n\n`); c.end() }
+  sse(run.clients, ev); for (const c of run.clients) c.end(); run.clients.clear()
 }
 const mcp = createMcpHub({ file: path.join(DATA, 'mcp.json') })
 const nanLlm = agentLlm('nan')
 const anaLlm = agentLlm('ana')
 const ANALYSES = path.join(DATA, 'analyses'); fs.mkdirSync(ANALYSES, { recursive: true })
 const analyses = new Map() // id -> { events, clients, status }
+/** Writes one server-sent event; a closed client is removed from its set instead of being written to. */
+// a browser that leaves mid-stream must never take the server down with it
+process.on('uncaughtException', (e) => { if (['ERR_STREAM_WRITE_AFTER_END', 'EPIPE', 'ECONNRESET', 'ERR_STREAM_DESTROYED'].includes(e?.code)) { console.warn('ignored a closed connection:', e.code); return } console.error(e); process.exit(1) })
+const sse = (clients, ev) => { for (const c of clients) { if (c.writableEnded || c.destroyed) { clients.delete(c); continue } try { c.write(`data: ${JSON.stringify(ev)}\n\n`) } catch { clients.delete(c) } } }
 const copilotSeen = new Map() // url -> { f, at }: what discovery read, so a check uses the server's own reading, not the browser's
 setInterval(() => { for (const [k, v] of copilotSeen) if (Date.now() - v.at > 1800000) copilotSeen.delete(k) }, 600000).unref()
 /** The evidence behind "what gets a store recommended": our benchmark, this site's latest X-ray, and the sources Gemini cites for the category. */
@@ -98,7 +102,7 @@ function start(o, mode) {
   const id = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14) + '-' + Math.random().toString(36).slice(2, 5)
   const run = { id, brand: o.brand, mode, events: [], clients: new Set(), status: 'running', ctrl: new AbortController(), startedAt: Date.now() }
   live.set(id, run)
-  const emit = (e) => { const ev = { t: Date.now() - run.startedAt, ...e }; run.events.push(ev); for (const c of run.clients) c.write(`data: ${JSON.stringify(ev)}\n\n`) }
+  const emit = (e) => { const ev = { t: Date.now() - run.startedAt, ...e }; run.events.push(ev); sse(run.clients, ev) }
   runPipeline({ ...o, signal: run.ctrl.signal }, emit, { runId: id, port: PORT, awaitDecision: (aid) => new Promise((res) => pending.set(aid, res)) })
     .then(({ summary }) => { if (run.status !== 'running') return; run.status = 'done'; setTimeout(() => routines.finished(id, 'done'), 50); fs.writeFileSync(path.join(DIR, id + '.json'), JSON.stringify({ id, brand: o.brand, category: o.category, website: o.website, startedAt: run.startedAt, ms: Date.now() - run.startedAt, summary, events: run.events.filter((e) => e.type !== 'q.partial') })) })
     .catch((e) => { if (run.status !== 'running') return; run.status = 'error'; routines.finished(id, 'failed'); emit({ type: 'run.error', error: String(e.message || e) }) })
@@ -202,7 +206,7 @@ http.createServer(async (req, res) => {
       if (busy) return json(res, 409, { error: 'Another analysis is still running.', running: { id: busy[0], url: busy[1].url } })
       const id = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14) + '-an' + Math.random().toString(36).slice(2, 5)
       const a = { events: [], clients: new Set(), status: 'running', url: t.url }; analyses.set(id, a)
-      const emit = (e) => { a.events.push(e); for (const c of a.clients) c.write(`data: ${JSON.stringify(e)}\n\n`) }
+      const emit = (e) => { a.events.push(e); sse(a.clients, e) }
       analyzer({ id, url: t.url, emit, skip: [] })
         .then((report) => { a.status = report ? 'done' : 'error'; if (report) fs.writeFileSync(path.join(ANALYSES, id + '.json'), JSON.stringify(report)) })
         .catch((e) => { a.status = 'error'; emit({ type: 'an.error', error: String(e.message || e) }) })

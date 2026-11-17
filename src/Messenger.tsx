@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { ArrowUp, BookOpen, Eraser, MoreHorizontal, Check, ChevronUp, Globe, LayoutGrid, Loader2, Menu, MessageSquare, PanelLeftClose, PanelLeftOpen, Pencil, Plus, ScanSearch, Search, Sparkles, Trash2, Users, Workflow, X, Zap } from 'lucide-react'
+import { Play, ArrowUp, BookOpen, Eraser, MoreHorizontal, Check, ChevronUp, Globe, LayoutGrid, Loader2, Menu, MessageSquare, PanelLeftClose, PanelLeftOpen, Pencil, Plus, ScanSearch, Search, Sparkles, Trash2, Users, Workflow, X, Zap } from 'lucide-react'
 import { BENCH, Face } from './avatars'
 import { TypedMd } from './Typed'
+import { useDemo } from './demo'
 import { BrowserPanel, useBrowser } from './BrowserPanel'
 import { useStory } from './Story'
 import { useApps } from './Apps'
@@ -216,6 +217,7 @@ export function Messenger({ onWorkflow }: { onWorkflow: () => void }) {
     return { preview, ts: m?.ts ?? last[id], working }
   }
   const items: { icon: any; label: string; run: () => void }[] = [
+    { icon: Play, label: 'Stage demo (autopilot)', run: () => useDemo.setState({ panel: true }) },
     { icon: Plus, label: 'New agent', run: () => setEditor({}) },
     { icon: ScanSearch, label: 'Business X-ray', run: () => { useChat.setState({ draft: 'Analyze ' }); setTimeout(() => document.querySelector<HTMLInputElement>('input[placeholder^="Message"]')?.focus(), 0) } },
     { icon: Globe, label: 'Browser', run: () => useBrowser.setState({ open: true, control: false }) },

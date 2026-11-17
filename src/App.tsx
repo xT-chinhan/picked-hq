@@ -19,6 +19,7 @@ import { Apps } from './Apps'
 import { Analyze } from './Analyze'
 import { Council, Story } from './Story'
 import { Dock, EdgeNotice, Info, ScoreBoard, Stamp, Team } from './Stage'
+import { Demo } from './demo'
 import { Office, useOffice } from './Office'
 
 
@@ -358,7 +359,7 @@ function Stage() {
         {!DBG.has('noswarm') && !office && <Swarm />}
         <Caption />
         <Inspector />
-        <ScoreBoard /><Council /><Legend /><Stamp /><Team /><Workspace /><BrowserPanel /><Apps /><Story /><Analyze /><SystemOne /><Info /><Dock /><EdgeNotice /><Office />
+        <ScoreBoard /><Council /><Legend /><Stamp /><Team /><Workspace /><BrowserPanel /><Apps /><Story /><Analyze /><SystemOne /><Info /><Dock /><EdgeNotice /><Office /><Demo />
       </div>
     </div>
   )

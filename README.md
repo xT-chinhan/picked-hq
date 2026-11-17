@@ -58,12 +58,24 @@ Press `/` to open **NaN**, the operator chat. Type in any language: the request 
 | `W` | Inbox and routines |
 | `B` | Browser: watch the agents' real pages, take control |
 | `A` | Apps: connect MCP servers and choose which agents may use them |
+| `X` | Business X-ray: analyze any company |
 | `I` | Q&A sheet (cost, data, responsibility, what is real) |
 | `O` | Whole company |
 
 ## The criteria, measured for real
 
 `V` opens the story sheets; two of them are data. **What we measure** lays out four layers (reachable, understandable, quotable and trusted, chosen) with one square per real check, taken from 39 site checks on elmich.vn and 40 real Gemini answers. **What the real data says** puts twelve brands side by side (`scripts/benchmark.mjs`, saved in `public/data/benchmark.json`): website score and how often Gemini names each brand. Findings are stated with their statistics (`server/criteria.mjs`): Lock&Lock 33/40 against Elmich 19/40 is far beyond chance (Fisher exact p = 0.002); across 12 brands the website score has no relationship with how often Gemini names a brand (Spearman ρ = −0.10, permutation p = 0.76: Inochi, Stanley, Hakawa and Skater score 72–75 and are named 0–3 times). A second category, air fryers (40 new Gemini answers, `scripts/category-run.mjs`, 8 audited brands), shows a positive trend that is not significant (ρ = 0.53, p = 0.18); both categories together, 20 brands: ρ = 0.14, p = 0.57. Website readiness does not reliably decide who gets named; and the idea that cited sources lift mentions is **not** significant (p = 0.20), so it is presented as a hypothesis. The files Picked generates are scored with the same checks (`scripts/audit-published.mjs`, 71 on the brand's own site, 77 for our files), and the audit found gaps in our own output (sameAs, social tags, llms-full.txt) that the generator now fills. Run these audits with `NODE_OPTIONS=--no-network-family-autoselection` on a machine without IPv6.
+
+## Business X-ray: analyze any company with REA and Scrapling
+
+`X` (or *Run → Analyze any business* in the office, or `analyze <site>` in the chat) opens the Business X-ray. Type a website or a company name; a name is resolved to its official site and shown for confirmation. Four real tools then run one after another:
+
+1. **Scrapling** reads up to five pages politely: robots.txt first, a named user agent (`PickedBot`), a pause between requests, and none of Scrapling's disguise features (no browser TLS impersonation, no spoofed headers).
+2. **Site audit**: the 39 agent-readiness checks.
+3. **REA** (reverse-engineer-anything, over MCP) takes the live page apart in a throwaway headless Chrome that refuses to load anything from a private address: DOM weight, scripts, third-party origins, endpoints, accessibility nodes, each with a content-addressed evidence id.
+4. **Ana** writes the findings. Every finding must cite evidence ids; ones that cite nothing real are dropped, and without a model the report falls back to the audit's own failing checks.
+
+The job is one at a time, each step has its own timeout, and a hard ceiling makes a slow site give a partial report instead of a hang. Five real reports are saved in `public/analyses/` and replay with no backend. Public (tunnel) visitors are limited to 3 analyses per 10 minutes per address, and private or loopback addresses are refused up front. Setup on a new machine: `scripts/setup-python.sh` (Scrapling's environment is about 370 MB and is not in git).
 
 ## The office
 

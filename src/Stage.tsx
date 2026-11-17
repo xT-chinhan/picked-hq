@@ -245,8 +245,8 @@ export function Info() {
   return (
     <AnimatePresence>
       {on && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => useOne.setState({ info: false })} className="absolute inset-0 z-40 grid place-items-center bg-slate-900/25 backdrop-blur-sm">
-          <motion.div initial={{ y: 24, scale: 0.97 }} animate={{ y: 0, scale: 1 }} exit={{ y: 24 }} onClick={(e) => e.stopPropagation()} className="w-[860px] max-w-[92%] rounded-[26px] border border-slate-200 bg-white p-6 shadow-[0_50px_120px_-30px_rgba(15,23,42,.5)]">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => useOne.setState({ info: false })} className="fixed inset-0 z-[60] grid place-items-center bg-slate-900/25 backdrop-blur-sm">
+          <motion.div initial={{ y: 24, scale: 0.97 }} animate={{ y: 0, scale: 1 }} exit={{ y: 24 }} onClick={(e) => e.stopPropagation()} className="max-h-[calc(100dvh-48px)] w-[860px] max-w-[92vw] overflow-y-auto rounded-[26px] border border-slate-200 bg-white p-6 shadow-[0_50px_120px_-30px_rgba(15,23,42,.5)]">
             <div className="flex items-center gap-2"><Sparkles size={17} className="text-indigo-600" /><span className="text-[17px] font-semibold tracking-tight">How Picked works, honestly</span><button onClick={() => useOne.setState({ info: false })} className="ml-auto grid h-8 w-8 place-items-center rounded-full text-slate-400 hover:bg-slate-100"><X size={16} /></button></div>
             <div className="mt-4 grid grid-cols-2 gap-3">
               {QA.map(([h, l], i) => <motion.div key={h} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.06 * i }} className="rounded-2xl bg-slate-50 p-4"><div className="text-[13.5px] font-semibold text-slate-900">{h}</div><ul className="mt-1.5 space-y-1 text-[12.5px] leading-snug text-slate-600">{l.map((x) => <li key={x} className="flex gap-1.5"><Check size={13} strokeWidth={3} className="mt-[3px] flex-none text-emerald-500" />{x}</li>)}</ul></motion.div>)}

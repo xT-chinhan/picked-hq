@@ -86,3 +86,11 @@ test('a POST to a route owned by another module is not swallowed by the NaN hand
   const r = await fetch(url('/api/one/agent'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: 'hello' }), signal: AbortSignal.timeout(8000) })
   assert.equal(r.status, 200); assert.match((await r.json()).answer, /No app is connected/)
 })
+
+test('analysis refuses private addresses up front and accepts nothing it cannot read', async () => {
+  for (const input of ['http://127.0.0.1:5198/', 'http://localhost/', 'http://169.254.169.254/', 'file:///etc/passwd']) {
+    const r = await post('/api/analyze', { input }); assert.equal(r.status, 400, input)
+  }
+  assert.equal((await post('/api/analyze', { input: '' })).status, 400)
+  assert.equal((await post('/api/analyze/resolve', { input: 'http://10.0.0.1/' })).status, 400)
+})

@@ -11,6 +11,7 @@ import { openPage, reviewTab, useBrowser } from './BrowserPanel'
 import { useApps } from './Apps'
 import { SLIDES, useStory } from './Story'
 import { useOffice } from './Office'
+import { openAnalyze } from './Analyze'
 import { Face } from './avatars'
 
 /* NaN: the operator chat. Familiar commands are matched by rules in the browser (instant);
@@ -71,6 +72,8 @@ const DEPT: [RegExp, Phase][] = [
 export function intent(raw: string): Act | null {
   const n = plain(raw)
   let m: RegExpMatchArray | null
+  if ((m = raw.match(/^\s*(?:analy[sz]e|x-?ray|ph[âa]n t[íi]ch|scan)\s*[:,]?\s+(.{3,})$/i))) return { type: 'analyze', q: m[1].trim() }
+  if (/^\s*(?:analy[sz]e|x-?ray|ph[âa]n t[íi]ch)\s*$/i.test(raw)) return { type: 'analyze', q: '' }
   if ((m = raw.match(/^\s*(?:apps?|app:|dùng app|dung app|use apps?)\s*[:,]?\s+(.{6,})$/i))) return { type: 'apps', q: m[1].trim() }
   if ((m = raw.match(/^\s*(?:ask|hỏi|hoi)(?:\s+gemini)?\s*[:,]?\s+(.{6,})$/i))) return { type: 'ask', q: m[1].trim() }
   if ((m = raw.match(/(?:mở|mo|open|xem|review|rà soát|ra soat|kiểm tra|kiem tra|check|browse|duyệt|truy cập|vào)\s+(?:trang\s+|page\s+|website\s+|site\s+)?((?:https?:\/\/)?(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/\S*)?)/i))) return { type: 'browse', url: m[1], review: /review|rà soát|ra soat|kiểm tra|kiem tra|check|đánh giá|danh gia/i.test(raw) }
@@ -138,6 +141,7 @@ async function exec(a: Act, vi: boolean, id: number): Promise<{ text: string; ca
       const r = await post('/api/one/agent', { text: a.q || '' }, 170000)
       return { text: r.answer, card: r.steps?.length ? { kind: 'steps', steps: r.steps } : undefined }
     }
+    case 'analyze': openAnalyze(a.q || undefined); return { text: a.q ? `Opening the Business X-ray for ${a.q}: Scrapling reads the site, the audit scores it, REA takes the live page apart.` : 'Opening the Business X-ray. Type a website or a company name.' }
     case 'explain': return { text: explain(vi) }
     case 'help': return { text: T('Lệnh: audit <thương hiệu> · replay <thương hiệu> · hỏi: <câu hỏi cho Gemini> · hồ sơ <thương hiệu> · đến phòng <tên> · duyệt / từ chối · mở shop · giải thích · toàn cảnh · dừng. Câu hỏi tự do cũng được.', 'Commands: audit <brand> · replay <brand> · ask: <question for Gemini> · profile <brand> · go to <department> · approve / reject · open shop · explain · overview · stop. Free-form questions work too.') }
     case 'rivals': { const r = snap().rivals; return { text: r.length ? T(`Được Gemini nhắc nhiều nhất: ${r.map((x) => `${x.name} (${x.count})`).join(', ')}.`, `Named most by Gemini: ${r.map((x) => `${x.name} (${x.count})`).join(', ')}.`) : T('Chưa có dữ liệu thật trên màn hình. Gõ "replay Elmich" hoặc "audit Elmich".', 'No real data on screen yet. Type "replay Elmich" or "audit Elmich".') } }
@@ -261,7 +265,7 @@ function PromptCard({ m }: { m: Msg }) {
     </div>
   )
 }
-function Card({ c }: { c: any }) {
+export function Card({ c }: { c: any }) {
   if (c.kind === 'profile') {
     const s = c.s, rate = Math.round((s.mentioned / (s.answered || 1)) * 100)
     return (
@@ -348,6 +352,7 @@ export function useKeys() {
       else if (e.key === 'Escape') { useOne.setState({ open: false, info: false }); useStory.setState({ open: false }) }
       else if (k === 't') useOne.setState({ team: !o.team })
       else if (k === 'w') useWork.setState((x) => ({ open: !x.open }))
+      else if (k === 'x') openAnalyze()
       else if (k === 'a') useApps.setState((x) => ({ open: !x.open }))
       else if (k === 'c') useOffice.setState((x) => ({ open: !x.open }))
       else if (k === 'v') useStory.setState((x) => ({ open: !x.open, slide: 0 }))

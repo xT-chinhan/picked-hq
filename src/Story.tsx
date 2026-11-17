@@ -208,8 +208,8 @@ export function Story() {
   return (
     <AnimatePresence>
       {open && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => useStory.setState({ open: false })} className="absolute inset-0 z-40 grid place-items-center bg-slate-900/25">
-          <motion.div key="sheet" initial={{ y: 28, scale: 0.97 }} animate={{ y: 0, scale: 1 }} exit={{ y: 28 }} onClick={(e) => e.stopPropagation()} className="w-[1020px] max-w-[96%] rounded-[28px] border border-slate-200 bg-white p-7 shadow-[0_50px_120px_-30px_rgba(15,23,42,.5)]">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => useStory.setState({ open: false })} className="fixed inset-0 z-[60] grid place-items-center bg-slate-900/25">
+          <motion.div key="sheet" initial={{ y: 28, scale: 0.97 }} animate={{ y: 0, scale: 1 }} exit={{ y: 28 }} onClick={(e) => e.stopPropagation()} className="max-h-[calc(100dvh-48px)] w-[1020px] max-w-[96vw] overflow-y-auto rounded-[28px] border border-slate-200 bg-white p-7 shadow-[0_50px_120px_-30px_rgba(15,23,42,.5)]">
             <div className="flex items-center gap-2"><Sparkles size={17} className="text-indigo-600" /><span className="text-[19px] font-semibold tracking-tight">{titles[slide]}</span>
               <div className="ml-auto flex items-center gap-1.5">{Array.from({ length: SLIDES }).map((_, i) => <button key={i} onClick={() => useStory.setState({ slide: i })} className={`h-2 rounded-full transition-all ${i === slide ? 'w-7 bg-indigo-600' : 'w-2 bg-slate-300'}`} />)}</div>
               <button onClick={() => useStory.setState({ open: false })} className="ml-3 grid h-8 w-8 place-items-center rounded-full text-slate-400 hover:bg-slate-100"><X size={16} /></button></div>

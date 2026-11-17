@@ -15,6 +15,7 @@ import { createMcpHub, handleMcpRequest, isAllowed } from './mcp.mjs'
 import { entry, publicCatalog } from './mcp-catalog.mjs'
 import { runToolLoop } from './toolloop.mjs'
 import { agentLlm, scopesFor, setScopes } from './agents.mjs'
+import { SYNTH_SCHEMA, assertPublic, createAnalyzer, normalizeTarget, resolveName, runAudit, runRea, runScrape, synthPrompt } from './analyze.mjs'
 
 const PORT = +process.env.PICKED_PORT || 5198
 const DATA = process.env.PICKED_DATA_DIR || path.join(import.meta.dirname, 'data')
@@ -54,6 +55,15 @@ function stopRun(run, why = 'stopped') {
 }
 const mcp = createMcpHub({ file: path.join(DATA, 'mcp.json') })
 const nanLlm = agentLlm('nan')
+const anaLlm = agentLlm('ana')
+const ANALYSES = path.join(DATA, 'analyses'); fs.mkdirSync(ANALYSES, { recursive: true })
+const analyses = new Map() // id -> { events, clients, status }
+const analyzer = createAnalyzer({
+  scrape: (url, ms) => runScrape(url, ms), audit: (url, ms) => runAudit(url, ms),
+  rea: (url) => runRea(url, { mcp, catalogEntry: entry('rea') }),
+  synth: (brand, evidence) => anaLlm.agyJson({ schema: SYNTH_SCHEMA, prompt: synthPrompt(brand, evidence), timeoutMs: 45000 }),
+})
+const fetchTitle = async (url) => { const r = await fetch(url, { headers: { 'user-agent': 'PickedBot/1.0 (+https://pickedhq.pages.dev)' }, signal: AbortSignal.timeout(10000), redirect: 'follow' }); return ((await r.text()).match(/<title[^>]*>([^<]*)/i)?.[1] ?? '').trim() }
 const routines = createRoutines({
   file: path.join(DATA, 'routines.json'),
   isBusy: () => !!running(),
@@ -91,6 +101,7 @@ http.createServer(async (req, res) => {
       if (req.method === 'POST' && p.startsWith('/api/audit/') && p.endsWith('/stop')) return json(res, 403, { error: 'local only' })
       if (p === '/api/one/ask' && limited(ip, 'ask', 4, 600000)) return json(res, 429, { error: 'Too many questions, try again later.' })
       if (/^\/api\/(one\/(chat|prompt)|translate\/refine)/.test(p) && limited(ip, 'llm', 12, 60000)) return json(res, 429, { error: 'Too many requests, slow down.' })
+      if ((p === '/api/analyze' || p === '/api/analyze/resolve') && limited(ip, 'analyze', p === '/api/analyze' ? 3 : 8, 600000)) return json(res, 429, { error: 'Too many analyses, try again later.' })
       if (req.method === 'POST' && limited(ip, 'post', 30, 60000)) return json(res, 429, { error: 'Too many requests, slow down.' })
       if (req.method === 'POST' && p === '/api/audit' && limited(ip, 'audit', 4, 600000)) return json(res, 429, { error: 'Too many audits, try again later.' })
     }
@@ -159,6 +170,42 @@ http.createServer(async (req, res) => {
       return json(res, 200, { ...r, tools: tools.length })
     }
     if (await handleMcpRequest(req, res, { hub: mcp, local })) return
+    if (p === '/api/analyze/resolve' && req.method === 'POST') {
+      const t = normalizeTarget((await body(req)).input)
+      if (t.error) return json(res, 400, { error: t.error })
+      if (t.url) { try { await assertPublic(t.url) } catch (e) { return json(res, 400, { error: `Cannot analyse that address: ${String(e.message || e)}.` }) } return json(res, 200, { url: t.url, host: t.host, verified: true, direct: true }) }
+      try { return json(res, 200, await resolveName(t.name, { llm: nanLlm, fetchTitle })) } catch (e) { return json(res, 502, { error: 'Could not look that company up: ' + String(e.message || e).slice(0, 120) }) }
+    }
+    if (p === '/api/analyze' && req.method === 'POST') {
+      const t = normalizeTarget((await body(req)).input)
+      if (!t.url) return json(res, 400, { error: t.error || 'Give a website address (use resolve for a company name).' })
+      try { await assertPublic(t.url) } catch (e) { return json(res, 400, { error: `Cannot analyse that address: ${String(e.message || e)}.` }) }
+      const busy = [...analyses.entries()].find(([, a]) => a.status === 'running')
+      if (busy) return json(res, 409, { error: 'Another analysis is still running.', running: { id: busy[0], url: busy[1].url } })
+      const id = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14) + '-an' + Math.random().toString(36).slice(2, 5)
+      const a = { events: [], clients: new Set(), status: 'running', url: t.url }; analyses.set(id, a)
+      const emit = (e) => { a.events.push(e); for (const c of a.clients) c.write(`data: ${JSON.stringify(e)}\n\n`) }
+      analyzer({ id, url: t.url, emit, skip: [] })
+        .then((report) => { a.status = report ? 'done' : 'error'; if (report) fs.writeFileSync(path.join(ANALYSES, id + '.json'), JSON.stringify(report)) })
+        .catch((e) => { a.status = 'error'; emit({ type: 'an.error', error: String(e.message || e) }) })
+        .finally(() => { for (const c of a.clients) c.end() })
+      return json(res, 200, { id })
+    }
+    if ((m = p.match(/^\/api\/analyze\/([\w-]+)\/events$/)) && req.method === 'GET') {
+      const a = analyses.get(m[1]); if (!a) return json(res, 404, { error: 'not found' })
+      res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' })
+      for (const ev of a.events) res.write(`data: ${JSON.stringify(ev)}\n\n`)
+      if (a.status !== 'running') return res.end()
+      a.clients.add(res); req.on('close', () => a.clients.delete(res)); return
+    }
+    if (p === '/api/analyses' && req.method === 'GET') {
+      const list = fs.readdirSync(ANALYSES).filter((f) => f.endsWith('.json')).map((f) => { try { const r = JSON.parse(fs.readFileSync(path.join(ANALYSES, f))); return { id: r.id, brand: r.brand, url: r.url, siteScore: r.siteScore, finishedAt: r.finishedAt, partial: r.partial } } catch { return null } }).filter(Boolean).sort((x, y) => y.finishedAt - x.finishedAt)
+      return json(res, 200, { analyses: list })
+    }
+    if ((m = p.match(/^\/api\/analyses\/([\w-]+)$/)) && req.method === 'GET') {
+      const f = path.join(ANALYSES, m[1] + '.json'); if (!fs.existsSync(f)) return json(res, 404, { error: 'not found' })
+      res.writeHead(200, { 'content-type': 'application/json' }); return res.end(fs.readFileSync(f))
+    }
     if (p === '/api/browser/tabs' && req.method === 'GET') return json(res, 200, { tabs: hub.list().filter((t) => local || t.kind === 'gemini') })
     if (p === '/api/browser/stream' && req.method === 'GET') {
       const tab = u.searchParams.get('tab') || ''

@@ -5,7 +5,7 @@ import { parseAnswer } from './parse.mjs'
 import { handleTranslateRequest, makeAgyRestorer } from './translate.mjs'
 
 const PHASES = ['mining', 'research', 'analysis', 'sync', 'content', 'citations', 'qa', 'risk', 'approve', 'publish', 'track', 'impact']
-const ACTIONS = ['audit', 'replay', 'ask', 'browse', 'apps', 'goto', 'approve', 'reject', 'shop', 'profile', 'explain', 'stop', 'overview', 'none']
+const ACTIONS = ['audit', 'replay', 'ask', 'browse', 'analyze', 'apps', 'goto', 'approve', 'reject', 'shop', 'profile', 'explain', 'stop', 'overview', 'none']
 const PROMPT = {
   type: 'object',
   properties: { role: { type: 'string' }, context: { type: 'string' }, task: { type: 'string' }, constraints: { type: 'array', items: { type: 'string' } }, output: { type: 'string' } },
@@ -58,7 +58,7 @@ export async function handleSystemOne(req, res, ctx = {}) {
 Return three things.
 1. prompt: ${STRUCT}
 2. reply: answer the operator in English, at most 3 short sentences, using only numbers found in the state. If the state lacks the data, say so and name the action that would get it.
-3. actions: zero or more of: audit {brand, website} (run a live audit), replay {brand} (replay the saved real run, re-scored for that brand), ask {q} (ask Gemini one real question; write q in Vietnamese because the buyers are Vietnamese), apps {q} (use the connected apps listed in connectedApps to do q), browse {url, review} (open a web page in the agent browser; review=true also scores how readable it is for AI assistants),
+3. actions: zero or more of: audit {brand, website} (run a live audit), replay {brand} (replay the saved real run, re-scored for that brand), ask {q} (ask Gemini one real question; write q in Vietnamese because the buyers are Vietnamese), analyze {q} (run the Business X-ray on a company: q is its website or name; Scrapling reads the site, the audit scores it, REA inspects the live page), apps {q} (use the connected apps listed in connectedApps to do q), browse {url, review} (open a web page in the agent browser; review=true also scores how readable it is for AI assistants),
 goto {phase} (move the camera to a department), approve, reject (decide the pending owner approval), shop (open the published shop page), profile {brand} (brand profile card),
 explain (describe what is on screen), stop (back to the demo loop), overview (whole company). Use an empty list when the request is only a question.`,
       })

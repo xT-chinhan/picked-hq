@@ -2,7 +2,10 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { motion } from 'motion/react'
 import { AlertTriangle, ArrowRight, Check, Globe, Loader2, Workflow } from 'lucide-react'
 import { Face } from './avatars'
-import { Feed, Result, Scanner, Typed, startAnalyze, confirmAnalyze, useAnalyze, type Report } from './Analyze'
+import { Compass as Chrome } from 'lucide-react'
+import { Feed, Scanner, startAnalyze, confirmAnalyze, useAnalyze, type Report } from './Analyze'
+import { Typed, TypedMd } from './Typed'
+import { PageReviewView, Ranking, ReportView, isBlocked, type PageReview } from './report'
 import { useLive } from './live'
 import { Card, exec } from './SystemOne'
 import { useOffice } from './Office'
@@ -75,9 +78,44 @@ function Report({ r, feed }: { r: Report; feed?: any[] }) {
   const [log, setLog] = useState(false)
   return (
     <div>
-      <button onClick={() => setLog((v) => !v)} className="mb-1 text-[13.5px] font-semibold text-indigo-600 hover:underline">{log ? 'Hide' : 'Show'} what the agents did · {(r.ms / 1000).toFixed(0)} s · {r.evidence.length} pieces of evidence</button>
-      {log && feed && <div className="mt-2 rounded-xl bg-slate-50 p-3"><Feed feed={feed} live={false} /></div>}
-      <Result r={r} compact />
+      <button onClick={() => setLog((v) => !v)} className="mb-3 text-[13.5px] font-semibold text-indigo-600 hover:underline">{log ? 'Hide' : 'Show'} what the agents did while they worked</button>
+      {log && feed && <div className="mb-4 rounded-xl bg-slate-50 p-3"><Feed feed={feed} live={false} /></div>}
+      <ReportView r={r} extra={isBlocked(r) ? <ExtensionBridge url={r.url} /> : undefined} />
+    </div>
+  )
+}
+
+/* A site that blocks bots is not bypassed. The visitor opens it in their own Chrome and the NaN extension reads it from there,
+   with the visitor's own session; the review comes back here. */
+function ExtensionBridge({ url }: { url: string }) {
+  const host = url.replace(/^https?:\/\/(www\.)?/, '').replace(/\/.*$/, '')
+  const [since] = useState(() => Date.now()), [opened, setOpened] = useState(false), [got, setGot] = useState<{ review: PageReview; title: string; url: string } | null>(null)
+  useEffect(() => {
+    if (!opened || got) return
+    const id = setInterval(async () => {
+      const j = await fetch(`/api/page/reviews?since=${since}`).then((r) => (r.ok ? r.json() : null)).catch(() => null)
+      const hit = j?.reviews?.find((x: any) => x.host === host)
+      if (hit) setGot(hit)
+    }, 2000)
+    return () => clearInterval(id)
+  }, [opened, got])
+  if (got) return <PageReviewView review={got.review} title={got.title} url={got.url} />
+  return (
+    <div className="rounded-[22px] border border-amber-200 bg-gradient-to-br from-amber-50 to-white p-5">
+      <div className="flex items-start gap-4">
+        <span className="grid h-12 w-12 flex-none place-items-center rounded-2xl bg-amber-100 text-amber-700"><Chrome size={24} /></span>
+        <div className="min-w-0 flex-1">
+          <div className="font-display text-[21px] font-semibold tracking-[-0.02em] text-slate-900">{host} turns our robot away</div>
+          <p className="mt-1 text-[15.5px] leading-snug text-slate-600">We do not disguise ourselves to get past a block. Open the page in <b className="font-semibold text-slate-800">your own Chrome</b> instead: the NaN extension reads what you can see, and the review appears here.</p>
+          <ol className="mt-3 space-y-1.5 text-[15px] text-slate-700">
+            {['Open the site in your Chrome', 'Click the NaN extension, then “Review this page”', 'The score and checks land in this chat'].map((t, i) => <li key={t} className="flex items-center gap-2.5"><span className="grid h-6 w-6 flex-none place-items-center rounded-full bg-amber-200 text-[13px] font-bold text-amber-900">{i + 1}</span>{t}</li>)}
+          </ol>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button onClick={() => { window.open(url, '_blank', 'noopener'); setOpened(true) }} className="flex h-11 items-center gap-2 rounded-xl bg-slate-900 px-5 text-[15px] font-semibold text-white hover:bg-slate-800"><Chrome size={17} />Open {host} in my Chrome<ArrowRight size={15} /></button>
+            {opened && <span className="flex items-center gap-2 text-[14.5px] font-medium text-amber-800"><Loader2 size={15} className="animate-spin" /><span className="shimmer">Waiting for the extension…</span></span>}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -172,13 +210,12 @@ function Exec({ thread, m }: { thread: string; m: CMsg }) {
   return (
     <Shell m={m} title={title} state="done">
       {act.type === 'browse' && <div className="mb-2 flex items-center gap-2 text-[14px] font-medium text-sky-700"><Globe size={15} />The page is open in the browser on the right.</div>}
-      <div className="text-[16px] leading-relaxed text-slate-800">{m.old ? m.res.text : <Typed k={`ex${m.id}`} text={m.res.text} />}</div>
+      <div className="text-[16px] leading-relaxed text-slate-800">{m.old ? <TypedMd k={`ex${m.id}`} text={m.res.text} /> : <TypedMd k={`ex${m.id}`} text={m.res.text} />}</div>
       {card && card.kind !== 'answer' && <Card c={card} />}
       {card?.kind === 'answer' && (
-        <div className="mt-3 rounded-2xl bg-slate-50 p-3">
-          <div className="flex flex-wrap gap-1.5">{card.brands.slice(0, 8).map((b: string, i: number) => <motion.span key={b} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.06 }} className={`rounded-full px-2.5 py-1 text-[13.5px] font-medium ${b === card.brand ? 'bg-emerald-100 text-emerald-700' : 'bg-white text-slate-600 ring-1 ring-slate-200'}`}>{i + 1}. {b}</motion.span>)}</div>
-          <div className="mt-2 whitespace-pre-wrap text-[14.5px] leading-snug text-slate-600">{m.old ? card.text.slice(0, 900) : <Typed k={`an${m.id}`} text={card.text.slice(0, 900)} />}</div>
-          <div className="mt-2 text-[12.5px] font-semibold uppercase tracking-[.1em] text-emerald-600">Real · gemini.google.com · {(card.ms / 1000).toFixed(1)} s</div>
+        <div className="mt-3 space-y-3">
+          <Ranking brands={card.brands} target={card.brand} ms={card.ms} />
+          <div className="rounded-[20px] border border-slate-200 bg-white p-4"><div className="mb-1.5 text-[12.5px] font-bold uppercase tracking-[.16em] text-slate-400">What Gemini said</div><div className="text-[15px] leading-relaxed text-slate-700"><TypedMd k={`an${m.id}`} text={card.text.slice(0, 1200)} /></div></div>
         </div>
       )}
     </Shell>

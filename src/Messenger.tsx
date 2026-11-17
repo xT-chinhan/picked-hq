@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowRight, ArrowUp, BookOpen, Check, ChevronUp, Globe, LayoutGrid, Loader2, MessageSquare, Plus, ScanSearch, Search, Sparkles, Users, Workflow, X, Zap } from 'lucide-react'
 import { Face } from './avatars'
-import { Typed } from './Analyze'
+import { TypedMd } from './Typed'
 import { BrowserPanel, useBrowser } from './BrowserPanel'
 import { useStory } from './Story'
 import { useApps } from './Apps'
@@ -42,7 +42,7 @@ function Bubble({ m, group }: { m: CMsg; group: boolean }) {
       <div className={`max-w-[78%] ${me ? 'items-end' : ''}`}>
         {!me && group && p && <div className="mb-0.5 ml-1 text-[13px] font-semibold" style={{ color: p.color }}>{p.name}</div>}
         <div className={`rounded-[20px] px-4 py-2.5 text-[16.5px] leading-snug ${me ? 'rounded-br-md bg-indigo-600 text-white' : 'rounded-bl-md border border-slate-200 bg-white text-slate-800'}`}>
-          {m.thinking ? <span className="flex items-center gap-2 text-slate-400"><Loader2 size={15} className="animate-spin" /><span className="shimmer">Thinking…</span></span> : me || m.old ? m.text : <Typed k={`m${m.id}`} text={m.text} caret />}
+          {m.thinking ? <span className="flex items-center gap-2 text-slate-400"><Loader2 size={15} className="animate-spin" /><span className="shimmer">Thinking…</span></span> : me ? m.text : <TypedMd k={`m${m.id}`} text={m.text} />}
           {m.flow && <button onClick={() => (window as any).__picked_workflow?.()} className="mt-2 flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-[14px] font-semibold text-indigo-700 hover:bg-indigo-100"><Workflow size={14} />Open the workflow<ArrowRight size={13} /></button>}
         </div>
       </div>

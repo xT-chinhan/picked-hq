@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import { AnimatePresence, motion } from 'motion/react'
 import { AlertTriangle, ArrowRight, Check, ChevronDown, Loader2, Lock, ScanSearch, Sparkles, X } from 'lucide-react'
 import { tick } from './ticker'
+import { Typed } from './Typed'
 import { Face } from './avatars'
 import { OFFLINE_MSG, probe } from './edge'
 
@@ -176,20 +177,7 @@ function briefOf(k: StepId, r: Report) {
 }
 
 const fmt = (n?: number | null) => (n == null ? '–' : n.toLocaleString())
-/* Text that streams in a word at a time, like a model answering. Lines already typed once show whole on a re-render. */
-const typed = new Set<string>()
-export function Typed({ k, text, className = '', caret }: { k: string; text: string; className?: string; caret?: boolean }) {
-  const ref = useRef<HTMLSpanElement>(null), [end, setEnd] = useState(typed.has(k))
-  useEffect(() => {
-    const el = ref.current; if (!el) return
-    if (typed.has(k)) { el.textContent = text; return }
-    const parts = text.split(/(\s+)/); let i = 0
-    el.textContent = ''
-    const stop = tick(() => { i = Math.min(parts.length, i + 2); el.textContent = parts.slice(0, i).join(''); if (i >= parts.length) { stop(); typed.add(k); setEnd(true) } })
-    return stop
-  }, [k, text])
-  return <span ref={ref} className={`${className} ${caret && !end ? 'caret' : ''}`} />
-}
+export { Typed }
 
 function Clock({ t0, frozen }: { t0: number; frozen?: number }) {
   const ref = useRef<HTMLSpanElement>(null)

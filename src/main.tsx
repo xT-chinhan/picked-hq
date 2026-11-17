@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import '@fontsource-variable/inter'
+import '@fontsource-variable/fraunces'
 import '@xyflow/react/dist/style.css'
 import './index.css'
 import App from './App'

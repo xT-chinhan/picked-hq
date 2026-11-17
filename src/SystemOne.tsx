@@ -68,6 +68,11 @@ const DEPT: [RegExp, Phase][] = [
   [/\bqa\b|kiem thu|kiem dinh/, 'qa'], [/approv|duyet/, 'approve'], [/publish|xuat ban|dang bai|dang trang/, 'publish'], [/track|theo doi/, 'track'],
   [/impact|tac dong|ket qua/, 'impact'], [/signal|mining|cau hoi khach/, 'mining'], [/citation|trich dan|nguon/, 'citations'], [/sync|dong bo|website|facts|du lieu shop/, 'sync'],
 ]
+const SITES: [RegExp, string][] = [
+  [/^shop+e+n?$|^shopp?e+$/, 'shopee.vn'], [/^lazada$/, 'lazada.vn'], [/^tiki$/, 'tiki.vn'], [/^sendo$/, 'sendo.vn'], [/^(the gioi di dong|thegioididong|tgdd)$/, 'thegioididong.com'], [/^(dien may xanh|dienmayxanh)$/, 'dienmayxanh.com'],
+  [/^elmich$/, 'elmich.vn'], [/^(lock ?(&|n|and)? ?lock)$/, 'locknlock.com'], [/^sunhouse$/, 'sunhouse.com.vn'], [/^zojirushi$/, 'zojirushi.com.vn'], [/^(highlands?( coffee)?)$/, 'highlandscoffee.com.vn'], [/^the coffee house$/, 'thecoffeehouse.com'],
+  [/^google$/, 'google.com'], [/^facebook$/, 'facebook.com'], [/^youtube$/, 'youtube.com'], [/^tiktok$/, 'tiktok.com'], [/^amazon$/, 'amazon.com'],
+]
 /** rule-based intent, a few microseconds */
 export function intent(raw: string): Act | null {
   const n = plain(raw)
@@ -77,10 +82,15 @@ export function intent(raw: string): Act | null {
   if ((m = raw.match(/^\s*(?:apps?|app:|dùng app|dung app|use apps?)\s*[:,]?\s+(.{6,})$/i))) return { type: 'apps', q: m[1].trim() }
   if ((m = raw.match(/^\s*(?:ask|hỏi|hoi)(?:\s+gemini)?\s*[:,]?\s+(.{6,})$/i))) return { type: 'ask', q: m[1].trim() }
   if ((m = raw.match(/(?:mở|mo|open|xem|review|rà soát|ra soat|kiểm tra|kiem tra|check|browse|duyệt|truy cập|vào)\s+(?:trang\s+|page\s+|website\s+|site\s+)?((?:https?:\/\/)?(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/\S*)?)/i))) return { type: 'browse', url: m[1], review: /review|rà soát|ra soat|kiểm tra|kiem tra|check|đánh giá|danh gia/i.test(raw) }
+  // "open shopee", "mở web lazada": a well-known site by name goes straight to the browser
+  if ((m = n.match(/^(?:please |hay |giup toi |giup )?(?:open|mo|vao|truy cap|go to|visit|review)\s+(?:the\s+)?(?:web(?:site)?\s+|trang\s+|site\s+)?(?:cua\s+)?([a-z0-9 ]{3,30})$/))) {
+    const nm = m[1].trim(), site = SITES.find(([re]) => re.test(nm))
+    if (site) return { type: 'browse', url: site[1], review: /^review/.test(n) }
+  }
   if (/^(stop|dung|thoat|exit|quay lai demo|back to (the )?demo)/.test(n)) return { type: 'stop' }
   if (/^(help|giup|lenh|commands?|\?)$/.test(n) || /(lam duoc gi|what can you do)/.test(n)) return { type: 'help' }
   if (/(toan canh|toan cong ty|whole company|overview|tong quan)/.test(n)) return { type: 'overview' }
-  if (/(open|mo|xem|show).*(shop|cua hang|published page|trang da dang)/.test(n)) return { type: 'shop' }
+  if (/(open|mo|xem|show).*(\bshop page\b|trang shop|cua hang|published page|trang da dang)/.test(n)) return { type: 'shop' }
   if (/(go to|goto|jump|den|nhay|chuyen|phong|department|show me the|mo phong|xem phong)/.test(n)) for (const [re, ph] of DEPT) if (re.test(n)) return { type: 'goto', phase: ph }
   if (/^(reject|tu choi|khong duyet)/.test(n)) return { type: 'reject' }
   if (/^(approve|duyet|dong y|ok duyet)/.test(n)) return { type: 'approve' }

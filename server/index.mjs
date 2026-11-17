@@ -58,6 +58,7 @@ const nanLlm = agentLlm('nan')
 const anaLlm = agentLlm('ana')
 const ANALYSES = path.join(DATA, 'analyses'); fs.mkdirSync(ANALYSES, { recursive: true })
 const analyses = new Map() // id -> { events, clients, status }
+const pageReviews = [] // pages the extension reviewed in the visitor's own Chrome, newest first
 const analyzer = createAnalyzer({
   scrape: (url, ms) => runScrape(url, ms), audit: (url, ms) => runAudit(url, ms),
   rea: (url) => runRea(url, { mcp, catalogEntry: entry('rea') }),
@@ -227,7 +228,15 @@ http.createServer(async (req, res) => {
     if (p === '/api/page/review' && req.method === 'POST') {
       const page = (await body(req)).page
       if (!page || typeof page !== 'object') return json(res, 400, { error: 'page is required' })
-      return json(res, 200, reviewPage(page, { llms: await probeLlmsTxt(page.url) }))
+      const review = reviewPage(page, { llms: await probeLlmsTxt(page.url) })
+      // a review the extension made in the visitor's own Chrome is kept for the chat that is waiting for it (this machine only)
+      if (local) { let host = ''; try { host = new URL(String(page.url)).hostname.replace(/^www\./, '') } catch { /* no url */ } pageReviews.unshift({ ts: Date.now(), host, url: String(page.url || ''), title: String(page.title || ''), review }); pageReviews.length = Math.min(pageReviews.length, 20) }
+      return json(res, 200, review)
+    }
+    if (p === '/api/page/reviews' && req.method === 'GET') {
+      if (!local) return json(res, 403, { error: 'local only' })
+      const since = Number(new URL(req.url, 'http://x').searchParams.get('since')) || 0
+      return json(res, 200, { reviews: pageReviews.filter((r) => r.ts > since) })
     }
     if (p === '/api/agents' && req.method === 'GET') return json(res, 200, { agents: roster() })
     if (p === '/api/agents/lock' && req.method === 'POST') { if (viaTunnel) return json(res, 403, { error: 'local only' }); lockSouls(); return json(res, 200, { agents: roster() }) }
